@@ -1,0 +1,20 @@
+[package]
+name = "ciruela"
+description = """
+    A peer-to-peer synchronization software for servers in datacenters.
+"""
+license = "MIT/Apache-2.0"
+readme = "README.rst"
+keywords = ["p2p", "file", "sync", "synchronization"]
+homepage = "http://github.com/tailhook/ciruela"
+documentation = "http://docs.rs/ciruela/"
+version = "0.1.0"
+authors = ["paul@colomiets.name"]
+
+[dependencies]
+argparse = "0.2.1"
+quick-error = "1.1.0"
+log = "0.3.6"
+env_logger = "0.3.5"
+blake2 = "0.3.0"
+openat = "0.1.0"
