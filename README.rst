@@ -11,7 +11,7 @@ Look and Feel
 
 Upload a folder from your local machine to a cluster::
 
-    > ciruela -d myapp mycluster.example.com:/apps/myapp/v1.1.2
+    > ciruela upload -d myapp mycluster.example.com:/apps/myapp/v1.1.2
     Indexing...
     Done. Indexed 1333 dirs, 11306 files, 2517 symlinks.
     Connected to mycluster.example.com. It has 127 peers.
