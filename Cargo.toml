@@ -18,3 +18,11 @@ log = "0.3.6"
 env_logger = "0.3.5"
 blake2 = "0.3.0"
 openat = "0.1.0"
+
+[[bin]]
+name = "ciruelad"
+path = "src/daemon/main.rs"
+
+[[bin]]
+name = "ciruela"
+path = "src/client/main.rs"
