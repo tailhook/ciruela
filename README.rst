@@ -9,7 +9,7 @@ A peer-to-peer synchronization software for servers in datacenters.
 Look and Feel
 =============
 
-Upload a folder from your local machine to a cluster:
+Upload a folder from your local machine to a cluster::
 
     > ciruela -d myapp mycluster.example.com:/apps/myapp/v1.1.2
     Indexing...
