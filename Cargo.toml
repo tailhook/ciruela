@@ -20,6 +20,10 @@ blake2 = "0.3.0"
 openat = "0.1.0"
 quire = "0.2.1"
 scan_dir = "0.3.3"
+tokio-core = "0.1.2"
+futures = "0.1.7"
+time = "0.1.35"
+minihttp = {git = "https://github.com/popravich/minihttp", rev = "289f439"}
 
 [[bin]]
 name = "ciruelad"
