@@ -18,6 +18,8 @@ log = "0.3.6"
 env_logger = "0.3.5"
 blake2 = "0.3.0"
 openat = "0.1.0"
+quire = "0.2.1"
+scan_dir = "0.3.3"
 
 [[bin]]
 name = "ciruelad"
