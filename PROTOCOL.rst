@@ -15,6 +15,10 @@ interoperability with the daemon.
 TCP Protocol
 ============
 
+
+Handshake
+---------
+
 TCP protocol starts with HTTP upgrade:
 
 Handshake::
@@ -28,3 +32,25 @@ Response::
     HTTP/1.1 101 Switching Protocols
 
 
+Framing
+-------
+
+Framing of the protocol is simple: 8-byte big-endian message length
+followed by payload of that size::
+
+   +------------+-----------------+
+   | size (64b) |     payload     |
+   +------------+-----------------+
+
+
+Serialization
+-------------
+
+Payload is serialized using CBOR_. Every packet contains at least two
+consecutive values: packet type (string), and packet contents, usually a
+dictionary, but it may be anything defined by packet type.
+
+This serialization format is used for messages in both directions.
+
+
+.. _cbor: http://cbor.io/
