@@ -1,7 +1,7 @@
 commands:
 
   make: !Command
-    description: Build the library
+    description: Build the library and executables
     container: ubuntu
     run: [cargo, build]
 
@@ -14,6 +14,16 @@ commands:
     description: Run tests
     container: ubuntu
     run: [cargo, test]
+
+  server: !Command
+    description: Run the server
+    container: ubuntu
+    run: [cargo, run, --bin, ciruela-server, "--"]
+
+  client: !Command
+    description: Run the client
+    container: ubuntu
+    run: [cargo, run, --bin, ciruela, "--"]
 
 containers:
 

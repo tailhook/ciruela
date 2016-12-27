@@ -23,10 +23,11 @@ scan_dir = "0.3.3"
 tokio-core = "0.1.2"
 futures = "0.1.7"
 time = "0.1.35"
-minihttp = {git = "https://github.com/popravich/minihttp", rev = "289f439"}
+minihttp = {git = "https://github.com/popravich/minihttp", rev = "9637938"}
+ssh-keys = "0.1.0"
 
 [[bin]]
-name = "ciruelad"
+name = "ciruela-server"
 path = "src/daemon/main.rs"
 
 [[bin]]
