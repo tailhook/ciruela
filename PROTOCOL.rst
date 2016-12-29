@@ -46,16 +46,38 @@ followed by payload of that size::
 Serialization
 -------------
 
-Payload is serialized using CBOR_. Every packet contains at least two
-consecutive values: packet type (string), and packet contents, usually a
-dictionary, but it may be anything defined by packet type.
+Payload is serialized using CBOR_. There are three kinds of messages:
 
-This serialization format is used for messages in both directions.
+1. Request
+2. Response
+3. Notification
 
-Packet types (case-sensitive):
+All three types of messages can be sent at any time into any direction. Each
+request includes a numeric identifier that is used in corresponding response.
+Each side of the connection can create request identifiers independently.
+Each request has exactly one response. If more than one response is provided
+it's built by some higher level construct.
 
-* ``AppendDir`` -- deploy data to a new dir
-* ``ReplaceDir`` -- deploy and atomically replace the directory
+Every message is contiguous, messages can't interleaved. Protocol has no
+flow control besides what TCP provides. If more concurrency desired than
+multiple connections might be used.
+
+We will use CDDL_ for describing message format. Here is the basic
+structure of a message:
+
+.. code-block:: cddl
+
+   message = $message .within message-structure
+
+   message-structure = [message-kind, message-type, *any] .and typed-message
+   message-kind = &( notification: 0, request: 1, response: 2 )
+   message-type = notification-type / $request-type
+
+   typed-message = notification / request / response
+   notification = [0, notification-type, *any]
+   request = [1, $request-type, request-id, *any]
+   response = [2, $request-type, request-id, *any]
+   request-id = uint
 
 
 Signing Uploads
@@ -64,14 +86,27 @@ Signing Uploads
 Signature of the upload consists of the following fields packed as the
 CBOR length-prefixed array in this specific order:
 
-1. ``path: string`` -- destination path
-2. ``image: bytes`` -- binary hashsum of the image (bottom line of the index
-  file but in binary form)
-3. ``timestamp: u64`` -- milliseconds since unix epoch when the image was
-  signed
+.. code-block:: cddl
+
+    signature-data = [
+        path: text,      ; destination path
+        image: bytes,    ; binary hashsum of the image (bottom line of the
+                         ; index file but in binary form)
+        timestamp: uint, ; milliseconds since unix epoch when image was signed
+    ]
 
 Ciruela currently only supports ed25519 algorithm for signatures, but more
 alorithms (RSA in particular) can be used in future.
+
+The ``signature`` itself is an array of at least two arguments with type as
+the first element and rest depends on the signature algorithm:
+
+.. code-block:: cddl
+
+   signature = ["ssh-ed25519", bytes .size 64]
+
+Note: the ed25519 signature includes public key as a part of the signature as
+per standard. Other signatures might required different structure
 
 
 Commands
@@ -101,7 +136,7 @@ Content of the message is a dictionary (cbor object) with the following keys:
 * ``image: bytes`` -- binary hashsum of the image (bottom line of the index
   file but in binary form)
 * ``timestamp: u64`` -- milliseconds since unix epoch when the image was signed
-* ``signatures: map<bytes, bytes>`` -- map of signatures provided for this
+* ``signatures: array<signature>`` -- map of signatures provided for this
   upload where key is a public key and value is a signature.
 
 
