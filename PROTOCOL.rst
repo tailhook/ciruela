@@ -130,14 +130,22 @@ If there is no such index on the peer it asks this peer or any other available
 connection for the index data itself and subsequently asks for missing chunks
 (some chunks may be reused from different image).
 
-Content of the message is a dictionary (cbor object) with the following keys:
+Content of the message is a dictionary (CBOR object):
 
-* ``path: string`` -- path to put image to
-* ``image: bytes`` -- binary hashsum of the image (bottom line of the index
-  file but in binary form)
-* ``timestamp: u64`` -- milliseconds since unix epoch when the image was signed
-* ``signatures: array<signature>`` -- map of signatures provided for this
-  upload where key is a public key and value is a signature.
+.. code-block:: cddl
+
+    $message /= [1, "AppendDir", request-id, append-dir-params]
+    $message /= [2, "AppendDir", request-id, append-dir-response]
+    append-dir-params = {
+        path: text,                 ; path to put image to
+        image: bytes,               ; binary hashsum of the image (bottom line
+                                    ; of the index file but in binary form
+        timestamp: uint,            ; milliseconds since the epoch
+        signatures: [+ signature],  ; one or more signatures
+    }
+    append-dir-response = {
+        ; TODO(tailhook) figure out
+    }
 
 
 ReplaceDir
@@ -153,17 +161,22 @@ signed hash of the directory index and marks this directory as incoming.
 If there is no such index on the peer it asks this peer or any other available
 connection for the index data itself and subsequently asks for missing chunks
 (some chunks may be reused from different image).
-Content of the message is a dictionary (cbor object) with the following keys:
 
-* ``path: string`` -- path to put image to
-* ``old_image: bytes`` -- (optional) binary hashsum of the old image,
-  if the dir has different image hash curently deployed, server returns
-  error (this might be used for transactional updates)
-* ``image: bytes`` -- binary hashsum of the image (bottom line of the index
-  file but in binary form)
-* ``timestamp: u64`` -- milliseconds since unix epoch when the image was signed
-* ``signatures: map<bytes, bytes>`` -- map of signatures provided for this
-  upload where key is a public key and value is a signature.
+.. code-block:: cddl
+
+    $message /= [1, "ReplaceDir", request-id, replace-dir-params]
+    $message /= [2, "ReplaceDir", request-id, replace-dir-response]
+    replace-dir-params = {
+        path: text,                 ; path to put image to
+        image: bytes,               ; binary hashsum of the image (bottom line
+                                    ; of the index file but in binary form
+        ? old_image: bytes,         ; hash olf the previous image
+        timestamp: uint,            ; milliseconds since the epoch
+        signatures: [+ signature],  ; one or more signatures
+    }
+    replace-dir-response = {
+        ; TODO(tailhook) figure out
+    }
 
 Note: if no ``old_image`` is specified the destination directory is not
 checked. Use ``AppendDir`` to atomically update first image.
