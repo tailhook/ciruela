@@ -169,3 +169,4 @@ Note: if no ``old_image`` is specified the destination directory is not
 checked. Use ``AppendDir`` to atomically update first image.
 
 .. _cbor: http://cbor.io/
+.. _cddl: https://tools.ietf.org/html/draft-greevenbosch-appsawg-cbor-cddl-09
