@@ -5,42 +5,19 @@ Ciruela Protocols
 There are three protocols used by ciruela:
 
 1. HTTP just to show you some status pages
-2. A protocol to send file data on top of TCP
+2. A protocol to send file data on top of websockets
 3. A gossip protocol on top of UDP
 
 In future we will probably expose some JSON API over HTTP just to allow easier
 interoperability with the daemon.
 
 
-TCP Protocol
-============
+Websockets Protocol
+===================
 
 
-Handshake
----------
-
-TCP protocol starts with HTTP upgrade:
-
-Handshake::
-
-    GET / HTTP/1.1
-    Connection: upgrade
-    Upgrade: ciruela.v1
-
-Response::
-
-    HTTP/1.1 101 Switching Protocols
-
-
-Framing
--------
-
-Framing of the protocol is simple: 8-byte big-endian message length
-followed by payload of that size::
-
-   +------------+-----------------+
-   | size (64b) |     payload     |
-   +------------+-----------------+
+We use standard websockets handshake with
+``Sec-WebSocket-Protocol: ciruela.v1`` and no extensions.
 
 
 Serialization
