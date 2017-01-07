@@ -25,6 +25,15 @@ commands:
     container: ubuntu
     run: [cargo, run, --bin, ciruela, "--"]
 
+  doc: !Command
+    description: Build documentation
+    container: doc
+    run: [make, html]
+    work-dir: doc
+    epilog: |
+      --------------------------------------------------------
+      Documentation is built under doc/_build/html/index.html
+
 containers:
 
   ubuntu:
@@ -40,3 +49,9 @@ containers:
     environ:
       HOME: /work/target
       RUST_BACKTRACE: 1
+
+  doc:
+    setup:
+    - !Alpine v3.4
+    - !Repo edge/main  # because in 3.4 sphinx is broken
+    - !Install [alpine-base, py-sphinx, py-requests, make]
