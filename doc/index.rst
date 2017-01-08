@@ -11,7 +11,7 @@ Ciruela
    :caption: Contents:
 
    config/index
-
+   protocols/index
 
 
 Indices and tables
