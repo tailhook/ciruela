@@ -70,7 +70,7 @@ the first element and rest depends on the signature algorithm:
    signature = ["ssh-ed25519", bytes .size 64]
 
 Note: the ed25519 signature includes public key as a part of the signature as
-per standard. Other signatures might required different structure
+per standard. Other signatures might require different structure.
 
 
 Commands
