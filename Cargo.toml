@@ -25,6 +25,7 @@ futures = "0.1.7"
 time = "0.1.35"
 minihttp = {git = "https://github.com/popravich/minihttp", rev = "9637938"}
 ssh-keys = "0.1.0"
+rustc-serialize = "0.3.22"
 
 [[bin]]
 name = "ciruela-server"

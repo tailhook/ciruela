@@ -4,17 +4,22 @@ extern crate futures;
 extern crate env_logger;
 extern crate tokio_core;
 extern crate minihttp;
+extern crate quire;
+extern crate rustc_serialize;
+extern crate scan_dir;
 #[macro_use] extern crate log;
 
 use std::env;
 use std::net::{IpAddr, ToSocketAddrs};
 use std::path::PathBuf;
+use std::process::exit;
 
 use futures::empty;
 use tokio_core::reactor::Core;
 use argparse::{ArgumentParser, Parse, Store};
 
 mod http;
+mod config;
 
 
 fn main() {
@@ -55,6 +60,13 @@ fn main() {
         ap.parse_args_or_exit();
     }
     let addr = (ip, port).to_socket_addrs().unwrap().next().unwrap();
+    let configs = match config::read_dirs(&config_dir.join("configs")) {
+        Ok(configs) => configs,
+        Err(e) => {
+            error!("Error reading configs: {}", e);
+            exit(1);
+        }
+    };
 
     let mut lp = Core::new().unwrap();
     http::start(addr, &lp.handle());
