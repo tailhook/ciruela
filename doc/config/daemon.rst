@@ -1,8 +1,4 @@
-===================
-Configuring Ciruela
-===================
-
-
+====================
 Daemon Configuration
 ====================
 
@@ -26,3 +22,4 @@ restart or earlier. You can edit overrides, however.
 
 Thigs in ``configs/*.yaml`` are all equal. You can keep everything in single
 file or have multiple ones at your convenience.
+
