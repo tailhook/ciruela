@@ -11,5 +11,5 @@ downloaded or removed due to retention policy.
    :maxdepth: 2
    :caption: Contents:
 
-   database
+   signatures
 
