@@ -12,4 +12,6 @@ downloaded or removed due to retention policy.
    :caption: Contents:
 
    signatures
+   indexes
+   map
 
