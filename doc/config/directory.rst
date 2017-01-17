@@ -1,3 +1,5 @@
+.. _directory-config:
+
 ================
 Directory Config
 ================
@@ -56,6 +58,7 @@ alias and anchor.
 
 .. index:: pair: num-levels; Directory Config
 .. describe:: num-levels
+.. _num-levels:
 
    (required) Number of levels of subdirectories to accept. Zero means no
    subdirectory, meaning the directory has to be atomically uploaded as
