@@ -20,6 +20,7 @@ use argparse::{ArgumentParser, Parse, Store};
 
 mod http;
 mod config;
+mod websocket;
 
 
 fn main() {
