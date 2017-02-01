@@ -4,9 +4,9 @@ use argparse::{ArgumentParser, ParseOption, Collect};
 
 
 pub struct UploadOptions {
-    source_directory: Option<PathBuf>,
-    target_urls: Vec<String>,
-    identities: Vec<String>,
+    pub source_directory: Option<PathBuf>,
+    pub target_urls: Vec<String>,
+    pub identities: Vec<String>,
 }
 
 impl UploadOptions {

@@ -1,16 +1,25 @@
 extern crate argparse;
+extern crate env_logger;
+extern crate dir_signature;
+#[macro_use] extern crate log;
 
 mod global_options;
 
 // Commands
 mod upload;
 
+use std::env;
 use std::io::{Write, stderr};
 use argparse::{ArgumentParser, StoreOption, Collect};
 use global_options::GlobalOptions;
 
 
 fn main() {
+    if let Err(_) = env::var("RUST_LOG") {
+        env::set_var("RUST_LOG", "warn");
+    }
+    env_logger::init().unwrap();
+
     let mut cmd = None::<String>;
     let mut opt = GlobalOptions::new();
     let mut args = Vec::new();
