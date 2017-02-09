@@ -1,5 +1,6 @@
 extern crate abstract_ns;
 extern crate argparse;
+extern crate futures;
 extern crate futures_cpupool;
 extern crate dir_signature;
 extern crate env_logger;

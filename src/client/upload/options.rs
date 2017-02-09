@@ -1,11 +1,18 @@
+use std::str::FromStr;
 use std::path::PathBuf;
 
 use argparse::{ArgumentParser, ParseOption, Collect};
 
+#[derive(Clone, Debug)]
+pub struct TargetUrl {
+    pub host: String,
+    pub path: String,
+}
+
 
 pub struct UploadOptions {
     pub source_directory: Option<PathBuf>,
-    pub target_urls: Vec<String>,
+    pub target_urls: Vec<TargetUrl>,
     pub identities: Vec<String>,
 }
 
@@ -38,3 +45,24 @@ impl UploadOptions {
     }
 }
 
+impl FromStr for TargetUrl {
+    type Err = String;
+    fn from_str(s: &str) -> Result<TargetUrl, String> {
+        if let Some(off) = s.find(":") {
+            let host = &s[..off];
+            let path = &s[off+1..];
+            if host.len() == 0 {
+                return Err(String::from("Host must not be empty"));
+            }
+            if !path.starts_with("/") {
+                return Err(String::from("Path must start with slash"));
+            }
+            Ok(TargetUrl {
+                host: host.to_string(),
+                path: path.to_string(),
+            })
+        } else {
+            Err(String::from("Target URL must be in format `host:/path`"))
+        }
+    }
+}

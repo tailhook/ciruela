@@ -1,7 +1,8 @@
 use std::io::{stdout, stderr, Write};
-use std::error::Error;
 use std::process::exit;
 
+use abstract_ns::Resolver;
+use futures::future::{Future, join_all};
 use tk_easyloop;
 use argparse::{ArgumentParser};
 use dir_signature::{ScannerConfig, HashType, v1};
@@ -13,7 +14,7 @@ use global_options::GlobalOptions;
 
 
 fn do_upload(_gopt: GlobalOptions, opt: options::UploadOptions)
-    -> Result<(), Box<Error>>
+    -> Result<(), ()>
 {
     let dir = opt.source_directory.clone().unwrap();
     let mut cfg = ScannerConfig::new();
@@ -22,12 +23,25 @@ fn do_upload(_gopt: GlobalOptions, opt: options::UploadOptions)
     cfg.print_progress();
 
     let mut indexbuf = Vec::new();
-    v1::scan(&cfg, &mut indexbuf)?;
+    v1::scan(&cfg, &mut indexbuf)
+        .map_err(|e| error!("Error scanning {:?}: {}", dir, e))?;
 
-    tk_easyloop::run(move || {
+    tk_easyloop::run(|| {
         let resolver = name::resolver();
-
-        Ok(())
+        join_all(
+            opt.target_urls.iter()
+            .map(move |x| {
+                let host = format!("{}:24783", x.host);
+                resolver.resolve(&host)
+                .map_err(move |e| {
+                    error!("Error resolving host {}: {}", host, e);
+                })
+            })
+            .collect::<Vec<_>>()
+        ).map(|names| {
+            println!("Names: {:?}", names);
+            unimplemented!();
+        })
     })
 }
 
@@ -51,8 +65,7 @@ pub fn cli(mut gopt: GlobalOptions, mut args: Vec<String>) {
     };
     match do_upload(gopt, opt) {
         Ok(()) => {}
-        Err(e) => {
-            error!("Fatal error: {}", e);
+        Err(()) => {
             exit(2);
         }
     }
