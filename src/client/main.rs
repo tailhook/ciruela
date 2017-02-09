@@ -1,9 +1,14 @@
+extern crate abstract_ns;
 extern crate argparse;
-extern crate env_logger;
+extern crate futures_cpupool;
 extern crate dir_signature;
+extern crate env_logger;
+extern crate ns_std_threaded;
+extern crate tk_easyloop;
 #[macro_use] extern crate log;
 
 mod global_options;
+mod name;
 
 // Commands
 mod upload;

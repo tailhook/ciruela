@@ -2,11 +2,13 @@ use std::io::{stdout, stderr, Write};
 use std::error::Error;
 use std::process::exit;
 
+use tk_easyloop;
 use argparse::{ArgumentParser};
 use dir_signature::{ScannerConfig, HashType, v1};
 
 mod options;
 
+use name;
 use global_options::GlobalOptions;
 
 
@@ -22,7 +24,11 @@ fn do_upload(_gopt: GlobalOptions, opt: options::UploadOptions)
     let mut indexbuf = Vec::new();
     v1::scan(&cfg, &mut indexbuf)?;
 
-    unimplemented!();
+    tk_easyloop::run(move || {
+        let resolver = name::resolver();
+
+        Ok(())
+    })
 }
 
 
