@@ -13,7 +13,7 @@ use name;
 use global_options::GlobalOptions;
 
 
-fn do_upload(_gopt: GlobalOptions, opt: options::UploadOptions)
+fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
     -> Result<(), ()>
 {
     let dir = opt.source_directory.clone().unwrap();
@@ -31,7 +31,7 @@ fn do_upload(_gopt: GlobalOptions, opt: options::UploadOptions)
         join_all(
             opt.target_urls.iter()
             .map(move |x| {
-                let host = format!("{}:24783", x.host);
+                let host = format!("{}:{}", x.host, gopt.destination_port);
                 resolver.resolve(&host)
                 .map_err(move |e| {
                     error!("Error resolving host {}: {}", host, e);
