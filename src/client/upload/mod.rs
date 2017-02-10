@@ -38,32 +38,7 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                         error!("Error resolving host {}: {}", host, e);
                         Err(())
                     }
-                    Ok(addr) => {
-                        let set = addr.at(0);
-                        // TODO(tailhook)
-                        let num = set.addresses().count();
-                        if num == 0 {
-                            error!("Host {:?}, has no address", host);
-                            Err(())
-                        } else if num > 3 {
-
-                            // TODO(tailhook) better algorithm
-                            let mut addresses = (0..3)
-                                .filter_map(|_| set.pick_one())
-                                .collect::<Vec<_>>();
-                            addresses.dedup();
-
-                            println!("Host {:?} resolves to {} addresses, \
-                                picking: {:?}", host, num, addresses);
-                            Ok(addresses)
-                        } else {
-                            let addresses = set.addresses()
-                                .collect::<Vec<_>>();
-                            println!("Host {:?} resolves to {:?}",
-                                host, addresses);
-                            Ok(addresses)
-                        }
-                    }
+                    Ok(addr) => name::pick_hosts(&host, addr),
                 })
                 .map(|addr| {
                     println!("Addressses: {:?}", addr);
