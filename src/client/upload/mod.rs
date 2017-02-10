@@ -4,6 +4,7 @@ use std::process::exit;
 use abstract_ns::Resolver;
 use futures::future::{Future, join_all};
 use tk_easyloop;
+use tokio_core::net::TcpStream;
 use argparse::{ArgumentParser};
 use dir_signature::{ScannerConfig, HashType, v1};
 
@@ -40,16 +41,27 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                     }
                     Ok(addr) => name::pick_hosts(&host, addr),
                 })
-                .map(|addr| {
-                    println!("Addressses: {:?}", addr);
-                    unimplemented!();
+                .and_then(|names| {
+                    join_all(
+                        names.iter()
+                        .map(|addr| {
+                            TcpStream::connect(addr, &tk_easyloop::handle())
+                            .and_then(|sock| {
+                                println!("connected");
+                                Ok(())
+                            })
+                        })
+                        .collect::<Vec<_>>() // to unrefer "names"
+                    )
+                    .map(|_:Vec<()>| ())
+                    .map_err(|e| {
+                        error!("Error connecting: {}", e);
+                    })
                 })
             })
             .collect::<Vec<_>>()
-        ).map(|names| {
-            println!("Names: {:?}", names);
-            unimplemented!();
-        })
+        )
+        .map(|_:Vec<()>| ())
     })
 }
 
