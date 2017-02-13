@@ -7,6 +7,7 @@ use tk_easyloop;
 use tokio_core::net::TcpStream;
 use argparse::{ArgumentParser};
 use dir_signature::{ScannerConfig, HashType, v1};
+use minihttp::websocket::client::{HandshakeProto, SimpleAuthorizer};
 
 mod options;
 
@@ -15,7 +16,7 @@ use global_options::GlobalOptions;
 
 
 fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
-    -> Result<(), ()>
+    -> Result<bool, ()>
 {
     let dir = opt.source_directory.clone().unwrap();
     let mut cfg = ScannerConfig::new();
@@ -44,29 +45,43 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                 .and_then(|names| {
                     join_all(
                         names.iter()
-                        .map(|addr| {
-                            TcpStream::connect(addr, &tk_easyloop::handle())
+                        .map(|&addr| {
+                            TcpStream::connect(&addr, &tk_easyloop::handle())
+                            .from_err()
                             .and_then(|sock| {
-                                println!("connected");
-                                Ok(())
+                                HandshakeProto::new(sock,
+                                    // We don't have virtual hosts for now
+                                    SimpleAuthorizer::new("ciruela", "/"))
+                            })
+                            .then(move |res| -> Result<bool, ()> {
+                                // Always succeed, for now, so join will
+                                // drive all the futures, even if one failed
+                                match res {
+                                    Ok(conn) => {
+                                        info!("Connected to {}", addr);
+                                        Ok(true)
+                                    }
+                                    Err(e) => {
+                                        error!("Error connecing to {}: {}",
+                                            addr,e);
+                                        Ok(false)
+                                    }
+                                }
                             })
                         })
                         .collect::<Vec<_>>() // to unrefer "names"
                     )
-                    .map(|_:Vec<()>| ())
-                    .map_err(|e| {
-                        error!("Error connecting: {}", e);
-                    })
+                    .map(|results: Vec<bool>| results.iter().any(|x| *x))
                 })
             })
             .collect::<Vec<_>>()
         )
-        .map(|_:Vec<()>| ())
+        .map(|results:Vec<bool>| results.iter().all(|x| *x))
     })
 }
 
 
-pub fn cli(mut gopt: GlobalOptions, mut args: Vec<String>) {
+pub fn cli(mut gopt: GlobalOptions, mut args: Vec<String>) -> ! {
     let mut opt = options::UploadOptions::new();
     {
         let mut ap = ArgumentParser::new();
@@ -84,9 +99,8 @@ pub fn cli(mut gopt: GlobalOptions, mut args: Vec<String>) {
         exit(1);
     };
     match do_upload(gopt, opt) {
-        Ok(()) => {}
-        Err(()) => {
-            exit(2);
-        }
+        Ok(true) => exit(0),
+        Ok(false) => exit(1),
+        Err(()) => exit(2),
     }
 }
