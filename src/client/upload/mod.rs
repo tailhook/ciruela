@@ -1,18 +1,18 @@
 use std::io::{stdout, stderr, Write};
+use std::sync::Arc;
 use std::process::exit;
 
 use abstract_ns::Resolver;
 use futures::future::{Future, join_all};
 use tk_easyloop;
-use tokio_core::net::TcpStream;
 use argparse::{ArgumentParser};
 use dir_signature::{ScannerConfig, HashType, v1};
-use minihttp::websocket::client::{HandshakeProto, SimpleAuthorizer};
 
 mod options;
 
 use name;
 use global_options::GlobalOptions;
+use ciruela::proto::Client;
 
 
 fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
@@ -32,40 +32,34 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
         let resolver = name::resolver();
         join_all(
             opt.target_urls.iter()
-            .map(move |x| {
-                let host = format!("{}:{}", x.host, gopt.destination_port);
+            .map(move |turl| {
+                let host = Arc::new(
+                    format!("{}:{}", turl.host, gopt.destination_port));
+                let host2 = host.clone();
+                let host3 = host.clone();
                 resolver.resolve(&host)
-                .then(move |result| match result {
-                    Err(e) => {
-                        error!("Error resolving host {}: {}", host, e);
-                        Err(())
-                    }
-                    Ok(addr) => name::pick_hosts(&host, addr),
+                .map_err(move |e| {
+                    error!("Error resolving host {}: {}", host2, e);
                 })
-                .and_then(|names| {
+                .and_then(move |addr| name::pick_hosts(&*host3, addr))
+                .and_then(move |names| {
                     join_all(
                         names.iter()
-                        .map(|&addr| {
-                            TcpStream::connect(&addr, &tk_easyloop::handle())
-                            .from_err()
-                            .and_then(|sock| {
-                                HandshakeProto::new(sock,
-                                    // We don't have virtual hosts for now
-                                    SimpleAuthorizer::new("ciruela", "/"))
+                        .map(move |&addr| {
+                            Client::spawn(addr, &host)
+                            .and_then(move |cli| {
+                                // TODO
+                                println!("Connected to {}", addr);
+                                Ok(true)
                             })
-                            .then(move |res| -> Result<bool, ()> {
-                                // Always succeed, for now, so join will
-                                // drive all the futures, even if one failed
-                                match res {
-                                    Ok(conn) => {
-                                        info!("Connected to {}", addr);
-                                        Ok(true)
-                                    }
-                                    Err(e) => {
-                                        error!("Error connecing to {}: {}",
-                                            addr,e);
-                                        Ok(false)
-                                    }
+                            .then(move |res| match res {
+                                Ok(x) => Ok(x),
+                                Err(()) => {
+                                    // Always succeed, for now, so join will
+                                    // drive all the futures, even if one
+                                    // failed
+                                    error!("Address {} has failed.", addr);
+                                    Ok(false)
                                 }
                             })
                         })
