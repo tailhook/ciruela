@@ -62,7 +62,7 @@ pub fn start(addr: SocketAddr, handle: &Handle) {
                     move |out, inp| {
                         let (conn, rx) = Connection::new();
                         let rx = rx.map_err(|()| "channel closed");
-                        Loop::new(out, inp, rx, conn, &wcfg)
+                        Loop::server(out, inp, rx, conn, &wcfg)
                         .map_err(|e| debug!("websocket closed: {}", e))
                     }))
             .map_err(|e| { debug!("Connection error: {}", e); })

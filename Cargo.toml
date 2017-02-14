@@ -23,7 +23,7 @@ scan_dir = "0.3.3"
 tokio-core = "0.1.2"
 futures = "0.1.7"
 time = "0.1.35"
-minihttp = {git = "https://github.com/popravich/minihttp", rev = "339dd2c"}
+minihttp = {git = "https://github.com/popravich/minihttp", rev = "5faadf5"}
 ssh-keys = "0.1.0"
 rustc-serialize = "0.3.22"
 dir-signature = "0.1.0"
