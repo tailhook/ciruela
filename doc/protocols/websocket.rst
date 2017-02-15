@@ -108,8 +108,13 @@ Content of the message is a dictionary (CBOR object):
         signatures: [+ signature],  ; one or more signatures
     }
     append-dir-response = {
-        ; TODO(tailhook) figure out
+        accepted: bool,             ; whether directory accepted or not
     }
+
+Note: *accepted* response here doesn't mean that this is new directory (i.e.
+same directory might already be in place or might still be downloaded). Also
+it doesn't mean that download is already complete. Most probably it isn't,
+and you should wait for a completion notification.
 
 
 ReplaceDir

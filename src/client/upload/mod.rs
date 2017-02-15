@@ -1,6 +1,7 @@
 use std::io::{stdout, stderr, Write};
-use std::sync::Arc;
+use std::path::PathBuf;
 use std::process::exit;
+use std::sync::Arc;
 
 use abstract_ns::Resolver;
 use futures::future::{Future, join_all};
@@ -12,7 +13,7 @@ mod options;
 
 use name;
 use global_options::GlobalOptions;
-use ciruela::proto::Client;
+use ciruela::proto::{Client, AppendDir};
 
 
 fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
@@ -46,10 +47,22 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                     join_all(
                         names.iter()
                         .map(move |&addr| {
+                            let turl = turl.clone();
                             Client::spawn(addr, &host)
                             .and_then(move |cli| {
-                                // TODO
-                                println!("Connected to {}", addr);
+                                info!("Connected to {}", addr);
+                                cli.request(AppendDir {
+                                    path: PathBuf::from(turl.path),
+                                    image: unimplemented!(),
+                                    timestamp: unimplemented!(),
+                                    signatures: unimplemented!(),
+                                })
+                                .map_err(|e| error!("Request error: {}", e))
+                            })
+                            .and_then(move |response| {
+                                info!("Response from {}: {:?}",
+                                    addr, response);
+                                // TODO(tailhook) read notifications
                                 Ok(true)
                             })
                             .then(move |res| match res {

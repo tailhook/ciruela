@@ -1,11 +1,13 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use futures::{Async, Future};
+use futures::{Async, Future, Canceled};
 use futures::sync::oneshot::{channel as oneshot, Receiver};
 use tk_easyloop;
 use tokio_core::net::TcpStream;
 use minihttp::websocket::client::{HandshakeProto, SimpleAuthorizer};
+
+use proto::Request;
 
 
 pub struct Client {
@@ -13,6 +15,19 @@ pub struct Client {
 
 pub struct ClientFuture {
     chan: Receiver<Client>,
+}
+
+pub struct RequestFuture<R> {
+    chan: Receiver<R>,
+}
+
+quick_error! {
+    #[derive(Debug)]
+    pub enum Error {
+        UnexpectedTermination {
+            from(Canceled)
+        }
+    }
 }
 
 impl Client {
@@ -39,6 +54,10 @@ impl Client {
             chan: rx,
         }
     }
+    pub fn request<R: Request>(&self, request: R) -> RequestFuture<R::Response>
+    {
+        unimplemented!();
+    }
 }
 
 impl Future for ClientFuture {
@@ -46,5 +65,13 @@ impl Future for ClientFuture {
     type Error = ();
     fn poll(&mut self) -> Result<Async<Client>, ()> {
         self.chan.poll().map_err(|_| ())
+    }
+}
+
+impl<R> Future for RequestFuture<R> {
+    type Item = R;
+    type Error = Error;
+    fn poll(&mut self) -> Result<Async<R>, Error> {
+        self.chan.poll().map_err(Into::into)
     }
 }
