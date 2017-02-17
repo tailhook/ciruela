@@ -138,7 +138,7 @@ connection for the index data itself and subsequently asks for missing chunks
     replace-dir-params = {
         path: text,                 ; path to put image to
         image: bytes,               ; binary hashsum of the image (bottom line
-                                    ; of the index file but in binary form
+                                    ; of the index file but in binary form)
         ? old_image: bytes,         ; hash olf the previous image
         timestamp: uint,            ; milliseconds since the epoch
         signatures: [+ signature],  ; one or more signatures
@@ -149,6 +149,35 @@ connection for the index data itself and subsequently asks for missing chunks
 
 Note: if no ``old_image`` is specified the destination directory is not
 checked. Use ``AppendDir`` to atomically update first image.
+
+
+GetIndex
+````````
+
+Fetch an index data by it's hash. This method is usually called by server
+after `AppendDir` and `ReplaceDir` has been received. And it is sent to
+the original client (in backwards direction). But the call only takes place
+if no index already exists on this host or on one of the peers.
+
+.. code-block:: cddl
+
+    $message /= [1, "GetIndex", request-id, get-index-params]
+    $message /= [2, "GetIndex", request-id, get-index-response]
+    get-index-params = {
+        id: bytes,               ; binary hashsum of the image (bottom line
+                                 ; of the index file but in binary form)
+    }
+    get-index-response = {
+        ? data: bytes,           ; full original index file
+    }
+
+Note: index file can potentially be in different formats, but in any case:
+
+* Consistency of index file is verified by original `id` which is also a
+  checksum
+* Kind of index can be detected by inspecting data itself (i.e. first bytes of
+  index file should contain a signature of some kind)
+
 
 .. _cbor: http://cbor.io/
 .. _cddl: https://tools.ietf.org/html/draft-greevenbosch-appsawg-cbor-cddl-09
