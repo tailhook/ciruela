@@ -1,15 +1,14 @@
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime};
 
 use serde::{Serializer, Deserializer, Deserialize};
+
+use time::{to_ms, from_ms};
 
 
 pub fn write_timestamp<S>(tm: &SystemTime, ser: S) -> Result<S::Ok, S::Error>
     where S: Serializer
 {
-    let ts = tm.duration_since(UNIX_EPOCH)
-        .expect("timestamp is always after unix epoch");
-    let ms = ts.as_secs() + (ts.subsec_nanos() / 1000000) as u64;
-    ser.serialize_u64(ms)
+    ser.serialize_u64(to_ms(*tm))
 }
 
 
@@ -18,5 +17,5 @@ pub fn read_timestamp<D>(des: D) -> Result<SystemTime, D::Error>
 {
     let ms = u64::deserialize(des)?;
     // TODO(tailhook) this can overflow. How can we ensure that it doesn't?
-    Ok(UNIX_EPOCH + Duration::new(ms / 1000, (ms % 1000) as u32 * 1000000))
+    Ok(from_ms(ms))
 }

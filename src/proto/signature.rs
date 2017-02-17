@@ -15,7 +15,7 @@ pub struct SigData<'a> {
     pub timestamp: u64,
 }
 
-pub fn sign_default(src: SigData) -> Signature {
+pub fn sign_default(src: SigData) -> Vec<Signature> {
     unimplemented!();
 }
 
@@ -48,6 +48,16 @@ impl fmt::Debug for Signature {
             SshEd25519(val) => {
                 write!(f, "SshEd25519({})", base64::encode(&val[..]))
             }
+        }
+    }
+}
+
+impl Clone for Signature {
+    fn clone(&self) -> Signature {
+        use self::Signature::*;
+
+        match *self {
+            SshEd25519(val) => SshEd25519(val),
         }
     }
 }

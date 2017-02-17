@@ -1,7 +1,9 @@
+use std::collections::HashMap;
 use std::io::{stdout, stderr, Write};
 use std::path::PathBuf;
 use std::process::exit;
 use std::sync::Arc;
+use std::time::SystemTime;
 
 use abstract_ns::Resolver;
 use futures::future::{Future, join_all};
@@ -12,6 +14,8 @@ use dir_signature::{ScannerConfig, HashType, v1};
 mod options;
 
 use name;
+use ciruela::time::to_ms;
+use ciruela::proto::{SigData, sign_default};
 use global_options::GlobalOptions;
 use ciruela::proto::{Client, AppendDir};
 
@@ -29,6 +33,21 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
     v1::scan(&cfg, &mut indexbuf)
         .map_err(|e| error!("Error scanning {:?}: {}", dir, e))?;
 
+    let image_id = b"unimplemented!()";
+    let timestamp = SystemTime::now();
+    let mut signatures = HashMap::new();
+    for turl in &opt.target_urls {
+        if signatures.contains_key(&turl.path[..]) {
+            continue;
+        }
+        signatures.insert(&turl.path[..], sign_default(SigData {
+            path: &turl.path,
+            image: &image_id[..],
+            timestamp: to_ms(timestamp),
+        }));
+    }
+    let signatures = Arc::new(signatures);
+
     tk_easyloop::run(|| {
         let resolver = name::resolver();
         join_all(
@@ -38,6 +57,7 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                     format!("{}:{}", turl.host, gopt.destination_port));
                 let host2 = host.clone();
                 let host3 = host.clone();
+                let signatures = signatures.clone();
                 resolver.resolve(&host)
                 .map_err(move |e| {
                     error!("Error resolving host {}: {}", host2, e);
@@ -48,14 +68,17 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                         names.iter()
                         .map(move |&addr| {
                             let turl = turl.clone();
+                            let signatures = signatures.clone();
                             Client::spawn(addr, &host)
                             .and_then(move |cli| {
                                 info!("Connected to {}", addr);
                                 cli.request(AppendDir {
+                                    image: image_id.to_vec(),
+                                    timestamp: timestamp,
+                                    signatures: signatures
+                                        .get(&turl.path[..]).unwrap()
+                                        .clone(),
                                     path: PathBuf::from(turl.path),
-                                    image: unimplemented!(),
-                                    timestamp: unimplemented!(),
-                                    signatures: unimplemented!(),
                                 })
                                 .map_err(|e| error!("Request error: {}", e))
                             })
