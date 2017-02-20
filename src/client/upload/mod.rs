@@ -15,7 +15,7 @@ mod options;
 
 use name;
 use ciruela::time::to_ms;
-use ciruela::proto::{SigData, sign_default};
+use ciruela::proto::{SigData, sign};
 use global_options::GlobalOptions;
 use ciruela::proto::{Client, AppendDir};
 
@@ -40,11 +40,11 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
         if signatures.contains_key(&turl.path[..]) {
             continue;
         }
-        signatures.insert(&turl.path[..], sign_default(SigData {
+        signatures.insert(&turl.path[..], sign(SigData {
             path: &turl.path,
             image: &image_id[..],
             timestamp: to_ms(timestamp),
-        }));
+        }, &opt.private_keys));
     }
     let signatures = Arc::new(signatures);
 

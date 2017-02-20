@@ -1,4 +1,6 @@
 extern crate base64;
+extern crate crypto;
+extern crate hex;
 extern crate futures;
 extern crate minihttp;
 extern crate serde;
