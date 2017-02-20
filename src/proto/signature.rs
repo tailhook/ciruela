@@ -3,6 +3,7 @@ use std::fmt;
 use base64;
 use serde::{Serialize, Serializer};
 use serde::{Deserialize, Deserializer};
+use serde_cbor::ser::Serializer as Cbor;
 
 
 pub enum Signature {
@@ -15,7 +16,14 @@ pub struct SigData<'a> {
     pub timestamp: u64,
 }
 
+pub struct Bytes<'a>(&'a [u8]);
+
 pub fn sign_default(src: SigData) -> Vec<Signature> {
+    let mut buf = Vec::with_capacity(100);
+    (src.path, Bytes(src.image), src.timestamp)
+        .serialize(&mut Cbor::new(&mut buf))
+        .expect("Can always serialize signature data");
+    println!("Data {:?}", String::from_utf8_lossy(&buf));
     unimplemented!();
 }
 
@@ -26,8 +34,19 @@ impl Serialize for Signature {
         use self::Signature::*;
 
         match *self {
-            SshEd25519(val) => ("ssh-ed25519", &val[..]).serialize(serializer)
+            SshEd25519(val) => (
+                "ssh-ed25519", Bytes(&val[..])
+                ).serialize(serializer)
         }
+    }
+}
+
+impl<'a> Serialize for Bytes<'a> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: Serializer
+    {
+        use self::Signature::*;
+        serializer.serialize_bytes(&self.0[..])
     }
 }
 

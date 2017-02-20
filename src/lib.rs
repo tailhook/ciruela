@@ -2,6 +2,7 @@ extern crate base64;
 extern crate futures;
 extern crate minihttp;
 extern crate serde;
+extern crate serde_cbor;
 extern crate ssh_keys;
 extern crate tk_easyloop;
 extern crate tokio_core;

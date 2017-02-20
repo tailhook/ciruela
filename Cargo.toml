@@ -33,6 +33,7 @@ ns-std-threaded = "0.1.0"
 futures-cpupool = "0.1.2"
 serde = "0.9.7"
 serde_derive = "0.9.7"
+serde_cbor = "0.5.2"
 base64 = "0.2.1"
 
 [[bin]]

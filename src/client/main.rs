@@ -9,6 +9,7 @@ extern crate minihttp;
 extern crate ns_std_threaded;
 extern crate tk_easyloop;
 extern crate tokio_core;
+
 #[macro_use] extern crate log;
 
 mod global_options;
