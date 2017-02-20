@@ -1,8 +1,12 @@
-use std::io::{Write, stderr};
-use std::str::FromStr;
+use std::env::home_dir;
+use std::io::{Read, Write, stderr};
+use std::fs::File;
 use std::path::PathBuf;
+use std::str::FromStr;
 
 use argparse::{ArgumentParser, ParseOption, Collect};
+use ssh_keys::PrivateKey;
+use ssh_keys::openssh::parse_private_key;
 
 #[derive(Clone, Debug)]
 pub struct TargetUrl {
@@ -15,6 +19,7 @@ pub struct UploadOptions {
     pub source_directory: Option<PathBuf>,
     pub target_urls: Vec<TargetUrl>,
     pub identities: Vec<String>,
+    pub private_keys: Vec<PrivateKey>,
 }
 
 impl UploadOptions {
@@ -22,6 +27,7 @@ impl UploadOptions {
         UploadOptions {
             source_directory: None,
             identities: Vec::new(),
+            private_keys: Vec::new(),
             target_urls: Vec::new(),
         }
     }
@@ -44,12 +50,39 @@ impl UploadOptions {
                 `$HOME/.ssh` are used.
             ");
     }
-    pub fn finalize(self) -> Result<UploadOptions, i32> {
+    pub fn finalize(mut self) -> Result<UploadOptions, i32> {
         if self.source_directory.is_none() {
             writeln!(&mut stderr(),
                 "Argument `-d` or `--directory` is required").ok();
             return Err(1);
         };
+        let identities = if self.identities.len() == 0 {
+            let home = home_dir()
+                .ok_or_else(|| {
+                    error!("Cannot find home dir, use `-i` option to specify \
+                        identity (private key) explicitly");
+                    2
+                })?;
+            vec![home.join(".ssh/id_ed25519")]
+        } else {
+            self.identities.iter().map(PathBuf::from).collect()
+        };
+        let mut keybuf = String::with_capacity(1024);
+        for filename in &identities {
+            File::open(filename)
+                .and_then(|mut f| f.read_to_string(&mut keybuf))
+                .map_err(|e| {
+                    error!("Error reading private key {:?}: {}", filename, e);
+                    2
+                })?;
+            let keys = parse_private_key(&keybuf)
+                .map_err(|e| {
+                    error!("Error reading private key {:?}: {}", filename, e);
+                    2
+                })?;
+            self.private_keys.extend(keys);
+        }
+        info!("Read {} private keys", self.private_keys.len());
         Ok(self)
     }
 }

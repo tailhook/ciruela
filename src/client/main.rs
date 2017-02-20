@@ -7,6 +7,7 @@ extern crate futures;
 extern crate futures_cpupool;
 extern crate minihttp;
 extern crate ns_std_threaded;
+extern crate ssh_keys;
 extern crate tk_easyloop;
 extern crate tokio_core;
 

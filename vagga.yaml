@@ -25,6 +25,26 @@ commands:
     container: ubuntu
     run: [cargo, run, --bin, ciruela, "--"]
 
+  example-server: !Command
+    description: Run the server
+    container: ubuntu
+    prerequisites: [make]
+    environ: &exenv
+      RUST_LOG: info
+    run:
+    - ./target/debug/ciruela-server
+    - --config-base-dir=./example-configs
+
+  example-upload: !Command
+    description: Run the upload command with example key
+    container: ubuntu
+    prerequisites: [make]
+    environ: *exenv
+    run:
+    - ./target/debug/ciruela
+    - upload
+    - --identity=ciruela-example.key
+
   doc: !Command
     description: Build documentation
     container: doc
