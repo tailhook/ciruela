@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::io::{stdout, stderr, Write};
+use std::io::{stdout, stderr};
 use std::path::PathBuf;
 use std::process::exit;
 use std::sync::Arc;
@@ -123,10 +123,9 @@ pub fn cli(mut gopt: GlobalOptions, mut args: Vec<String>) -> ! {
             Err(code) => exit(code),
         }
     }
-    if opt.source_directory.is_none() {
-        writeln!(&mut stderr(),
-            "Argument `-d` or `--directory` is required").ok();
-        exit(1);
+    let opt = match opt.finalize() {
+        Ok(opt) => opt,
+        Err(code) => exit(code),
     };
     match do_upload(gopt, opt) {
         Ok(true) => exit(0),

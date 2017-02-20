@@ -1,3 +1,4 @@
+use std::io::{Write, stderr};
 use std::str::FromStr;
 use std::path::PathBuf;
 
@@ -42,6 +43,14 @@ impl UploadOptions {
                 sign the upload. By default all supported keys in
                 `$HOME/.ssh` are used.
             ");
+    }
+    pub fn finalize(self) -> Result<UploadOptions, i32> {
+        if self.source_directory.is_none() {
+            writeln!(&mut stderr(),
+                "Argument `-d` or `--directory` is required").ok();
+            return Err(1);
+        };
+        Ok(self)
     }
 }
 
