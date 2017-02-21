@@ -33,4 +33,7 @@ pub struct AppendDirAck {
 
 impl Request for AppendDir {
     type Response = AppendDirAck;
+    fn type_name(&self) -> &'static str {
+        return "AppendDir";
+    }
 }

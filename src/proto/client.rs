@@ -1,17 +1,28 @@
 use std::net::SocketAddr;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::collections::HashMap;
 
 use futures::{Async, Future, Canceled};
 use futures::future::{FutureResult, ok};
 use futures::stream::Stream;
-use futures::sync::oneshot::{channel as oneshot, Sender, Receiver};
 use futures::sync::mpsc::{unbounded, UnboundedSender, UnboundedReceiver};
-use tk_easyloop;
-use tokio_core::net::TcpStream;
+use futures::sync::oneshot::{channel as oneshot, Sender, Receiver};
 use minihttp::websocket::client::{HandshakeProto, SimpleAuthorizer};
 use minihttp::websocket::{Loop, Frame, Error as WsError, Dispatcher, Config};
+use minihttp::websocket::{Packet};
+use serde_cbor::ser::Serializer as Cbor;
+use serde::Serialize;
+use tk_easyloop;
+use tokio_core::net::TcpStream;
 
 use proto::Request;
+
+
+// Protocol identifiers
+const NOTIFICATION: u8 = 0;
+const REQUEST: u8 = 1;
+const RESPONSE: u8 = 2;
 
 
 pub struct Client {
@@ -27,6 +38,7 @@ pub struct RequestFuture<R> {
 }
 
 trait RequestTrait {
+    fn serialize(&self, request_id: usize) -> Packet;
 }
 
 struct RequestWrap<R: Request> {
@@ -43,7 +55,9 @@ quick_error! {
     }
 }
 
-struct MyDispatcher;
+struct MyDispatcher {
+    requests: Arc<Mutex<HashMap<usize, Box<RequestTrait>>>>,
+}
 
 impl Dispatcher for MyDispatcher {
     type Future = FutureResult<(), WsError>;
@@ -59,6 +73,8 @@ impl Client {
         let (tx, rx) = oneshot();
         let (ctx, crx) = unbounded();
         let wcfg = Config::new().done();
+        let requests = Arc::new(Mutex::new(HashMap::new()));
+        let request_id = Arc::new(AtomicUsize::new(0));
         tk_easyloop::spawn(
             TcpStream::connect(&addr, &tk_easyloop::handle())
             .from_err()
@@ -73,10 +89,17 @@ impl Client {
                 tx.complete(Client {
                     channel: ctx,
                 });
-                let stream = crx.map(|req| {
-                    unimplemented!();
+                let request_id = request_id.fetch_add(1, Ordering::SeqCst);
+                let disp = MyDispatcher {
+                    requests: requests.clone(),
+                };
+                let stream = crx.map(move |req| {
+                    let packet = req.serialize(request_id);
+                    requests.lock().unwrap()
+                        .insert(request_id, req);
+                    packet
                 }).map_err(|_| Error::UnexpectedTermination);
-                Loop::client(out, inp, stream, MyDispatcher, &wcfg)
+                Loop::client(out, inp, stream, disp, &wcfg)
                 .map_err(|e| println!("websocket closed: {}", e))
             })
         );
@@ -88,7 +111,10 @@ impl Client {
         where R: Request + 'static
     {
         let (tx, rx) = oneshot();
-        self.channel.send(Box::new(RequestWrap { request: request, chan: tx }));
+        self.channel.send(Box::new(RequestWrap {
+            request: request,
+            chan: tx,
+        }));
         return RequestFuture { chan: rx };
     }
 }
@@ -110,4 +136,11 @@ impl<R> Future for RequestFuture<R> {
 }
 
 impl<R: Request> RequestTrait for RequestWrap<R> {
+    fn serialize(&self, request_id: usize) -> Packet {
+        let mut buf = Vec::new();
+        (REQUEST, self.request.type_name(), request_id, &self.request)
+            .serialize(&mut Cbor::new(&mut buf))
+            .expect("Can always serialize signature data");
+        return Packet::Binary(buf);
+    }
 }
