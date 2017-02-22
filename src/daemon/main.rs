@@ -1,12 +1,15 @@
-extern crate time;
 extern crate argparse;
-extern crate futures;
+extern crate ciruela;
 extern crate env_logger;
-extern crate tokio_core;
+extern crate futures;
 extern crate minihttp;
 extern crate quire;
 extern crate rustc_serialize;
 extern crate scan_dir;
+extern crate serde_cbor;
+extern crate time;
+extern crate tokio_core;
+
 #[macro_use] extern crate log;
 
 use std::env;

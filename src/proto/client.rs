@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use futures::{Async, Future, Canceled};
 use futures::future::{FutureResult, ok};
 use futures::stream::Stream;
-use futures::sync::mpsc::{unbounded, UnboundedSender, UnboundedReceiver};
+use futures::sync::mpsc::{unbounded, UnboundedSender};
 use futures::sync::oneshot::{channel as oneshot, Sender, Receiver};
 use minihttp::websocket::client::{HandshakeProto, SimpleAuthorizer};
 use minihttp::websocket::{Loop, Frame, Error as WsError, Dispatcher, Config};
@@ -16,17 +16,11 @@ use serde::Serialize;
 use tk_easyloop;
 use tokio_core::net::TcpStream;
 
-use proto::Request;
-
-
-// Protocol identifiers
-const NOTIFICATION: u8 = 0;
-const REQUEST: u8 = 1;
-const RESPONSE: u8 = 2;
+use proto::{RequestTrait, REQUEST};
 
 
 pub struct Client {
-    channel: UnboundedSender<Box<RequestTrait>>,
+    channel: UnboundedSender<Box<WrapTrait>>,
 }
 
 pub struct ClientFuture {
@@ -37,11 +31,11 @@ pub struct RequestFuture<R> {
     chan: Receiver<R>,
 }
 
-trait RequestTrait {
-    fn serialize(&self, request_id: usize) -> Packet;
+trait WrapTrait {
+    fn serialize(&self, request_id: u64) -> Packet;
 }
 
-struct RequestWrap<R: Request> {
+struct RequestWrap<R: RequestTrait> {
     request: R,
     chan: Sender<R::Response>,
 }
@@ -56,7 +50,7 @@ quick_error! {
 }
 
 struct MyDispatcher {
-    requests: Arc<Mutex<HashMap<usize, Box<RequestTrait>>>>,
+    requests: Arc<Mutex<HashMap<usize, Box<WrapTrait>>>>,
 }
 
 impl Dispatcher for MyDispatcher {
@@ -94,7 +88,7 @@ impl Client {
                     requests: requests.clone(),
                 };
                 let stream = crx.map(move |req| {
-                    let packet = req.serialize(request_id);
+                    let packet = req.serialize(request_id as u64);
                     requests.lock().unwrap()
                         .insert(request_id, req);
                     packet
@@ -108,13 +102,17 @@ impl Client {
         }
     }
     pub fn request<R>(&self, request: R) -> RequestFuture<R::Response>
-        where R: Request + 'static
+        where R: RequestTrait + 'static
     {
         let (tx, rx) = oneshot();
         self.channel.send(Box::new(RequestWrap {
             request: request,
             chan: tx,
-        }));
+        })).map_err(|e| {
+            // We expect `rx` to get cancellation notice in case of error, so
+            // process does not hang, after logging the message
+            error!("Error sending request: {}", e)
+        }).ok();
         return RequestFuture { chan: rx };
     }
 }
@@ -135,8 +133,8 @@ impl<R> Future for RequestFuture<R> {
     }
 }
 
-impl<R: Request> RequestTrait for RequestWrap<R> {
-    fn serialize(&self, request_id: usize) -> Packet {
+impl<R: RequestTrait> WrapTrait for RequestWrap<R> {
+    fn serialize(&self, request_id: u64) -> Packet {
         let mut buf = Vec::new();
         (REQUEST, self.request.type_name(), request_id, &self.request)
             .serialize(&mut Cbor::new(&mut buf))

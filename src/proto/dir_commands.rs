@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::time::SystemTime;
 
-use proto::{Signature, Request};
+use proto::{Signature, RequestTrait};
 
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -31,7 +31,7 @@ pub struct AppendDirAck {
 }
 
 
-impl Request for AppendDir {
+impl RequestTrait for AppendDir {
     type Response = AppendDirAck;
     fn type_name(&self) -> &'static str {
         return "AppendDir";
