@@ -35,10 +35,10 @@ structure of a message:
 
    message-structure = [message-kind, message-type, *any] .and typed-message
    message-kind = &( notification: 0, request: 1, response: 2 )
-   message-type = notification-type / $request-type
+   message-type = $notification-type / $request-type
 
    typed-message = notification / request / response
-   notification = [0, notification-type, *any]
+   notification = [0, $notification-type, *any]
    request = [1, $request-type, request-id, *any]
    response = [2, $request-type, request-id, *any]
    request-id = uint
