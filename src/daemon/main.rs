@@ -9,10 +9,12 @@ extern crate scan_dir;
 extern crate serde_cbor;
 extern crate time;
 extern crate tokio_core;
+extern crate tk_easyloop;
 
 #[macro_use] extern crate log;
 
 use std::env;
+use std::error::Error;
 use std::net::{IpAddr, ToSocketAddrs};
 use std::path::PathBuf;
 use std::process::exit;
@@ -72,7 +74,11 @@ fn main() {
         }
     };
 
-    let mut lp = Core::new().unwrap();
-    http::start(addr, &lp.handle());
-    lp.run(empty::<(), ()>()).unwrap();
+    tk_easyloop::run_forever(|| -> Result<(), Box<Error>> {
+        http::start(addr)?;
+        Ok(())
+    }).map_err(|e| {
+        error!("Startup error: {}", e);
+        exit(1);
+    }).expect("looping forever");
 }

@@ -1,3 +1,4 @@
+use std::io;
 use std::net::SocketAddr;
 
 use time;
@@ -10,6 +11,7 @@ use minihttp::websocket::{Loop, Config as WsConfig};
 use tokio_core::io::Io;
 use tokio_core::net::TcpListener;
 use tokio_core::reactor::Handle;
+use tk_easyloop::{spawn, handle};
 
 
 use websocket::Connection;
@@ -46,18 +48,17 @@ fn service<S:Io>(req: Request, mut e: Encoder<S>)
 }
 
 
-pub fn start(addr: SocketAddr, handle: &Handle) {
-    let listener = TcpListener::bind(&addr, handle).unwrap();
+pub fn start(addr: SocketAddr) -> Result<(), io::Error> {
+    let listener = TcpListener::bind(&addr, &handle()).unwrap();
     let cfg = Config::new().done();
     let wcfg = WsConfig::new().done();
-    let h1 = handle.clone();
 
-    handle.spawn(listener.incoming()
+    spawn(listener.incoming()
         .map_err(|e| { println!("Accept error: {}", e); })
         .map(move |(socket, addr)| {
             let wcfg = wcfg.clone();
             Proto::new(socket, &cfg,
-                BufferedDispatcher::new_with_websockets(addr, &h1,
+                BufferedDispatcher::new_with_websockets(addr, &handle(),
                     service,
                     move |out, inp| {
                         let (conn, rx) = Connection::new();
@@ -69,4 +70,5 @@ pub fn start(addr: SocketAddr, handle: &Handle) {
         })
         .buffer_unordered(1000)
           .for_each(|()| Ok(())));
+    Ok(())
 }
