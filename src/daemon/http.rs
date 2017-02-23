@@ -10,11 +10,11 @@ use minihttp::server::buffered::{Request, BufferedDispatcher};
 use minihttp::websocket::{Loop, Config as WsConfig};
 use tokio_core::io::Io;
 use tokio_core::net::TcpListener;
-use tokio_core::reactor::Handle;
 use tk_easyloop::{spawn, handle};
 
 
 use websocket::Connection;
+use metadata::Meta;
 
 
 const BODY: &'static str = "Not found";
@@ -48,20 +48,22 @@ fn service<S:Io>(req: Request, mut e: Encoder<S>)
 }
 
 
-pub fn start(addr: SocketAddr) -> Result<(), io::Error> {
+pub fn start(addr: SocketAddr, meta: &Meta) -> Result<(), io::Error> {
     let listener = TcpListener::bind(&addr, &handle()).unwrap();
     let cfg = Config::new().done();
     let wcfg = WsConfig::new().done();
+    let meta = meta.clone();
 
     spawn(listener.incoming()
         .map_err(|e| { println!("Accept error: {}", e); })
         .map(move |(socket, addr)| {
             let wcfg = wcfg.clone();
+            let meta = meta.clone();
             Proto::new(socket, &cfg,
                 BufferedDispatcher::new_with_websockets(addr, &handle(),
                     service,
                     move |out, inp| {
-                        let (conn, rx) = Connection::new();
+                        let (conn, rx) = Connection::new(&meta);
                         let rx = rx.map_err(|()| "channel closed");
                         Loop::server(out, inp, rx, conn, &wcfg)
                         .map_err(|e| debug!("websocket closed: {}", e))

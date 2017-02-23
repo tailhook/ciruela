@@ -2,6 +2,7 @@ extern crate argparse;
 extern crate ciruela;
 extern crate env_logger;
 extern crate futures;
+extern crate futures_cpupool;
 extern crate minihttp;
 extern crate quire;
 extern crate rustc_serialize;
@@ -19,13 +20,12 @@ use std::net::{IpAddr, ToSocketAddrs};
 use std::path::PathBuf;
 use std::process::exit;
 
-use futures::empty;
-use tokio_core::reactor::Core;
 use argparse::{ArgumentParser, Parse, Store};
 
 mod http;
 mod config;
 mod websocket;
+mod metadata;
 
 
 fn main() {
@@ -39,6 +39,7 @@ fn main() {
     let mut port: u16 = 24783;
     let mut limit: usize = 1000;
     let mut ip: IpAddr = "0.0.0.0".parse().unwrap();
+    let mut metadata_threads: usize = 2;
     {
         let mut ap = ArgumentParser::new();
         ap.refer(&mut config_dir)
@@ -63,6 +64,9 @@ fn main() {
                  can support. More likely it's a number of users can
                  upload data simultaneously minus 10 or so connections for
                  clusteting.");
+        ap.refer(&mut metadata_threads)
+            .add_option(&["--metadata-threads"], Store,
+                "A threads for reading/writing metadata (default 2)");
         ap.parse_args_or_exit();
     }
     let addr = (ip, port).to_socket_addrs().unwrap().next().unwrap();
@@ -74,8 +78,10 @@ fn main() {
         }
     };
 
+    let meta = metadata::Meta::new(metadata_threads);
+
     tk_easyloop::run_forever(|| -> Result<(), Box<Error>> {
-        http::start(addr)?;
+        http::start(addr, &meta)?;
         Ok(())
     }).map_err(|e| {
         error!("Startup error: {}", e);

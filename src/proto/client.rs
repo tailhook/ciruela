@@ -138,7 +138,7 @@ impl<R: RequestTrait> WrapTrait for RequestWrap<R> {
         let mut buf = Vec::new();
         (REQUEST, self.request.type_name(), request_id, &self.request)
             .serialize(&mut Cbor::new(&mut buf))
-            .expect("Can always serialize signature data");
+            .expect("Can always serialize request data");
         return Packet::Binary(buf);
     }
 }
