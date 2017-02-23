@@ -19,6 +19,7 @@ use std::error::Error;
 use std::net::{IpAddr, ToSocketAddrs};
 use std::path::PathBuf;
 use std::process::exit;
+use std::sync::Arc;
 
 use argparse::{ArgumentParser, Parse, Store};
 
@@ -71,14 +72,14 @@ fn main() {
     }
     let addr = (ip, port).to_socket_addrs().unwrap().next().unwrap();
     let configs = match config::read_dirs(&config_dir.join("configs")) {
-        Ok(configs) => configs,
+        Ok(configs) => Arc::new(configs),
         Err(e) => {
             error!("Error reading configs: {}", e);
             exit(1);
         }
     };
 
-    let meta = metadata::Meta::new(metadata_threads);
+    let meta = metadata::Meta::new(metadata_threads, &configs);
 
     tk_easyloop::run_forever(|| -> Result<(), Box<Error>> {
         http::start(addr, &meta)?;

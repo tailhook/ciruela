@@ -1,9 +1,12 @@
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use scan_dir::ScanDir;
 use quire::validate::{Directory as Dir, Structure, Numeric, Scalar, Sequence};
 use quire::{parse_config, Options, ErrorList};
+
+pub type Config = Arc<HashMap<String, Directory>>;
 
 
 #[derive(Debug, RustcDecodable)]
