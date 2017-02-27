@@ -8,15 +8,19 @@ use futures::future::{FutureResult, ok};
 use futures::stream::Stream;
 use futures::sync::mpsc::{unbounded, UnboundedSender};
 use futures::sync::oneshot::{channel as oneshot, Sender, Receiver};
+use mopa;
 use minihttp::websocket::client::{HandshakeProto, SimpleAuthorizer};
 use minihttp::websocket::{Loop, Frame, Error as WsError, Dispatcher, Config};
 use minihttp::websocket::{Packet};
 use serde_cbor::ser::Serializer as Cbor;
+use serde_cbor::de::from_slice;
 use serde::Serialize;
 use tk_easyloop;
 use tokio_core::net::TcpStream;
 
 use proto::{RequestTrait, REQUEST};
+use proto::{Message, Response};
+use proto::dir_commands::AppendDir;
 
 
 pub struct Client {
@@ -31,13 +35,15 @@ pub struct RequestFuture<R> {
     chan: Receiver<R>,
 }
 
-trait WrapTrait {
+trait WrapTrait: mopa::Any {
     fn serialize(&self, request_id: u64) -> Packet;
 }
 
+mopafy!(WrapTrait);
+
 struct RequestWrap<R: RequestTrait> {
     request: R,
-    chan: Sender<R::Response>,
+    chan: Option<Sender<R::Response>>,
 }
 
 quick_error! {
@@ -50,13 +56,45 @@ quick_error! {
 }
 
 struct MyDispatcher {
-    requests: Arc<Mutex<HashMap<usize, Box<WrapTrait>>>>,
+    requests: Arc<Mutex<HashMap<u64, Box<WrapTrait>>>>,
 }
 
 impl Dispatcher for MyDispatcher {
     type Future = FutureResult<(), WsError>;
     fn frame(&mut self, frame: &Frame) -> FutureResult<(), WsError> {
-        println!("Frame arrived: {:?}", frame);
+        match *frame {
+            Frame::Binary(data) => match from_slice(data) {
+                Ok(Message::Request(..)) => {
+                    unimplemented!();
+                }
+                Ok(Message::Response(request_id, Response::AppendDir(ad))) => {
+                    let mut requests = self.requests.lock()
+                        .expect("requests are not poisoned");
+                    match requests.remove(&request_id) {
+                        Some(mut r) => {
+                            r.downcast_mut::<RequestWrap<AppendDir>>()
+                            .map(|r| r.chan.take().unwrap().complete(ad))
+                            .unwrap_or_else(|| {
+                                error!("Wrong reply type for {}", request_id);
+                            })
+                        }
+                        None => {
+                            error!("Unsolicited reply {}", request_id);
+                        }
+                    }
+                }
+                Ok(Message::Notification(..)) => {
+                    unimplemented!();
+                }
+                Err(e) => {
+                    error!("Failed to deserialize frame, \
+                        error: {}, frame: {:?}", e, frame);
+                }
+            },
+            _ => {
+                error!("Bad frame received: {:?}", frame);
+            }
+        }
         ok(())
     }
 }
@@ -90,7 +128,7 @@ impl Client {
                 let stream = crx.map(move |req| {
                     let packet = req.serialize(request_id as u64);
                     requests.lock().unwrap()
-                        .insert(request_id, req);
+                        .insert(request_id as u64, req);
                     packet
                 }).map_err(|_| Error::UnexpectedTermination);
                 Loop::client(out, inp, stream, disp, &wcfg)
@@ -107,7 +145,7 @@ impl Client {
         let (tx, rx) = oneshot();
         self.channel.send(Box::new(RequestWrap {
             request: request,
-            chan: tx,
+            chan: Some(tx),
         })).map_err(|e| {
             // We expect `rx` to get cancellation notice in case of error, so
             // process does not hang, after logging the message

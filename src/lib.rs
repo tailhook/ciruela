@@ -10,6 +10,7 @@ extern crate tk_easyloop;
 extern crate tokio_core;
 
 #[macro_use] extern crate log;
+#[macro_use] extern crate mopa;
 #[macro_use] extern crate quick_error;
 #[macro_use] extern crate serde_derive;
 

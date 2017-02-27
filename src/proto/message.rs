@@ -99,7 +99,23 @@ impl Visitor for MessageVisitor {
                 };
                 Ok(Message::Request(request_id, data))
             },
-            Some(RESPONSE) => unimplemented!(),
+            Some(RESPONSE) => {
+                let typ = match visitor.visit()? {
+                    Some(typ) => typ,
+                    None => return Err(Error::invalid_length(1, &self)),
+                };
+                let request_id = match visitor.visit()? {
+                    Some(x) => x,
+                    None => return Err(Error::invalid_length(2, &self)),
+                };
+                let data = match typ {
+                    Type::AppendDir => match visitor.visit()? {
+                        Some(data) => Response::AppendDir(data),
+                        None => return Err(Error::invalid_length(3, &self)),
+                    },
+                };
+                Ok(Message::Response(request_id, data))
+            }
             Some(_) => Err(Error::custom("invalid message kind")),
             None => Err(Error::invalid_length(0, &self)),
         }

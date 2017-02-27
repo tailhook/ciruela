@@ -37,6 +37,7 @@ serde_cbor = "0.5.2"
 base64 = "0.2.1"
 rust-crypto = "0.2.36"
 hex = "0.2.0"
+mopa = "0.2.2"
 
 [[bin]]
 name = "ciruela-server"

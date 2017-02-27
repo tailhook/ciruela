@@ -57,6 +57,7 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                     format!("{}:{}", turl.host, gopt.destination_port));
                 let host2 = host.clone();
                 let host3 = host.clone();
+                let host4 = host.clone();
                 let signatures = signatures.clone();
                 resolver.resolve(&host)
                 .map_err(move |e| {
@@ -69,6 +70,7 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                         .map(move |&addr| {
                             let turl = turl.clone();
                             let signatures = signatures.clone();
+                            let host = host4.clone();
                             Client::spawn(addr, &host)
                             .and_then(move |cli| {
                                 info!("Connected to {}", addr);
@@ -86,7 +88,10 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                                 info!("Response from {}: {:?}",
                                     addr, response);
                                 // TODO(tailhook) read notifications
-                                Ok(true)
+                                if !response.accepted {
+                                    error!("AppendDir rejected by {}", host);
+                                }
+                                Ok(response.accepted)
                             })
                             .then(move |res| match res {
                                 Ok(x) => Ok(x),
