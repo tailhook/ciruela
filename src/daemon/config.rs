@@ -6,7 +6,11 @@ use scan_dir::ScanDir;
 use quire::validate::{Directory as Dir, Structure, Numeric, Scalar, Sequence};
 use quire::{parse_config, Options, ErrorList};
 
-pub type Config = Arc<HashMap<String, Directory>>;
+
+pub struct Config {
+    pub db_dir: PathBuf,
+    pub dirs: HashMap<String, Directory>,
+}
 
 
 #[derive(Debug, RustcDecodable)]

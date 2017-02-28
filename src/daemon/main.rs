@@ -4,15 +4,17 @@ extern crate env_logger;
 extern crate futures;
 extern crate futures_cpupool;
 extern crate minihttp;
+extern crate openat;
 extern crate quire;
 extern crate rustc_serialize;
 extern crate scan_dir;
 extern crate serde_cbor;
 extern crate time;
-extern crate tokio_core;
 extern crate tk_easyloop;
+extern crate tokio_core;
 
 #[macro_use] extern crate log;
+#[macro_use] extern crate quick_error;
 
 use std::env;
 use std::error::Error;
@@ -71,15 +73,27 @@ fn main() {
         ap.parse_args_or_exit();
     }
     let addr = (ip, port).to_socket_addrs().unwrap().next().unwrap();
-    let configs = match config::read_dirs(&config_dir.join("configs")) {
-        Ok(configs) => Arc::new(configs),
+    let config = match config::read_dirs(&config_dir.join("configs")) {
+        Ok(configs) => {
+            Arc::new(config::Config {
+                db_dir: db_dir,
+                dirs: configs,
+            })
+        }
         Err(e) => {
             error!("Error reading configs: {}", e);
             exit(1);
         }
     };
 
-    let meta = metadata::Meta::new(metadata_threads, &configs);
+    let meta = match metadata::Meta::new(metadata_threads, &config) {
+        Ok(meta) => meta,
+        Err(e) => {
+            error!("Can't open metadata directory {:?}: {}",
+                config.db_dir, e);
+            exit(4);
+        }
+    };
 
     tk_easyloop::run_forever(|| -> Result<(), Box<Error>> {
         http::start(addr, &meta)?;

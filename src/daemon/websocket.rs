@@ -36,6 +36,7 @@ impl Dispatcher for Connection {
                 Ok(Message::Request(request_id, Request::AppendDir(ad))) => {
                     let chan = self.channel.clone();
                     spawn(self.metadata.append_dir(ad)
+                    .map_err(|_| unimplemented!())
                     .map(move |res| {
                         chan.send(serialize_response(
                             request_id, "AppendDir", res))

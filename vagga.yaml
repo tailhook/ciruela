@@ -34,6 +34,7 @@ commands:
     run:
     - ./target/debug/ciruela-server
     - --config-base-dir=./example-configs
+    - --db-dir=./tmp
 
   example-upload: !Command
     description: Run the upload command with example key
