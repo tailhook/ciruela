@@ -1,6 +1,5 @@
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use scan_dir::ScanDir;
 use quire::validate::{Directory as Dir, Structure, Numeric, Scalar, Sequence};
@@ -17,7 +16,7 @@ pub struct Config {
 pub struct Directory {
     pub directory: PathBuf,
     pub append_only: bool,
-    pub num_levels: u32,
+    pub num_levels: usize,
     pub upload_keys: Vec<String>,
     pub download_keys: Vec<String>,
 }

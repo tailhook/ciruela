@@ -35,13 +35,22 @@ impl Dispatcher for Connection {
             Frame::Binary(data) => match from_slice(data) {
                 Ok(Message::Request(request_id, Request::AppendDir(ad))) => {
                     let chan = self.channel.clone();
-                    spawn(self.metadata.append_dir(ad)
-                    .map_err(|_| unimplemented!())
-                    .map(move |res| {
-                        chan.send(serialize_response(
-                            request_id, "AppendDir", res))
-                        .map_err(|e| error!("Failed to send response: {}", e))
-                        .ok();
+                    spawn(self.metadata.append_dir(ad).then(move |res| {
+                        let send_res = match res {
+                            Ok(value) => {
+                                chan.send(serialize_response(
+                                    request_id, "AppendDir", value))
+                            }
+                            Err(e) => {
+                                error!("AppendDir error: {}", e);
+                                chan.send(serialize_response(
+                                    request_id, "Error", e.to_string()))
+                            }
+                        };
+                        send_res.map_err(|e| {
+                            error!("Failed to send response: {}", e)
+                        }).ok();
+                        Ok(())
                     }));
                 }
                 Ok(Message::Response(..)) => {

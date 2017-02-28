@@ -1,4 +1,5 @@
 mod append_dir;
+mod config;
 mod error;
 
 use std::io;
@@ -11,6 +12,7 @@ use ciruela::proto::{AppendDir, AppendDirAck};
 use config::Config;
 
 pub use self::error::Error;
+pub use self::config::find_config_dir;
 
 
 #[derive(Clone)]
