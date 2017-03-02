@@ -19,7 +19,7 @@ pub use self::config::find_config_dir;
 pub struct Meta {
     cpu_pool: CpuPool,
     config: Arc<Config>,
-    basedir: Arc<Dir>,
+    base_dir: Arc<Dir>,
 }
 
 impl Meta {
@@ -31,7 +31,7 @@ impl Meta {
         Ok(Meta {
             cpu_pool: CpuPool::new(num_threads),
             config: config.clone(),
-            basedir: Arc::new(dir),
+            base_dir: Arc::new(dir),
         })
     }
     pub fn append_dir(&self, params: AppendDir)
