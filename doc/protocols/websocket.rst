@@ -43,6 +43,7 @@ structure of a message:
    response = [2, $request-type, request-id, *any]
    request-id = uint
 
+.. _signing-uploads:
 
 Signing Uploads
 ---------------

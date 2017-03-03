@@ -10,6 +10,8 @@ pub trait DirExt: Sized {
     fn create_meta_dir<P: AsRef<Path>>(&self, p: P) -> Result<(), Error>;
     fn meta_sub_dir<P: AsRef<Path>>(&self, p: P) -> Result<Self, Error>;
     fn create_meta_file<P: AsRef<Path>>(&self, p: P) -> Result<File, Error>;
+    fn rename_meta<A, B>(&self, a: A, b: B) -> Result<(), Error>
+        where A: AsRef<Path>, B: AsRef<Path>;
 }
 
 impl DirExt for Dir {
@@ -27,6 +29,13 @@ impl DirExt for Dir {
         let path = p.as_ref();
         Dir::create_file(self, path, 0o644)
         .map_err(|e| Error::WriteMeta(path.to_path_buf(), e))
+    }
+    fn rename_meta<A, B>(&self, a: A, b: B) -> Result<(), Error>
+        where A: AsRef<Path>, B: AsRef<Path>
+    {
+        let dest = b.as_ref();
+        Dir::local_rename(self, a.as_ref(), dest)
+        .map_err(|e| Error::WriteMeta(dest.to_path_buf(), e))
     }
 }
 

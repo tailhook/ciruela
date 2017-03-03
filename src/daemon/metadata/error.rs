@@ -1,5 +1,6 @@
 use std::io;
 use std::path::{PathBuf};
+use serde_cbor;
 
 
 quick_error! {
@@ -25,6 +26,11 @@ quick_error! {
         WriteMeta(dir: PathBuf, e: io::Error) {
             description("can't create metadata dir")
             display("can't create metadata dir {:?}: {}", dir, e)
+        }
+        SerializeError(e: serde_cbor::Error) {
+            description("can't serialize metadata")
+            display("can't serialize metadata: {}", e)
+            from()
         }
     }
 }

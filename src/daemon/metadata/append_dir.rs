@@ -4,9 +4,11 @@ use std::path::Path;
 use std::os::unix::ffi::OsStrExt;
 
 use openat::Dir;
-
+use serde::Serialize;
+use serde_cbor::ser::Serializer as Cbor;
 
 use ciruela::proto::{AppendDir, AppendDirAck};
+use ciruela::database::signatures::{State, SignatureEntry};
 use metadata::{Meta, Error, find_config_dir};
 use metadata::config::DirConfig;
 use metadata::dir_ext::{DirExt, recover};
@@ -38,15 +40,35 @@ pub fn start(params: AppendDir, meta: &Meta)
     info!("Directory {:?} has base {:?} and dir {:?} and name {:?}",
         params.path, cfg.base, cfg.parent, cfg.image_name);
     let dir = open_base_path(meta, &cfg)?;
-    match dir.metadata(cfg.image_name) {
+    let state_file = format!("{}.state", cfg.image_name);
+    match dir.metadata(&state_file[..]) {
         Ok(_) => {
+            // TODO(tailhook) check whether current directory is the same
+            // which should make request idempotent
             Ok(AppendDirAck {
                 accepted: false,
             })
         }
         Err(ref e) if e.kind() == io::ErrorKind::NotFound => {
-            let mut f = dir.create_meta_file(&cfg.image_name)?;
-            unimplemented!();
+            let timestamp = params.timestamp;
+            let state = State {
+                image: params.image,
+                signatures: params.signatures.into_iter()
+                    .map(|sig| SignatureEntry {
+                        timestamp: timestamp,
+                        signature: sig,
+                    }).collect(),
+            };
+            let tmpname = format!("{}.state.tmp", cfg.image_name);
+            let mut f = io::BufWriter::new(dir.create_meta_file(&tmpname)?);
+            state.serialize(&mut Cbor::new(&mut f))?;
+            drop(f);
+            dir.rename_meta(&tmpname, &state_file)?;
+            // TODO(tailhook) send message to image tracking subsystem
+            // to start image syncing
+            Ok(AppendDirAck {
+                accepted: true,
+            })
         }
         Err(e) => {
             Err(Error::OpenMeta(recover(&dir, cfg.image_name), e))

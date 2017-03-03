@@ -8,6 +8,7 @@ extern crate openat;
 extern crate quire;
 extern crate rustc_serialize;
 extern crate scan_dir;
+extern crate serde;
 extern crate serde_cbor;
 extern crate time;
 extern crate tk_easyloop;
