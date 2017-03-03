@@ -6,7 +6,8 @@ quick_error! {
     #[derive(Debug)]
     pub enum Error {
         InvalidPath {
-            description("invalid path (not absolute or has parents)")
+            description("invalid path \
+                (not absolute or has parents or invalid utf8)")
         }
         PathNotFound(path: PathBuf) {
             description("path not found")
@@ -21,7 +22,7 @@ quick_error! {
             description("can't open metadata dir")
             display("can't open metadata dir {:?}: {}", dir, e)
         }
-        CreateMeta(dir: PathBuf, e: io::Error) {
+        WriteMeta(dir: PathBuf, e: io::Error) {
             description("can't create metadata dir")
             display("can't create metadata dir {:?}: {}", dir, e)
         }

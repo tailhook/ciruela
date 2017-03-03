@@ -26,7 +26,7 @@ fn directory_validator<'x>() -> Structure<'x> {
     .member("directory", Dir::new())
     .member("append_only", Scalar::new())
     // the limit here is just arbitrary, maybe we will lift it later
-    .member("num_levels", Numeric::new().min(0).max(16))
+    .member("num_levels", Numeric::new().min(1).max(16))
     .member("upload_keys", Sequence::new(Scalar::new()))
     .member("download_keys", Sequence::new(Scalar::new()))
 }

@@ -1,6 +1,7 @@
 mod append_dir;
 mod config;
 mod error;
+mod dir_ext;
 
 use std::io;
 use std::sync::Arc;
