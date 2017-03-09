@@ -30,6 +30,7 @@ mod http;
 mod config;
 mod websocket;
 mod metadata;
+mod disk;
 
 
 fn main() {
@@ -44,6 +45,7 @@ fn main() {
     let mut limit: usize = 1000;
     let mut ip: IpAddr = "0.0.0.0".parse().unwrap();
     let mut metadata_threads: usize = 2;
+    let mut disk_threads: usize = 8;
     {
         let mut ap = ArgumentParser::new();
         ap.refer(&mut config_dir)
@@ -71,6 +73,9 @@ fn main() {
         ap.refer(&mut metadata_threads)
             .add_option(&["--metadata-threads"], Store,
                 "A threads for reading/writing metadata (default 2)");
+        ap.refer(&mut disk_threads)
+            .add_option(&["--disk-threads"], Store,
+                "A threads for reading/writing disk data (default 8)");
         ap.parse_args_or_exit();
     }
     let addr = (ip, port).to_socket_addrs().unwrap().next().unwrap();
@@ -86,8 +91,15 @@ fn main() {
             exit(1);
         }
     };
+    let (disk, disk_init) = match disk::Disk::new(disk_threads, &config) {
+        Ok(pair) => pair,
+        Err(e) => {
+            error!("Can't start disk subsystem: {}", e);
+            exit(4);
+        }
+    };
 
-    let meta = match metadata::Meta::new(metadata_threads, &config) {
+    let meta = match metadata::Meta::new(metadata_threads, &config, &disk) {
         Ok(meta) => meta,
         Err(e) => {
             error!("Can't open metadata directory {:?}: {}",
@@ -98,6 +110,7 @@ fn main() {
 
     tk_easyloop::run_forever(|| -> Result<(), Box<Error>> {
         http::start(addr, &meta)?;
+        disk::start(disk_init, &meta)?;
         Ok(())
     }).map_err(|e| {
         error!("Startup error: {}", e);
