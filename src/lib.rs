@@ -2,7 +2,7 @@ extern crate base64;
 extern crate crypto;
 extern crate hex;
 extern crate futures;
-extern crate minihttp;
+extern crate tk_http;
 extern crate serde;
 extern crate serde_cbor;
 extern crate ssh_keys;

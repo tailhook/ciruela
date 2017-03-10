@@ -3,7 +3,7 @@ extern crate ciruela;
 extern crate env_logger;
 extern crate futures;
 extern crate futures_cpupool;
-extern crate minihttp;
+extern crate tk_http;
 extern crate openat;
 extern crate quire;
 extern crate rustc_serialize;

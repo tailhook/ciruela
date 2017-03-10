@@ -4,10 +4,11 @@ use std::net::SocketAddr;
 use time;
 use futures::future::{Future, FutureResult, ok};
 use futures::stream::Stream;
-use minihttp::Status;
-use minihttp::server::{Proto, Encoder, EncoderDone, Error, Config};
-use minihttp::server::buffered::{Request, BufferedDispatcher};
-use minihttp::websocket::{Loop, Config as WsConfig};
+use tk_easyloop;
+use tk_http::Status;
+use tk_http::server::{Proto, Encoder, EncoderDone, Error, Config};
+use tk_http::server::buffered::{Request, BufferedDispatcher};
+use tk_http::websocket::{Loop, Config as WsConfig};
 use tokio_core::io::Io;
 use tokio_core::net::TcpListener;
 use tk_easyloop::{spawn, handle};
@@ -67,7 +68,8 @@ pub fn start(addr: SocketAddr, meta: &Meta) -> Result<(), io::Error> {
                         let rx = rx.map_err(|()| "channel closed");
                         Loop::server(out, inp, rx, conn, &wcfg)
                         .map_err(|e| debug!("websocket closed: {}", e))
-                    }))
+                    }),
+                &tk_easyloop::handle())
             .map_err(|e| { debug!("Connection error: {}", e); })
         })
         .buffer_unordered(1000)

@@ -9,9 +9,9 @@ use futures::stream::Stream;
 use futures::sync::mpsc::{unbounded, UnboundedSender};
 use futures::sync::oneshot::{channel as oneshot, Sender, Receiver};
 use mopa;
-use minihttp::websocket::client::{HandshakeProto, SimpleAuthorizer};
-use minihttp::websocket::{Loop, Frame, Error as WsError, Dispatcher, Config};
-use minihttp::websocket::{Packet};
+use tk_http::websocket::client::{HandshakeProto, SimpleAuthorizer};
+use tk_http::websocket::{Loop, Frame, Error as WsError, Dispatcher, Config};
+use tk_http::websocket::{Packet};
 use serde_cbor::ser::Serializer as Cbor;
 use serde_cbor::de::from_slice;
 use serde::Serialize;
@@ -109,12 +109,14 @@ impl Client {
         let request_id = Arc::new(AtomicUsize::new(0));
         tk_easyloop::spawn(
             TcpStream::connect(&addr, &tk_easyloop::handle())
-            .from_err()
-            .and_then(move |sock| {
-                HandshakeProto::new(sock, SimpleAuthorizer::new(&*host, "/"))
-            })
             .map_err(move |e| {
                 error!("Error connecting to {}: {}", addr, e);
+            })
+            .and_then(move |sock| {
+                HandshakeProto::new(sock, SimpleAuthorizer::new(&*host, "/"))
+                .map_err(move |e| {
+                    error!("Error connecting to {}: {}", addr, e);
+                })
             })
             .and_then(move |(out, inp, ())| {
                 info!("Connected to {}", addr);

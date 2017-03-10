@@ -2,7 +2,7 @@ use futures::Future;
 use futures::future::{FutureResult, ok};
 use futures::sync::mpsc::{unbounded, UnboundedSender, UnboundedReceiver};
 use serde_cbor::de::from_slice;
-use minihttp::websocket::{Frame, Packet, Dispatcher, Error};
+use tk_http::websocket::{Frame, Packet, Dispatcher, Error};
 use tk_easyloop::spawn;
 
 use ciruela::proto::{Message, Request, serialize_response};

@@ -1,6 +1,6 @@
 use serde_cbor::ser::Serializer as Cbor;
 use serde::Serialize;
-use minihttp::websocket::Packet;
+use tk_http::websocket::Packet;
 
 use proto::RESPONSE;
 

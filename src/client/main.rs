@@ -5,7 +5,7 @@ extern crate dir_signature;
 extern crate env_logger;
 extern crate futures;
 extern crate futures_cpupool;
-extern crate minihttp;
+extern crate tk_http;
 extern crate ns_std_threaded;
 extern crate ssh_keys;
 extern crate tk_easyloop;
