@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::io::{stdout, stderr};
+use std::io::{self, stdout, stderr};
 use std::path::PathBuf;
 use std::process::exit;
 use std::sync::Arc;
@@ -9,7 +9,7 @@ use abstract_ns::Resolver;
 use futures::future::{Future, join_all};
 use tk_easyloop;
 use argparse::{ArgumentParser};
-use dir_signature::{ScannerConfig, HashType, v1};
+use dir_signature::{ScannerConfig, HashType, v1, get_hash};
 
 mod options;
 
@@ -33,7 +33,8 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
     v1::scan(&cfg, &mut indexbuf)
         .map_err(|e| error!("Error scanning {:?}: {}", dir, e))?;
 
-    let image_id = b"unimplemented!()";
+    let image_id = Arc::new(get_hash(&mut io::Cursor::new(indexbuf))
+        .expect("hash valid in just created index"));
     let timestamp = SystemTime::now();
     let mut signatures = HashMap::new();
     for turl in &opt.target_urls {
@@ -58,6 +59,7 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                 let host2 = host.clone();
                 let host3 = host.clone();
                 let host4 = host.clone();
+                let image_id = image_id.clone();
                 let signatures = signatures.clone();
                 resolver.resolve(&host)
                 .map_err(move |e| {
@@ -71,6 +73,7 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                             let turl = turl.clone();
                             let signatures = signatures.clone();
                             let host = host4.clone();
+                            let image_id = image_id.clone();
                             Client::spawn(addr, &host)
                             .and_then(move |cli| {
                                 info!("Connected to {}", addr);
