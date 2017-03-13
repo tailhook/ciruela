@@ -152,6 +152,26 @@ Note: if no ``old_image`` is specified the destination directory is not
 checked. Use ``AppendDir`` to atomically update first image.
 
 
+PublishIndex
+````````````
+
+Notifies peer that this host has data for the specified index. This is usually
+executed before ``AppendDir``, so that when receiving latter command server
+is already aware where to fetch data from.
+
+.. code-block:: cddl
+
+    $message /= [0, "PublishIndex", publish-index-params]
+    publish-index-params = {
+        id: bytes,               ; binary hashsum of the image (bottom line
+                                 ; of the index file but in binary form)
+    }
+
+
+This notification basically means that peer can issue ``GetIndex`` in
+backwards direction.
+
+
 GetIndex
 ````````
 

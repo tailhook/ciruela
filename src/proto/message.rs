@@ -3,7 +3,7 @@ use std::fmt;
 use serde::{Deserialize, Deserializer};
 use serde::de::{Visitor, SeqVisitor, Error};
 
-use proto::dir_commands;
+use proto::{dir_commands, index_commands};
 use proto::{NOTIFICATION, REQUEST, RESPONSE};
 
 
@@ -35,6 +35,7 @@ pub enum Response {
 }
 
 pub enum Notification {
+    PublishIndex(index_commands::PublishIndex),
 }
 
 impl Deserialize for Message {

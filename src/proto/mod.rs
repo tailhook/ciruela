@@ -1,17 +1,22 @@
 mod client;
-mod dir_commands;
 mod message;
 mod request;
 mod serializers;
-mod signature;
 mod server;
+mod signature;
 
-pub use self::client::Client;
-pub use self::dir_commands::{AppendDir, AppendDirAck, ReplaceDir};
+mod dir_commands;
+mod index_commands;
+
+pub use self::client::{Client, ImageInfo};
 pub use self::message::{Message, Request, Response, Notification};
 pub use self::request::Request as RequestTrait;
-pub use self::signature::{Signature, SigData, sign};
+pub use self::request::Notification as NotificationTrait;
 pub use self::server::serialize_response;
+pub use self::signature::{Signature, SigData, sign};
+
+pub use self::dir_commands::{AppendDir, AppendDirAck, ReplaceDir};
+pub use self::index_commands::{PublishIndex};
 
 // Protocol identifiers
 const NOTIFICATION: u8 = 0;

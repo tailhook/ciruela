@@ -7,6 +7,7 @@ use std::time::SystemTime;
 
 use abstract_ns::Resolver;
 use futures::future::{Future, join_all};
+use futures_cpupool::CpuPool;
 use tk_easyloop;
 use argparse::{ArgumentParser};
 use dir_signature::{ScannerConfig, HashType, v1, get_hash};
@@ -17,7 +18,7 @@ use name;
 use ciruela::time::to_ms;
 use ciruela::proto::{SigData, sign};
 use global_options::GlobalOptions;
-use ciruela::proto::{Client, AppendDir};
+use ciruela::proto::{Client, AppendDir, ImageInfo};
 
 
 fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
@@ -33,8 +34,15 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
     v1::scan(&cfg, &mut indexbuf)
         .map_err(|e| error!("Error scanning {:?}: {}", dir, e))?;
 
-    let image_id = Arc::new(get_hash(&mut io::Cursor::new(indexbuf))
-        .expect("hash valid in just created index"));
+    let pool = CpuPool::new(gopt.threads);
+
+    let image_id = get_hash(&mut io::Cursor::new(&indexbuf))
+        .expect("hash valid in just created index");
+    let image_info = Arc::new(ImageInfo {
+        image_id: image_id,
+        index_data: indexbuf,
+        location: dir.to_path_buf(),
+    });
     let timestamp = SystemTime::now();
     let mut signatures = HashMap::new();
     for turl in &opt.target_urls {
@@ -43,7 +51,7 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
         }
         signatures.insert(&turl.path[..], sign(SigData {
             path: &turl.path,
-            image: &image_id[..],
+            image: &image_info.image_id[..],
             timestamp: to_ms(timestamp),
         }, &opt.private_keys));
     }
@@ -59,7 +67,8 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                 let host2 = host.clone();
                 let host3 = host.clone();
                 let host4 = host.clone();
-                let image_id = image_id.clone();
+                let image_info = image_info.clone();
+                let pool = pool.clone();
                 let signatures = signatures.clone();
                 resolver.resolve(&host)
                 .map_err(move |e| {
@@ -73,12 +82,14 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                             let turl = turl.clone();
                             let signatures = signatures.clone();
                             let host = host4.clone();
-                            let image_id = image_id.clone();
-                            Client::spawn(addr, &host)
-                            .and_then(move |cli| {
+                            let image_info = image_info.clone();
+                            let pool = pool.clone();
+                            Client::spawn(addr, &host, &pool)
+                            .and_then(move |mut cli| {
                                 info!("Connected to {}", addr);
+                                cli.register_index(&image_info);
                                 cli.request(AppendDir {
-                                    image: image_id.to_vec(),
+                                    image: image_info.image_id.to_vec(),
                                     timestamp: timestamp,
                                     signatures: signatures
                                         .get(&turl.path[..]).unwrap()
