@@ -3,7 +3,6 @@ extern crate ciruela;
 extern crate env_logger;
 extern crate futures;
 extern crate futures_cpupool;
-extern crate tk_http;
 extern crate openat;
 extern crate quire;
 extern crate rustc_serialize;
@@ -12,6 +11,8 @@ extern crate serde;
 extern crate serde_cbor;
 extern crate time;
 extern crate tk_easyloop;
+extern crate tk_http;
+extern crate tk_listen;
 extern crate tokio_core;
 
 #[macro_use] extern crate log;

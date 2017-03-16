@@ -1,5 +1,6 @@
 use std::io;
 use std::net::SocketAddr;
+use std::time::Duration;
 
 use time;
 use futures::future::{Future, FutureResult, ok};
@@ -9,6 +10,7 @@ use tk_http::Status;
 use tk_http::server::{Proto, Encoder, EncoderDone, Error, Config};
 use tk_http::server::buffered::{Request, BufferedDispatcher};
 use tk_http::websocket::{Loop, Config as WsConfig};
+use tk_listen::ListenExt;
 use tokio_core::io::Io;
 use tokio_core::net::TcpListener;
 use tk_easyloop::{spawn, handle};
@@ -56,7 +58,7 @@ pub fn start(addr: SocketAddr, meta: &Meta) -> Result<(), io::Error> {
     let meta = meta.clone();
 
     spawn(listener.incoming()
-        .map_err(|e| { println!("Accept error: {}", e); })
+        .sleep_on_error(Duration::from_millis(100), &tk_easyloop::handle())
         .map(move |(socket, addr)| {
             let wcfg = wcfg.clone();
             let meta = meta.clone();
@@ -72,7 +74,6 @@ pub fn start(addr: SocketAddr, meta: &Meta) -> Result<(), io::Error> {
                 &tk_easyloop::handle())
             .map_err(|e| { debug!("Connection error: {}", e); })
         })
-        .buffer_unordered(1000)
-          .for_each(|()| Ok(())));
+        .listen(1000));
     Ok(())
 }
