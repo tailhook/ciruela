@@ -32,6 +32,7 @@ mod config;
 mod websocket;
 mod metadata;
 mod disk;
+mod remote;
 
 
 fn main() {

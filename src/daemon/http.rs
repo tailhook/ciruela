@@ -18,6 +18,7 @@ use tk_easyloop::{spawn, handle};
 
 use websocket::Connection;
 use metadata::Meta;
+use remote::Remote;
 
 
 const BODY: &'static str = "Not found";

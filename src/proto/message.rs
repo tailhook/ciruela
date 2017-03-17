@@ -17,13 +17,22 @@ pub enum Message {
 
 struct MessageVisitor;
 struct TypeVisitor;
+struct NotificationTypeVisitor;
 
 pub enum Type {
     AppendDir,
 }
 
+pub enum NotificationType {
+    PublishIndex,
+}
+
 const TYPES: &'static [&'static str] = &[
     "AppendDir",
+    ];
+
+const NOTIFICATION_TYPES: &'static [&'static str] = &[
+    "PublishIndex",
     ];
 
 pub enum Request {
@@ -62,11 +71,35 @@ impl Visitor for TypeVisitor {
     }
 }
 
+impl Visitor for NotificationTypeVisitor {
+    type Value = NotificationType;
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str(&NOTIFICATION_TYPES.join(", "))
+    }
+
+    fn visit_str<E>(self, value: &str) -> Result<NotificationType, E>
+        where E: Error
+    {
+        match value {
+            "PublishIndex" => Ok(NotificationType::PublishIndex),
+            _ => Err(Error::unknown_field(value, NOTIFICATION_TYPES)),
+        }
+    }
+}
+
 impl Deserialize for Type {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
         where D: Deserializer
     {
         deserializer.deserialize_str(TypeVisitor)
+    }
+}
+
+impl Deserialize for NotificationType {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where D: Deserializer
+    {
+        deserializer.deserialize_str(NotificationTypeVisitor)
     }
 }
 
@@ -82,7 +115,19 @@ impl Visitor for MessageVisitor {
         where V: SeqVisitor,
     {
         match visitor.visit()? {
-            Some(NOTIFICATION) => unimplemented!(),
+            Some(NOTIFICATION) => {
+                let typ = match visitor.visit()? {
+                    Some(typ) => typ,
+                    None => return Err(Error::invalid_length(1, &self)),
+                };
+                let data = match typ {
+                    NotificationType::PublishIndex => match visitor.visit()? {
+                        Some(data) => Notification::PublishIndex(data),
+                        None => return Err(Error::invalid_length(3, &self)),
+                    },
+                };
+                Ok(Message::Notification(data))
+            }
             Some(REQUEST) => {
                 let typ = match visitor.visit()? {
                     Some(typ) => typ,

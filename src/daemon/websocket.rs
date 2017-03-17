@@ -5,8 +5,12 @@ use serde_cbor::de::from_slice;
 use tk_http::websocket::{Frame, Packet, Dispatcher, Error};
 use tk_easyloop::spawn;
 
-use ciruela::proto::{Message, Request, serialize_response};
+use ciruela::proto::{Message, Request, Notification, serialize_response};
 use metadata::Meta;
+
+
+#[derive(Clone)]
+pub struct Client(UnboundedSender<Packet>);
 
 
 pub struct Connection {
@@ -56,8 +60,10 @@ impl Dispatcher for Connection {
                 Ok(Message::Response(..)) => {
                     unimplemented!();
                 }
-                Ok(Message::Notification(..)) => {
+                Ok(Message::Notification(Notification::PublishIndex(idx))) => {
                     unimplemented!();
+                    //self.metadata.register_image(
+                    //    idx, Client(self.channel.clone()))
                 }
                 Err(e) => {
                     error!("Failed to deserialize frame, \
