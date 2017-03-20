@@ -8,6 +8,7 @@ use futures::stream::Stream;
 use tk_easyloop;
 use tk_http::Status;
 use tk_http::server::{Proto, Encoder, EncoderDone, Error, Config};
+
 use tk_http::server::buffered::{Request, BufferedDispatcher};
 use tk_http::websocket::{Loop, Config as WsConfig};
 use tk_listen::ListenExt;
@@ -52,25 +53,34 @@ fn service<S:Io>(req: Request, mut e: Encoder<S>)
 }
 
 
-pub fn start(addr: SocketAddr, meta: &Meta) -> Result<(), io::Error> {
+pub fn start(addr: SocketAddr, meta: &Meta, remote: &Remote)
+    -> Result<(), io::Error>
+{
     let listener = TcpListener::bind(&addr, &handle()).unwrap();
     let cfg = Config::new().done();
     let wcfg = WsConfig::new().done();
     let meta = meta.clone();
+    let remote = remote.clone();
 
     spawn(listener.incoming()
         .sleep_on_error(Duration::from_millis(100), &tk_easyloop::handle())
         .map(move |(socket, addr)| {
             let wcfg = wcfg.clone();
             let meta = meta.clone();
+            let remote = remote.clone();
             Proto::new(socket, &cfg,
                 BufferedDispatcher::new_with_websockets(addr, &handle(),
                     service,
                     move |out, inp| {
-                        let (conn, rx) = Connection::new(&meta);
-                        let rx = rx.map_err(|()| "channel closed");
-                        Loop::server(out, inp, rx, conn, &wcfg)
-                        .map_err(|e| debug!("websocket closed: {}", e))
+                        let (cli, fut) = Connection::new(
+                            out, inp, &meta, &wcfg);
+                        let token = remote.register_connection(&cli);
+                        fut
+                            .map_err(|e| debug!("websocket closed: {}", e))
+                            .then(move |r| {
+                                drop(token);
+                                r
+                            })
                     }),
                 &tk_easyloop::handle())
             .map_err(|e| { debug!("Connection error: {}", e); })

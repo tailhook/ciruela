@@ -10,12 +10,14 @@ extern crate scan_dir;
 extern crate serde;
 extern crate serde_cbor;
 extern crate time;
+extern crate tk_bufstream;
 extern crate tk_easyloop;
 extern crate tk_http;
 extern crate tk_listen;
 extern crate tokio_core;
 
 #[macro_use] extern crate log;
+#[macro_use] extern crate lazy_static;
 #[macro_use] extern crate quick_error;
 
 use std::env;
@@ -110,8 +112,10 @@ fn main() {
         }
     };
 
+    let remote = remote::Remote::new();
+
     tk_easyloop::run_forever(|| -> Result<(), Box<Error>> {
-        http::start(addr, &meta)?;
+        http::start(addr, &meta, &remote)?;
         disk::start(disk_init, &meta)?;
         Ok(())
     }).map_err(|e| {
