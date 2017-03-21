@@ -3,7 +3,10 @@ use futures::sync::mpsc::{unbounded, UnboundedSender, UnboundedReceiver};
 use metadata::Meta;
 use remote::Remote;
 use disk::Disk;
+use ciruela::ImageId;
+use dir_config::DirConfig;
 
+#[derive(Clone)]
 pub struct Tracking {
     tx: UnboundedSender<Command>,
 }
@@ -25,6 +28,9 @@ impl Tracking {
          TrackingInit {
             rx: rx,
          })
+    }
+    pub fn fetch_dir(&self, image: &ImageId, cfg: DirConfig) {
+        unimplemented!();
     }
 }
 

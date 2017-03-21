@@ -10,7 +10,7 @@ use serde_cbor::ser::Serializer as Cbor;
 use ciruela::proto::{AppendDir, AppendDirAck};
 use ciruela::database::signatures::{State, SignatureEntry};
 use metadata::{Meta, Error, find_config_dir};
-use metadata::config::DirConfig;
+use dir_config::DirConfig;
 use metadata::dir_ext::{DirExt, recover};
 
 
@@ -52,7 +52,7 @@ pub fn start(params: AppendDir, meta: &Meta)
         Err(ref e) if e.kind() == io::ErrorKind::NotFound => {
             let timestamp = params.timestamp;
             let state = State {
-                image: params.image,
+                image: params.image.clone(),
                 signatures: params.signatures.into_iter()
                     .map(|sig| SignatureEntry {
                         timestamp: timestamp,
@@ -64,6 +64,7 @@ pub fn start(params: AppendDir, meta: &Meta)
             state.serialize(&mut Cbor::new(&mut f))?;
             drop(f);
             dir.rename_meta(&tmpname, &state_file)?;
+            meta.tracking.fetch_dir(&params.image, cfg);
             // TODO(tailhook) send message to image tracking subsystem
             // to start image syncing
             Ok(AppendDirAck {

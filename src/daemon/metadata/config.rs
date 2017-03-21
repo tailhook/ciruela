@@ -7,13 +7,7 @@ use std::os::unix::ffi::OsStrExt;
 use config::{Config, Directory};
 use metadata::Error;
 
-
-pub struct DirConfig<'a> {
-    pub base: &'a Path,
-    pub parent: &'a Path,
-    pub image_name: &'a str,
-    pub config: &'a Directory,
-}
+use dir_config::DirConfig;
 
 
 pub fn find_config_dir<'x>(cfg: &'x Arc<Config>, path: &'x Path)

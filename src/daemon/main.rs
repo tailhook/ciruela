@@ -36,6 +36,7 @@ mod metadata;
 mod disk;
 mod remote;
 mod tracking;
+mod dir_config;
 
 
 fn main() {
@@ -107,7 +108,9 @@ fn main() {
         }
     };
 
-    let meta = match metadata::Meta::new(metadata_threads, &config, &disk) {
+    let meta = match
+        metadata::Meta::new(metadata_threads, &config, &disk, &tracking)
+    {
         Ok(meta) => meta,
         Err(e) => {
             error!("Can't open metadata directory {:?}: {}",

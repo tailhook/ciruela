@@ -12,6 +12,7 @@ use futures_cpupool::{CpuPool, CpuFuture};
 use ciruela::proto::{AppendDir, AppendDirAck};
 use config::Config;
 use disk::Disk;
+use tracking::Tracking;
 
 pub use self::error::Error;
 pub use self::config::find_config_dir;
@@ -23,10 +24,12 @@ pub struct Meta {
     config: Arc<Config>,
     base_dir: Arc<Dir>,
     disk: Disk,
+    tracking: Tracking,
 }
 
 impl Meta {
-    pub fn new(num_threads: usize, config: &Arc<Config>, disk: &Disk)
+    pub fn new(num_threads: usize, config: &Arc<Config>,
+        disk: &Disk, tracking: &Tracking)
         -> Result<Meta, io::Error>
     {
         let dir = Dir::open(&config.db_dir)?;
@@ -36,6 +39,7 @@ impl Meta {
             config: config.clone(),
             base_dir: Arc::new(dir),
             disk: disk.clone(),
+            tracking: tracking.clone(),
         })
     }
     pub fn append_dir(&self, params: AppendDir)
