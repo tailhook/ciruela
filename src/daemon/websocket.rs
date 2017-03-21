@@ -1,5 +1,6 @@
+use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use futures::{Future, Stream};
@@ -14,6 +15,7 @@ use tk_bufstream::{WriteFramed, ReadFramed};
 use tokio_core::net::TcpStream;
 
 use ciruela::proto::{Message, Request, Notification, serialize_response};
+use ciruela::ImageId;
 use metadata::Meta;
 
 lazy_static! {
@@ -21,14 +23,17 @@ lazy_static! {
 }
 
 #[derive(Clone)]
-pub struct Connection {
+pub struct Connection(Arc<ConnectionState>);
+
+struct ConnectionState {
     id: usize,
     sender: UnboundedSender<Packet>,
+    images: Mutex<HashSet<ImageId>>,
 }
 
 
 pub struct Dispatcher {
-    channel: UnboundedSender<Packet>,
+    connection: Connection,
     metadata: Meta,
 }
 
@@ -43,14 +48,23 @@ impl Connection {
         // TODO(tailhook) not sure how large backpressure should be
         let (tx, rx) = unbounded();
         let rx = rx.map_err(closed as fn(()) -> &'static str);
+        let id = connection_id.fetch_add(1, Ordering::SeqCst);
+        let cli = Connection(Arc::new(ConnectionState {
+            id: id,
+            sender: tx,
+            images: Mutex::new(HashSet::new()),
+        }));
         let disp = Dispatcher {
-            channel: tx.clone(),
+            connection: cli.clone(),
             metadata: meta.clone(),
         };
-        let id = connection_id.fetch_add(1, Ordering::SeqCst);
-        let cli = Connection { id: id, sender: tx };
         let fut = Loop::server(out, inp, rx, disp, cfg);
         return (cli, fut);
+    }
+
+    fn images(&self) -> MutexGuard<HashSet<ImageId>> {
+        self.0.images.lock()
+            .expect("images are not poisoned")
     }
 }
 
@@ -65,7 +79,7 @@ impl websocket::Dispatcher for Dispatcher {
         match *frame {
             Frame::Binary(data) => match from_slice(data) {
                 Ok(Message::Request(request_id, Request::AppendDir(ad))) => {
-                    let chan = self.channel.clone();
+                    let chan = self.connection.0.sender.clone();
                     spawn(self.metadata.append_dir(ad).then(move |res| {
                         let send_res = match res {
                             Ok(value) => {
@@ -88,9 +102,10 @@ impl websocket::Dispatcher for Dispatcher {
                     unimplemented!();
                 }
                 Ok(Message::Notification(Notification::PublishIndex(idx))) => {
-                    unimplemented!();
-                    //self.metadata.register_image(
-                    //    idx, Client(self.channel.clone()))
+                    self.connection.images().insert(idx.image_id);
+                    // TODO(tailhook) wakeup remote subsystem, so it can
+                    // fetch image from this peer if image is currently in
+                    // hanging state
                 }
                 Err(e) => {
                     error!("Failed to deserialize frame, \
@@ -109,13 +124,13 @@ impl Hash for Connection {
     fn hash<H>(&self, state: &mut H)
         where H: Hasher
     {
-        self.id.hash(state)
+        self.0.id.hash(state)
     }
 }
 
 impl PartialEq for Connection {
     fn eq(&self, other: &Connection) -> bool {
-        self.id == other.id
+        self.0.id == other.0.id
     }
 }
 

@@ -18,3 +18,5 @@ extern crate tokio_core;
 pub mod proto;
 pub mod database;
 pub mod time;
+
+pub type ImageId = Vec<u8>;  // TODO(tailhook) make a newtype
