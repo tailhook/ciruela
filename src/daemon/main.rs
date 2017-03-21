@@ -35,6 +35,7 @@ mod websocket;
 mod metadata;
 mod disk;
 mod remote;
+mod tracking;
 
 
 fn main() {
@@ -95,6 +96,9 @@ fn main() {
             exit(1);
         }
     };
+
+    let (tracking, tracking_init) = tracking::Tracking::new();
+
     let (disk, disk_init) = match disk::Disk::new(disk_threads, &config) {
         Ok(pair) => pair,
         Err(e) => {
@@ -114,9 +118,11 @@ fn main() {
 
     let remote = remote::Remote::new();
 
+
     tk_easyloop::run_forever(|| -> Result<(), Box<Error>> {
         http::start(addr, &meta, &remote)?;
         disk::start(disk_init, &meta)?;
+        tracking::start(tracking_init, &meta, &remote, &disk)?;
         Ok(())
     }).map_err(|e| {
         error!("Startup error: {}", e);
