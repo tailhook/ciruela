@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
 
@@ -8,7 +9,7 @@ use quire::{parse_config, Options, ErrorList};
 
 pub struct Config {
     pub db_dir: PathBuf,
-    pub dirs: HashMap<String, Directory>,
+    pub dirs: HashMap<String, Arc<Directory>>,
 }
 
 
@@ -31,7 +32,9 @@ fn directory_validator<'x>() -> Structure<'x> {
     .member("download_keys", Sequence::new(Scalar::new()))
 }
 
-pub fn read_dirs(path: &Path) -> Result<HashMap<String, Directory>, String> {
+pub fn read_dirs(path: &Path)
+    -> Result<HashMap<String, Arc<Directory>>, String>
+{
     if !path.is_dir() {
         warn!("No directory {:?} found", path);
         return Ok(HashMap::new());
