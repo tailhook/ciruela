@@ -38,6 +38,7 @@ mod disk;
 mod remote;
 mod tracking;
 mod dir_config;
+mod index;
 
 
 fn main() {

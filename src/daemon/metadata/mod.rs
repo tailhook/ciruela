@@ -1,7 +1,9 @@
-mod append_dir;
 mod config;
 mod error;
 mod dir_ext;
+
+mod append_dir;
+mod read_index;
 
 use std::io;
 use std::sync::Arc;
@@ -9,9 +11,11 @@ use std::sync::Arc;
 use openat::Dir;
 use futures_cpupool::{CpuPool, CpuFuture};
 
+use ciruela::ImageId;
 use ciruela::proto::{AppendDir, AppendDirAck};
 use config::Config;
 use disk::Disk;
+use index::Index;
 use tracking::Tracking;
 
 pub use self::error::Error;
@@ -48,6 +52,15 @@ impl Meta {
         let meta = self.clone();
         self.cpu_pool.spawn_fn(move || {
             append_dir::start(params, &meta)
+        })
+    }
+    pub fn read_index(&self, index: &ImageId)
+        -> CpuFuture<Index, Error>
+    {
+        let meta = self.clone();
+        let index = index.clone();
+        self.cpu_pool.spawn_fn(move || {
+            read_index::read(index, &meta)
         })
     }
 }

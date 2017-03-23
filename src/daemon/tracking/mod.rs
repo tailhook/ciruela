@@ -1,17 +1,15 @@
-mod index;
 mod fetch_dir;
-
-pub use self::index::Index;
 
 use std::sync::{Arc, Weak, Mutex, MutexGuard};
 use std::collections::HashMap;
 
-use futures::{Future, Stream};
+use futures::{Stream};
 use futures::future::Shared;
 use futures::sync::mpsc::{unbounded, UnboundedSender, UnboundedReceiver};
 use futures::sync::oneshot::{Receiver};
 use tk_easyloop;
 
+use index::{Index, IndexData};
 use metadata::Meta;
 use remote::Remote;
 use disk::Disk;
@@ -23,15 +21,19 @@ type ImageFuture = Shared<Receiver<Index>>;
 
 pub struct State {
     image_futures: HashMap<ImageId, ImageFuture>,
-    images: HashMap<ImageId, Weak<index::IndexData>>,
+    images: HashMap<ImageId, Weak<IndexData>>,
 }
 
 #[derive(Clone)]
-pub struct Tracking(Arc<TrackingInternal>);
-
-struct TrackingInternal {
+pub struct Tracking {
     chan: UnboundedSender<Command>,
-    state: Mutex<State>,
+    state: Arc<Mutex<State>>,
+}
+
+#[derive(Clone)]
+pub struct Subsystem {
+    state: Arc<Mutex<State>>,
+    meta: Meta,
 }
 
 pub struct TrackingInit {
@@ -47,13 +49,13 @@ pub enum Command {
 impl Tracking {
     pub fn new() -> (Tracking, TrackingInit) {
         let (tx, rx) = unbounded();
-        let handler = Tracking(Arc::new(TrackingInternal {
-            state: Mutex::new(State {
+        let handler = Tracking {
+            state: Arc::new(Mutex::new(State {
                 image_futures: HashMap::new(),
                 images: HashMap::new(),
-            }),
+            })),
             chan: tx,
-        }));
+        };
         (handler.clone(),
          TrackingInit {
             chan: rx,
@@ -69,11 +71,14 @@ impl Tracking {
             config: cfg.config.clone(),
         }));
     }
-    fn state(&self) -> MutexGuard<State> {
-        self.0.state.lock().expect("image tracking subsystem is not poisoned")
-    }
     fn send(&self, command: Command) {
-        self.0.chan.send(command).expect("image tracking subsystem is alive")
+        self.chan.send(command).expect("image tracking subsystem is alive")
+    }
+}
+
+impl Subsystem {
+    fn state(&self) -> MutexGuard<State> {
+        self.state.lock().expect("image tracking subsystem is not poisoned")
     }
 }
 
@@ -81,11 +86,15 @@ pub fn start(init: TrackingInit, meta: &Meta, remote: &Remote, disk: &Disk)
     -> Result<(), String> // actually void
 {
     let TrackingInit { chan, tracking } = init;
+    let sys = Subsystem {
+        meta: meta.clone(),
+        state: tracking.state.clone(),
+    };
     tk_easyloop::spawn(chan
         .for_each(move |command| {
             use self::Command::*;
             match command {
-                FetchDir(info) => fetch_dir::start(&tracking, info),
+                FetchDir(info) => fetch_dir::start(&sys, info),
             }
             Ok(())
         }));
