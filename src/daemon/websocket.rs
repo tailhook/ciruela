@@ -19,7 +19,7 @@ use ciruela::ImageId;
 use metadata::Meta;
 
 lazy_static! {
-    static ref connection_id: AtomicUsize = AtomicUsize::new(0);
+    static ref CONNECTION_ID: AtomicUsize = AtomicUsize::new(0);
 }
 
 #[derive(Clone)]
@@ -48,7 +48,7 @@ impl Connection {
         // TODO(tailhook) not sure how large backpressure should be
         let (tx, rx) = unbounded();
         let rx = rx.map_err(closed as fn(()) -> &'static str);
-        let id = connection_id.fetch_add(1, Ordering::SeqCst);
+        let id = CONNECTION_ID.fetch_add(1, Ordering::SeqCst);
         let cli = Connection(Arc::new(ConnectionState {
             id: id,
             sender: tx,

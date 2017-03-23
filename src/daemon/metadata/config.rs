@@ -4,7 +4,7 @@ use std::str::from_utf8;
 use std::os::unix::ffi::OsStrExt;
 
 
-use config::{Config, Directory};
+use config::Config;
 use metadata::Error;
 
 use dir_config::DirConfig;

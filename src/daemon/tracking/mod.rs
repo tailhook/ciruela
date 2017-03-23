@@ -5,7 +5,6 @@ pub use self::index::Index;
 
 use std::sync::{Arc, Weak, Mutex, MutexGuard};
 use std::collections::HashMap;
-use std::path::PathBuf;
 
 use futures::{Future, Stream};
 use futures::future::Shared;
@@ -18,7 +17,6 @@ use remote::Remote;
 use disk::Disk;
 use ciruela::ImageId;
 use dir_config::DirConfig;
-use config::Directory;
 
 
 type ImageFuture = Shared<Receiver<Index>>;
@@ -38,6 +36,7 @@ struct TrackingInternal {
 
 pub struct TrackingInit {
     chan: UnboundedReceiver<Command>,
+    tracking: Tracking,
 }
 
 pub enum Command {
@@ -48,15 +47,17 @@ pub enum Command {
 impl Tracking {
     pub fn new() -> (Tracking, TrackingInit) {
         let (tx, rx) = unbounded();
-        (Tracking(Arc::new(TrackingInternal {
+        let handler = Tracking(Arc::new(TrackingInternal {
             state: Mutex::new(State {
                 image_futures: HashMap::new(),
                 images: HashMap::new(),
             }),
             chan: tx,
-         })),
+        }));
+        (handler.clone(),
          TrackingInit {
             chan: rx,
+            tracking: handler,
          })
     }
     pub fn fetch_dir(&self, image: &ImageId, cfg: DirConfig) {
@@ -79,11 +80,12 @@ impl Tracking {
 pub fn start(init: TrackingInit, meta: &Meta, remote: &Remote, disk: &Disk)
     -> Result<(), String> // actually void
 {
-    tk_easyloop::spawn(init.chan
-        .for_each(|command| {
+    let TrackingInit { chan, tracking } = init;
+    tk_easyloop::spawn(chan
+        .for_each(move |command| {
             use self::Command::*;
             match command {
-                FetchDir(info) => fetch_dir::start(info),
+                FetchDir(info) => fetch_dir::start(&tracking, info),
             }
             Ok(())
         }));

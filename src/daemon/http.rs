@@ -10,7 +10,7 @@ use tk_http::Status;
 use tk_http::server::{Proto, Encoder, EncoderDone, Error, Config};
 
 use tk_http::server::buffered::{Request, BufferedDispatcher};
-use tk_http::websocket::{Loop, Config as WsConfig};
+use tk_http::websocket::{Config as WsConfig};
 use tk_listen::ListenExt;
 use tokio_core::io::Io;
 use tokio_core::net::TcpListener;
