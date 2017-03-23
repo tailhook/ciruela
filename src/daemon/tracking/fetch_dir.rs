@@ -8,7 +8,7 @@ use futures::sync::oneshot::channel;
 use config::Directory;
 use ciruela::ImageId;
 use tracking::Tracking;
-use tracking::Index;
+use tracking::index::{Index, IndexData};
 
 
 pub struct FetchDir {
@@ -20,19 +20,37 @@ pub struct FetchDir {
 }
 
 pub fn start(tracking: &Tracking, cmd: FetchDir) {
-    let mut state = tracking.state();
+    let t1 = tracking.clone();
+    let mut state = &mut *tracking.state();
     let cached = state.images.get(&cmd.image_id)
-        .and_then(|x| x.upgrade());
+        .and_then(|x| x.upgrade()).map(Index);
     if let Some(index) = cached {
         println!("Image {:?} is already cached", cmd.image_id);
+        return;
+    }
+    let old_future = state.image_futures.get(&cmd.image_id).map(Clone::clone);
+    let future = if let Some(future) = old_future {
+        debug!("Image {:?} is already being fetched", cmd.image_id);
+        future.clone()
     } else {
         let (tx, rx) = channel::<Index>();
-        tk_easyloop::spawn(rx.shared()
-            .map(|index| {
-                println!("Got image {:?}", index.id)
-            })
-            .map_err(|e| {
-                println!("Error getting image {:?}", e)
-            }));
-    }
+        let future = rx.shared();
+        state.image_futures.insert(cmd.image_id.clone(), future.clone());
+        future
+    };
+    tk_easyloop::spawn(future
+        .then(move |result| {
+            match result {
+                Ok(index) => {
+                    println!("Got image {:?}", index.id);
+                    t1.state().images.insert(cmd.image_id,
+                        index.weak());
+                }
+                Err(e) => {
+                    println!("Error getting image {:?}", e);
+                    t1.state().image_futures.remove(&cmd.image_id);
+                }
+            }
+            Ok(())
+        }));
 }

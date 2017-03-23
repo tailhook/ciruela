@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use futures::{Future, Stream};
 use futures::future::Shared;
 use futures::sync::mpsc::{unbounded, UnboundedSender, UnboundedReceiver};
-use futures::sync::oneshot::{channel, Receiver};
+use futures::sync::oneshot::{Receiver};
 use tk_easyloop;
 
 use metadata::Meta;
@@ -23,7 +23,7 @@ type ImageFuture = Shared<Receiver<Index>>;
 
 pub struct State {
     image_futures: HashMap<ImageId, ImageFuture>,
-    images: HashMap<ImageId, Weak<Index>>,
+    images: HashMap<ImageId, Weak<index::IndexData>>,
 }
 
 #[derive(Clone)]
