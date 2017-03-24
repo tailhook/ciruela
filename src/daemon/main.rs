@@ -4,6 +4,7 @@ extern crate dir_signature;
 extern crate env_logger;
 extern crate futures;
 extern crate futures_cpupool;
+extern crate hex;
 extern crate openat;
 extern crate quire;
 extern crate rustc_serialize;

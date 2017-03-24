@@ -34,6 +34,7 @@ pub fn check_path(path: &Path) -> Result<&Path, Error> {
 pub fn start(params: AppendDir, meta: &Meta)
     -> Result<AppendDirAck, Error>
 {
+    // TODO(tailhook) assert on thread name
     let path = check_path(&params.path)?;
 
     let cfg = find_config_dir(&meta.config, path)?;
@@ -77,24 +78,10 @@ pub fn start(params: AppendDir, meta: &Meta)
     }
 }
 
-fn open_dir(dir: &Dir, path: &Path) -> Result<Dir, Error> {
-    match dir.sub_dir(path) {
-        Ok(dir) => Ok(dir),
-        Err(e) => {
-            if e.kind() == io::ErrorKind::NotFound {
-                dir.create_meta_dir(path)?;
-                dir.meta_sub_dir(path)
-            } else {
-                Err(Error::OpenMeta(recover(dir, path), e))
-            }
-        }
-    }
-}
-
 pub fn open_base_path(meta: &Meta, cfg: &DirConfig) -> Result<Dir, Error> {
-    let mut dir = open_dir(&meta.base_dir, &cfg.base)?;
+    let mut dir = meta.base_dir.open_meta_dir(&cfg.base)?;
     for cmp in cfg.parent.iter() {
-        dir = open_dir(&dir, &Path::new(cmp))?;
+        dir = dir.open_meta_dir(&Path::new(cmp))?;
     }
     return Ok(dir);
 }

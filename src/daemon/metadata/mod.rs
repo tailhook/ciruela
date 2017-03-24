@@ -60,7 +60,17 @@ impl Meta {
         let meta = self.clone();
         let index = index.clone();
         self.cpu_pool.spawn_fn(move || {
-            read_index::read(index, &meta)
+            let res = read_index::read(&index, &meta);
+            match res {
+                Ok(ref index) => {
+                    info!("Read index {:?} from file", &index.id);
+                }
+                Err(ref e) => {
+                    info!("Error reading index {:?} from file: {}",
+                          index, e);
+                }
+            }
+            res
         })
     }
 }
