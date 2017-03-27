@@ -20,6 +20,7 @@ extern crate tokio_core;
 
 #[macro_use] extern crate log;
 #[macro_use] extern crate lazy_static;
+#[macro_use] extern crate matches;
 #[macro_use] extern crate quick_error;
 
 use std::env;

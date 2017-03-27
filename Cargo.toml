@@ -41,6 +41,7 @@ hex = "0.2.0"
 mopa = "0.2.2"
 tk-listen = "0.1.0"
 lazy_static = "0.2.4"
+matches = "0.1.4"
 
 [[bin]]
 name = "ciruela-server"
