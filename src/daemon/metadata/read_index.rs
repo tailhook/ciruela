@@ -23,10 +23,12 @@ pub fn parse(id: &ImageId, f: File) -> Result<Index, IndexError> {
     })))
 }
 
-pub fn image_not_found(e: Error) -> Error {
+pub fn index_not_found(e: Error) -> Error {
     match e {
-        Error::ReadMeta(_, ref e) if e.kind() == io::ErrorKind::NotFound => {
-            return Error::ImageNotFound;
+        Error::OpenMeta(_, ref e)
+        | Error::ReadMeta(_, ref e)
+        if e.kind() == io::ErrorKind::NotFound => {
+            return Error::IndexNotFound;
         }
         _ => {}
     }
@@ -37,11 +39,11 @@ pub fn read(image_id: &ImageId, meta: &Meta) -> Result<Index, Error> {
     // TODO(tailhook) assert on thread name
     let hex_id = image_id.to_hex();
     let filename = format!("{}.ds1", &hex_id);
-    let base = meta.base_dir.meta_sub_dir("signatures")
+    let base = meta.base_dir.meta_sub_dir("indexes")
         .and_then(|dir| dir.meta_sub_dir(&hex_id[..2]))
-        .map_err(image_not_found)?;
+        .map_err(index_not_found)?;
     let file = base.read_meta_file(&filename)
-        .map_err(image_not_found)?;
+        .map_err(index_not_found)?;
     parse(image_id, file)
     .map_err(|e| Error::BadIndex(recover(&base, filename), e))
 }

@@ -46,8 +46,8 @@ quick_error! {
             display("error reading index: {}", e)
             cause(e)
         }
-        ImageNotFound {
-            description("image not found")
+        IndexNotFound {
+            description("index not found")
         }
     }
 }
