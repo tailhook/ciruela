@@ -40,7 +40,7 @@ pub fn start(sys: &Subsystem, cmd: FetchDir) {
         let cmd = cmd.clone();
         state.image_futures.insert(cmd.image_id.clone(), future.clone());
         tk_easyloop::spawn(sys.meta.read_index(&cmd.image_id)
-            .then(move |result| {
+            .then(move |result| -> Result<(), ()> {
                 match result {
                     Ok(index) => {
                         info!("Index {:?} is read from store", index.id);
@@ -58,7 +58,6 @@ pub fn start(sys: &Subsystem, cmd: FetchDir) {
                         unimplemented!();
                     }
                 }
-                Ok(())
             }));
         future
     };

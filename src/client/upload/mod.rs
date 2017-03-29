@@ -19,6 +19,7 @@ use ciruela::time::to_ms;
 use ciruela::proto::{SigData, sign};
 use global_options::GlobalOptions;
 use ciruela::proto::{Client, AppendDir, ImageInfo};
+use ciruela::proto::RequestClient;
 
 
 fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)

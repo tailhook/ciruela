@@ -12,6 +12,7 @@ pub use self::client::{Client, ImageInfo};
 pub use self::message::{Message, Request, Response, Notification};
 pub use self::request::Request as RequestTrait;
 pub use self::request::Notification as NotificationTrait;
+pub use self::request::RequestClient;
 pub use self::server::serialize_response;
 pub use self::signature::{Signature, SigData, sign};
 
