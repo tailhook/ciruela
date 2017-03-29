@@ -17,6 +17,7 @@ pub use self::signature::{Signature, SigData, sign};
 
 pub use self::dir_commands::{AppendDir, AppendDirAck, ReplaceDir};
 pub use self::index_commands::{PublishIndex};
+pub use self::index_commands::{GetIndex, GetIndexResponse};
 
 // Protocol identifiers
 const NOTIFICATION: u8 = 0;
