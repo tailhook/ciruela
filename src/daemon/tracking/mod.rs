@@ -34,6 +34,7 @@ pub struct Tracking {
 pub struct Subsystem {
     state: Arc<Mutex<State>>,
     meta: Meta,
+    remote: Remote,
 }
 
 pub struct TrackingInit {
@@ -89,6 +90,7 @@ pub fn start(init: TrackingInit, meta: &Meta, remote: &Remote, disk: &Disk)
     let sys = Subsystem {
         meta: meta.clone(),
         state: tracking.state.clone(),
+        remote: remote.clone(),
     };
     tk_easyloop::spawn(chan
         .for_each(move |command| {

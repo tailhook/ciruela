@@ -1,13 +1,11 @@
 use std::net::SocketAddr;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex, MutexGuard};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 use std::collections::HashMap;
 
 use futures::{Async, Future};
 use futures::future::{FutureResult, ok};
 use futures::stream::Stream;
-use futures::sync::mpsc::{unbounded, UnboundedSender};
 use futures::sync::oneshot::{channel as oneshot, Receiver};
 use futures_cpupool::CpuPool;
 use tk_http::websocket::client::{HandshakeProto, SimpleAuthorizer};
@@ -16,10 +14,11 @@ use serde_cbor::de::from_slice;
 use tk_easyloop;
 use tokio_core::net::TcpStream;
 
-use proto::{Message};
+use proto::{StreamExt};
+use proto::message::Message;
 use proto::index_commands::PublishIndex;
-use proto::request::{WrapTrait, Error, RequestDispatcher, RequestClient};
-use proto::request::{NotificationWrap};
+use proto::request::{Sender, Error, RequestDispatcher, RequestClient};
+use proto::request::{Registry};
 
 
 pub struct ImageInfo {
@@ -30,7 +29,7 @@ pub struct ImageInfo {
 
 
 pub struct Client {
-    channel: UnboundedSender<Box<WrapTrait>>,
+    channel: Sender,
     pool: CpuPool,
     local_images: HashMap<Vec<u8>, Arc<ImageInfo>>,
 }
@@ -41,7 +40,7 @@ pub struct ClientFuture {
 
 
 struct MyDispatcher {
-    requests: Arc<Mutex<HashMap<u64, Box<WrapTrait>>>>,
+    requests: Registry,
 }
 
 impl Dispatcher for MyDispatcher {
@@ -72,13 +71,13 @@ impl Dispatcher for MyDispatcher {
 }
 
 impl RequestDispatcher for MyDispatcher {
-    fn request_registry(&self) -> MutexGuard<HashMap<u64, Box<WrapTrait>>> {
-        self.requests.lock().expect("requests are not poisoned")
+    fn request_registry(&self) -> &Registry {
+        &self.requests
     }
 }
 
 impl RequestClient for Client {
-    fn request_channel(&self) -> &UnboundedSender<Box<WrapTrait>> {
+    fn request_channel(&self) -> &Sender {
         &self.channel
     }
 }
@@ -89,10 +88,9 @@ impl Client {
     {
         let host = host.to_string();
         let (tx, rx) = oneshot();
-        let (ctx, crx) = unbounded();
+        let (ctx, crx) = Sender::channel();
         let wcfg = Config::new().done();
-        let requests = Arc::new(Mutex::new(HashMap::new()));
-        let request_id = Arc::new(AtomicUsize::new(0));
+        let requests = Registry::new();
         let pool = pool.clone();
         tk_easyloop::spawn(
             TcpStream::connect(&addr, &tk_easyloop::handle())
@@ -117,17 +115,8 @@ impl Client {
                 let disp = MyDispatcher {
                     requests: requests.clone(),
                 };
-                let stream = crx.map(move |req| {
-                    if req.is_request() {
-                        let r_id = request_id.fetch_add(1, Ordering::SeqCst);
-                        let packet = req.serialize_req(r_id as u64);
-                        requests.lock().unwrap()
-                            .insert(r_id as u64, req);
-                        packet
-                    } else {
-                        req.serialize()
-                    }
-                }).map_err(|_| Error::UnexpectedTermination);
+                let stream = crx.packetize(&requests)
+                    .map_err(|_| Error::UnexpectedTermination);
                 Loop::client(out, inp, stream, disp, &wcfg)
                 .map_err(|e| println!("websocket closed: {}", e))
             })
@@ -138,15 +127,11 @@ impl Client {
     }
     pub fn register_index(&mut self, info: &Arc<ImageInfo>) {
         self.local_images.insert(info.image_id.to_vec(), info.clone());
-        self.channel.send(Box::new(NotificationWrap::new(
+        self.channel.notification(
             PublishIndex {
                 image_id: info.image_id.to_vec(),
             }
-        ))).map_err(|e| {
-            // We expect `rx` to get cancellation notice in case of error, so
-            // process does not hang, after logging the message
-            error!("Error sending request: {}", e)
-        }).ok();
+        );
     }
 }
 

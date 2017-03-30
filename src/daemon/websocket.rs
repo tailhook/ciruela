@@ -6,15 +6,19 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use futures::{Future, Stream};
 use futures::stream::MapErr;
 use futures::future::{FutureResult, ok};
-use futures::sync::mpsc::{unbounded, UnboundedSender, UnboundedReceiver};
+use futures::sync::mpsc::{UnboundedReceiver};
 use serde_cbor::de::from_slice;
-use tk_http::websocket::{self, Frame, Packet, Error, Config, Loop};
+use tk_http::websocket::{self, Frame, Error, Config, Loop};
 use tk_http::websocket::ServerCodec;
 use tk_easyloop::spawn;
 use tk_bufstream::{WriteFramed, ReadFramed};
 use tokio_core::net::TcpStream;
 
-use ciruela::proto::{Message, Request, Notification, serialize_response};
+use ciruela::proto::message::{Message, Request, Notification};
+use ciruela::proto::{GetIndex, GetIndexResponse};
+use ciruela::proto::{RequestClient, Sender};
+use ciruela::proto::{RequestFuture, Registry, StreamExt, PacketStream};
+use ciruela::proto::{WrapTrait};
 use ciruela::ImageId;
 use metadata::Meta;
 
@@ -27,7 +31,7 @@ pub struct Connection(Arc<ConnectionState>);
 
 struct ConnectionState {
     id: usize,
-    sender: UnboundedSender<Packet>,
+    sender: Sender,
     images: Mutex<HashSet<ImageId>>,
 }
 
@@ -35,6 +39,7 @@ struct ConnectionState {
 pub struct Dispatcher {
     connection: Connection,
     metadata: Meta,
+    requests: Registry,
 }
 
 impl Connection {
@@ -42,11 +47,13 @@ impl Connection {
                inp: ReadFramed<TcpStream, ServerCodec>,
                meta: &Meta, cfg: &Arc<Config>)
         -> (Connection, Loop<TcpStream,
-            MapErr<UnboundedReceiver<Packet>, fn(()) -> &'static str>,
+            PacketStream<
+                MapErr<UnboundedReceiver<Box<WrapTrait>>,
+                        fn(()) -> &'static str>>,
             Dispatcher>)
     {
         // TODO(tailhook) not sure how large backpressure should be
-        let (tx, rx) = unbounded();
+        let (tx, rx) = Sender::channel();
         let rx = rx.map_err(closed as fn(()) -> &'static str);
         let id = CONNECTION_ID.fetch_add(1, Ordering::SeqCst);
         let cli = Connection(Arc::new(ConnectionState {
@@ -54,10 +61,13 @@ impl Connection {
             sender: tx,
             images: Mutex::new(HashSet::new()),
         }));
+        let registry = Registry::new();
         let disp = Dispatcher {
             connection: cli.clone(),
             metadata: meta.clone(),
+            requests: registry.clone(),
         };
+        let rx = rx.packetize(&registry);
         let fut = Loop::server(out, inp, rx, disp, cfg);
         return (cli, fut);
     }
@@ -65,6 +75,23 @@ impl Connection {
     fn images(&self) -> MutexGuard<HashSet<ImageId>> {
         self.0.images.lock()
             .expect("images are not poisoned")
+    }
+
+    pub fn has_image(&self, id: &ImageId) -> bool {
+        self.images().contains(id)
+    }
+
+    pub fn fetch_index(&self, id: &ImageId) -> RequestFuture<GetIndexResponse>
+    {
+        self.request(GetIndex {
+            id: id.clone()
+        })
+    }
+}
+
+impl RequestClient for Connection {
+    fn request_channel(&self) -> &Sender {
+        &self.0.sender
     }
 }
 
@@ -81,20 +108,15 @@ impl websocket::Dispatcher for Dispatcher {
                 Ok(Message::Request(request_id, Request::AppendDir(ad))) => {
                     let chan = self.connection.0.sender.clone();
                     spawn(self.metadata.append_dir(ad).then(move |res| {
-                        let send_res = match res {
+                        match res {
                             Ok(value) => {
-                                chan.send(serialize_response(
-                                    request_id, "AppendDir", value))
+                                chan.response(request_id, value);
                             }
                             Err(e) => {
                                 error!("AppendDir error: {}", e);
-                                chan.send(serialize_response(
-                                    request_id, "Error", e.to_string()))
+                                chan.error_response(request_id, e);
                             }
                         };
-                        send_res.map_err(|e| {
-                            error!("Failed to send response: {}", e)
-                        }).ok();
                         Ok(())
                     }));
                 }

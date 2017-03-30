@@ -1,13 +1,13 @@
-use proto::NotificationTrait;
+use proto::Notification;
 
-use proto::{RequestTrait};
+use proto::{Request, Response};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct PublishIndex {
     pub image_id: Vec<u8>,
 }
 
-impl NotificationTrait for PublishIndex {
+impl Notification for PublishIndex {
     fn type_name(&self) -> &'static str {
         "PublishIndex"
     }
@@ -15,7 +15,7 @@ impl NotificationTrait for PublishIndex {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct GetIndex {
-    id: Vec<u8>,
+    pub id: Vec<u8>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -24,8 +24,14 @@ pub struct GetIndexResponse {
 }
 
 
-impl RequestTrait for GetIndex {
+impl Request for GetIndex {
     type Response = GetIndexResponse;
+    fn type_name(&self) -> &'static str {
+        return "GetIndex";
+    }
+}
+
+impl Response for GetIndexResponse {
     fn type_name(&self) -> &'static str {
         return "GetIndex";
     }

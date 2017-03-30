@@ -7,8 +7,8 @@ use futures::sync::oneshot::channel;
 
 use ciruela::ImageId;
 use config::Directory;
-use index::{Index, IndexData};
-use tracking::{Tracking, Subsystem};
+use index::Index;
+use tracking::{Subsystem};
 use metadata::Error;
 
 
@@ -38,9 +38,10 @@ pub fn start(sys: &Subsystem, cmd: FetchDir) {
         let (tx, rx) = channel::<Index>();
         let future = rx.shared();
         let cmd = cmd.clone();
+        let sys = sys.clone();
         state.image_futures.insert(cmd.image_id.clone(), future.clone());
         tk_easyloop::spawn(sys.meta.read_index(&cmd.image_id)
-            .then(move |result| -> Result<(), ()> {
+            .then(move |result| {
                 match result {
                     Ok(index) => {
                         info!("Index {:?} is read from store", index.id);
@@ -55,7 +56,15 @@ pub fn start(sys: &Subsystem, cmd: FetchDir) {
                                     Will try to fetch... ",
                                    cmd.image_id, e);
                         }
-                        unimplemented!();
+                        let conn_opt = sys.remote.get_connection_for_index(
+                            &cmd.image_id);
+                        if let Some(conn) = conn_opt {
+                            conn.fetch_index(&cmd.image_id)
+                            .map(|_| unimplemented!())
+                            .map_err(|_| unimplemented!())
+                        } else {
+                            unimplemented!();
+                        }
                     }
                 }
             }));
