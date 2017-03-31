@@ -22,6 +22,8 @@ quick_error! {
         UnexpectedTermination {
             from(Canceled)
         }
+        IndexNotFound {
+        }
         IndexParseError(id: ImageId, err: ::dir_signature::v1::ParseError) {
             context(id: &'a ImageId, err: ::dir_signature::v1::ParseError)
             -> (id.clone(), err)

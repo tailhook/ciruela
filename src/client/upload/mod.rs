@@ -3,12 +3,12 @@ use std::io::{self, stdout, stderr};
 use std::path::PathBuf;
 use std::process::exit;
 use std::sync::Arc;
-use std::time::SystemTime;
+use std::time::{SystemTime, Duration};
 
 use abstract_ns::Resolver;
-use futures::future::{Future, join_all};
+use futures::future::{Future, Either, join_all, ok};
 use futures_cpupool::CpuPool;
-use tk_easyloop;
+use tk_easyloop::{self, timeout};
 use argparse::{ArgumentParser};
 use dir_signature::{ScannerConfig, HashType, v1, get_hash};
 
@@ -105,8 +105,13 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                                 // TODO(tailhook) read notifications
                                 if !response.accepted {
                                     error!("AppendDir rejected by {}", host);
+                                    Either::A(ok(false))
+                                } else {
+                                    // TODO(tailhook) not just timeout
+                                    Either::B(timeout(Duration::new(10, 0))
+                                        .map_err(|_| unimplemented!())
+                                        .map(|_| true))
                                 }
-                                Ok(response.accepted)
                             })
                             .then(move |res| match res {
                                 Ok(x) => Ok(x),

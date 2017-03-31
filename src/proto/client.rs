@@ -1,6 +1,6 @@
 use std::net::SocketAddr;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 
 use futures::{Async, Future};
@@ -14,15 +14,16 @@ use serde_cbor::de::from_slice;
 use tk_easyloop;
 use tokio_core::net::TcpStream;
 
+use {ImageId};
 use proto::{StreamExt};
-use proto::message::Message;
-use proto::index_commands::PublishIndex;
+use proto::message::{Message, Request};
+use proto::index_commands::{PublishIndex, GetIndexResponse};
 use proto::request::{Sender, Error, RequestDispatcher, RequestClient};
 use proto::request::{Registry};
 
 
 pub struct ImageInfo {
-    pub image_id: Vec<u8>,
+    pub image_id: ImageId,
     pub index_data: Vec<u8>,
     pub location: PathBuf,
 }
@@ -31,7 +32,7 @@ pub struct ImageInfo {
 pub struct Client {
     channel: Sender,
     pool: CpuPool,
-    local_images: HashMap<Vec<u8>, Arc<ImageInfo>>,
+    local_images: Arc<Mutex<HashMap<ImageId, Arc<ImageInfo>>>>,
 }
 
 pub struct ClientFuture {
@@ -41,6 +42,8 @@ pub struct ClientFuture {
 
 struct MyDispatcher {
     requests: Registry,
+    channel: Sender,
+    local_images: Arc<Mutex<HashMap<ImageId, Arc<ImageInfo>>>>,
 }
 
 impl Dispatcher for MyDispatcher {
@@ -48,7 +51,23 @@ impl Dispatcher for MyDispatcher {
     fn frame(&mut self, frame: &Frame) -> FutureResult<(), WsError> {
         match *frame {
             Frame::Binary(data) => match from_slice(data) {
-                Ok(Message::Request(..)) => {
+                Ok(Message::Request(req_id, Request::GetIndex(idx))) => {
+                    self.local_images.lock()
+                        .expect("local_images is not poisoned")
+                        .get(&idx.id)
+                        .map(|img| {
+                            self.channel.response(req_id,
+                                GetIndexResponse {
+                                    // TODO(tailhook) optimize clone
+                                    data: img.index_data.clone(),
+                                })
+                        })
+                        .unwrap_or_else(|| {
+                            self.channel.error_response(req_id,
+                                Error::IndexNotFound)
+                        });
+                }
+                Ok(Message::Request(_req_id, _msg)) => {
                     unimplemented!();
                 }
                 Ok(Message::Response(request_id, resp)) => {
@@ -105,15 +124,18 @@ impl Client {
             })
             .and_then(move |(out, inp, ())| {
                 info!("Connected to {}", addr);
+                let local_images = Arc::new(Mutex::new(HashMap::new()));
                 tx.send(Client {
-                    channel: ctx,
+                    channel: ctx.clone(),
                     pool: pool,
-                    local_images: HashMap::new(),
+                    local_images: local_images.clone(),
                 }).unwrap_or_else(|_| {
                     info!("Client future discarded before connected");
                 });
                 let disp = MyDispatcher {
                     requests: requests.clone(),
+                    channel: ctx,
+                    local_images: local_images,
                 };
                 let stream = crx.packetize(&requests)
                     .map_err(|_| Error::UnexpectedTermination);
@@ -126,7 +148,9 @@ impl Client {
         }
     }
     pub fn register_index(&mut self, info: &Arc<ImageInfo>) {
-        self.local_images.insert(info.image_id.to_vec(), info.clone());
+        self.local_images.lock()
+            .expect("local_images is not poisoned")
+            .insert(info.image_id.to_vec(), info.clone());
         self.channel.notification(
             PublishIndex {
                 image_id: info.image_id.to_vec(),
