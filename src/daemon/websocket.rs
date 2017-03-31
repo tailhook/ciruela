@@ -16,7 +16,7 @@ use tokio_core::net::TcpStream;
 
 use ciruela::proto::message::{Message, Request, Notification};
 use ciruela::proto::{GetIndex, GetIndexResponse};
-use ciruela::proto::{RequestClient, Sender};
+use ciruela::proto::{RequestClient, RequestDispatcher, Sender};
 use ciruela::proto::{RequestFuture, Registry, StreamExt, PacketStream};
 use ciruela::proto::{WrapTrait};
 use ciruela::ImageId;
@@ -124,8 +124,8 @@ impl websocket::Dispatcher for Dispatcher {
                     //let chan = self.connection.0.sender.clone();
                     unimplemented!();
                 }
-                Ok(Message::Response(..)) => {
-                    unimplemented!();
+                Ok(Message::Response(request_id, resp)) => {
+                    self.respond(request_id, resp);
                 }
                 Ok(Message::Notification(Notification::PublishIndex(idx))) => {
                     self.connection.images().insert(idx.image_id);
@@ -143,6 +143,12 @@ impl websocket::Dispatcher for Dispatcher {
             }
         }
         ok(())
+    }
+}
+
+impl RequestDispatcher for Dispatcher {
+    fn request_registry(&self) -> &Registry {
+        &self.requests
     }
 }
 
