@@ -1,5 +1,6 @@
 extern crate base64;
 extern crate crypto;
+extern crate dir_signature;
 extern crate hex;
 extern crate futures;
 extern crate futures_cpupool;

@@ -1,9 +1,11 @@
+use std::io::Cursor;
 use std::sync::Arc;
 use std::path::PathBuf;
 
 use tk_easyloop;
 use futures::Future;
 use futures::sync::oneshot::channel;
+use quick_error::ResultExt;
 
 use ciruela::ImageId;
 use config::Directory;
@@ -59,9 +61,22 @@ pub fn start(sys: &Subsystem, cmd: FetchDir) {
                         let conn_opt = sys.remote.get_connection_for_index(
                             &cmd.image_id);
                         if let Some(conn) = conn_opt {
+                            // TODO(tailhook) also set timeout?
                             conn.fetch_index(&cmd.image_id)
-                            .map(|_| unimplemented!())
-                            .map_err(|_| unimplemented!())
+                            .and_then(move |response| {
+                                Index::parse(&cmd.image_id,
+                                    Cursor::new(response.data))
+                                .context(&cmd.image_id)
+                                .map_err(|e| e.into())
+                            })
+                            .map(|idx| {
+                                tx.send(idx)
+                                .map_err(|_| debug!("Useless index fetch"))
+                                .ok();
+                            })
+                            // TODO(tailhok) check another connection on error
+                            .map_err(|e| error!("Error fetching index: {}", e))
+                            .map_err(|()| unimplemented!())
                         } else {
                             unimplemented!();
                         }

@@ -21,6 +21,7 @@ struct NotificationTypeVisitor;
 
 pub enum Type {
     AppendDir,
+    GetIndex,
 }
 
 pub enum NotificationType {
@@ -29,6 +30,7 @@ pub enum NotificationType {
 
 const TYPES: &'static [&'static str] = &[
     "AppendDir",
+    "GetIndex",
     ];
 
 const NOTIFICATION_TYPES: &'static [&'static str] = &[
@@ -37,10 +39,12 @@ const NOTIFICATION_TYPES: &'static [&'static str] = &[
 
 pub enum Request {
     AppendDir(dir_commands::AppendDir),
+    GetIndex(index_commands::GetIndex),
 }
 
 pub enum Response {
     AppendDir(dir_commands::AppendDirAck),
+    GetIndex(index_commands::GetIndexResponse),
 }
 
 pub enum Notification {
@@ -66,6 +70,7 @@ impl Visitor for TypeVisitor {
     {
         match value {
             "AppendDir" => Ok(Type::AppendDir),
+            "GetIndex" => Ok(Type::GetIndex),
             _ => Err(Error::unknown_field(value, TYPES)),
         }
     }
@@ -142,6 +147,10 @@ impl Visitor for MessageVisitor {
                         Some(data) => Request::AppendDir(data),
                         None => return Err(Error::invalid_length(3, &self)),
                     },
+                    Type::GetIndex => match visitor.visit()? {
+                        Some(data) => Request::GetIndex(data),
+                        None => return Err(Error::invalid_length(3, &self)),
+                    },
                 };
                 Ok(Message::Request(request_id, data))
             },
@@ -157,6 +166,10 @@ impl Visitor for MessageVisitor {
                 let data = match typ {
                     Type::AppendDir => match visitor.visit()? {
                         Some(data) => Response::AppendDir(data),
+                        None => return Err(Error::invalid_length(3, &self)),
+                    },
+                    Type::GetIndex => match visitor.visit()? {
+                        Some(data) => Response::GetIndex(data),
                         None => return Err(Error::invalid_length(3, &self)),
                     },
                 };

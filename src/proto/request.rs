@@ -9,9 +9,11 @@ use serde_cbor::ser::Serializer as Cbor;
 use tk_http::websocket::{Packet};
 use mopa;
 
+use {ImageId};
 use proto::{REQUEST, RESPONSE, NOTIFICATION};
 use proto::message;
 use proto::dir_commands::AppendDir;
+use proto::index_commands::GetIndex;
 
 
 quick_error! {
@@ -19,6 +21,10 @@ quick_error! {
     pub enum Error {
         UnexpectedTermination {
             from(Canceled)
+        }
+        IndexParseError(id: ImageId, err: ::dir_signature::v1::ParseError) {
+            context(id: &'a ImageId, err: ::dir_signature::v1::ParseError)
+            -> (id.clone(), err)
         }
     }
 }
@@ -113,6 +119,25 @@ pub trait RequestDispatcher {
                 match requests.remove(request_id) {
                     Some(mut r) => {
                         r.downcast_mut::<RequestWrap<AppendDir>>()
+                        .map(|r| {
+                            r.chan.take().unwrap()
+                            .send(ad)
+                            .unwrap_or_else(|_| info!("Useless reply"))
+                        })
+                        .unwrap_or_else(|| {
+                            error!("Wrong reply type for {}", request_id);
+                        });
+                    }
+                    None => {
+                        error!("Unsolicited reply {}", request_id);
+                    }
+                }
+            }
+            Response::GetIndex(ad) => {
+                let requests = self.request_registry();
+                match requests.remove(request_id) {
+                    Some(mut r) => {
+                        r.downcast_mut::<RequestWrap<GetIndex>>()
                         .map(|r| {
                             r.chan.take().unwrap()
                             .send(ad)

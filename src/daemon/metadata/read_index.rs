@@ -1,27 +1,13 @@
-use std::io::{self, BufReader};
+use std::io::{self, BufReader, BufRead};
 use std::sync::Arc;
 
 use hex::ToHex;
 use std::fs::File;
 
-use dir_signature::v1::{Parser, ParseError as IndexError};
 use ciruela::ImageId;
 use index::{Index, IndexData};
 use metadata::{Meta, Error};
 use metadata::dir_ext::{DirExt, recover};
-
-pub fn parse(id: &ImageId, f: File) -> Result<Index, IndexError> {
-    // TODO(tailhook) verify index
-    let mut parser = Parser::new(BufReader::new(f))?;
-    let header = parser.get_header();
-    let items = parser.iter().collect::<Result<Vec<_>, _>>()?;
-    Ok(Index(Arc::new(IndexData {
-        id: id.clone(),
-        hash_type: header.get_hash_type(),
-        block_size: header.get_block_size(),
-        entries: items,
-    })))
-}
 
 pub fn index_not_found(e: Error) -> Error {
     match e {
@@ -44,6 +30,6 @@ pub fn read(image_id: &ImageId, meta: &Meta) -> Result<Index, Error> {
         .map_err(index_not_found)?;
     let file = base.read_meta_file(&filename)
         .map_err(index_not_found)?;
-    parse(image_id, file)
+    Index::parse(image_id, BufReader::new(file))
     .map_err(|e| Error::BadIndex(recover(&base, filename), e))
 }

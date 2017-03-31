@@ -120,6 +120,10 @@ impl websocket::Dispatcher for Dispatcher {
                         Ok(())
                     }));
                 }
+                Ok(Message::Request(request_id, Request::GetIndex(idx))) => {
+                    //let chan = self.connection.0.sender.clone();
+                    unimplemented!();
+                }
                 Ok(Message::Response(..)) => {
                     unimplemented!();
                 }
