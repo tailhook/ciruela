@@ -150,10 +150,10 @@ impl Client {
     pub fn register_index(&mut self, info: &Arc<ImageInfo>) {
         self.local_images.lock()
             .expect("local_images is not poisoned")
-            .insert(info.image_id.to_vec(), info.clone());
+            .insert(info.image_id.clone(), info.clone());
         self.channel.notification(
             PublishIndex {
-                image_id: info.image_id.to_vec(),
+                image_id: info.image_id.clone(),
             }
         );
     }

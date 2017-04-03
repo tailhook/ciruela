@@ -2,6 +2,7 @@ use std::time::SystemTime;
 
 use serde::{Serialize, Deserialize, Serializer, Deserializer};
 
+use {ImageId};
 use proto::Signature;
 use time::{to_ms, from_ms};
 
@@ -14,7 +15,7 @@ pub struct SignatureEntry {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct State {
-    pub image: Vec<u8>,
+    pub image: ImageId,
     pub signatures: Vec<SignatureEntry>,
 }
 

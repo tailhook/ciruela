@@ -38,7 +38,8 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
     let pool = CpuPool::new(gopt.threads);
 
     let image_id = get_hash(&mut io::Cursor::new(&indexbuf))
-        .expect("hash valid in just created index");
+        .expect("hash valid in just created index")
+        .into();
     let image_info = Arc::new(ImageInfo {
         image_id: image_id,
         index_data: indexbuf,
@@ -52,7 +53,7 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
         }
         signatures.insert(&turl.path[..], sign(SigData {
             path: &turl.path,
-            image: &image_info.image_id[..],
+            image: image_info.image_id.as_ref(),
             timestamp: to_ms(timestamp),
         }, &opt.private_keys));
     }
@@ -90,7 +91,7 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                                 info!("Connected to {}", addr);
                                 cli.register_index(&image_info);
                                 cli.request(AppendDir {
-                                    image: image_info.image_id.to_vec(),
+                                    image: image_info.image_id.clone(),
                                     timestamp: timestamp,
                                     signatures: signatures
                                         .get(&turl.path[..]).unwrap()

@@ -1,10 +1,12 @@
 use proto::Notification;
 
+use {ImageId};
 use proto::{Request, Response};
+
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct PublishIndex {
-    pub image_id: Vec<u8>,
+    pub image_id: ImageId,
 }
 
 impl Notification for PublishIndex {
@@ -15,7 +17,7 @@ impl Notification for PublishIndex {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct GetIndex {
-    pub id: Vec<u8>,
+    pub id: ImageId,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

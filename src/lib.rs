@@ -16,8 +16,9 @@ extern crate tokio_core;
 #[macro_use] extern crate quick_error;
 #[macro_use] extern crate serde_derive;
 
+mod id;
 pub mod proto;
 pub mod database;
 pub mod time;
 
-pub type ImageId = Vec<u8>;  // TODO(tailhook) make a newtype
+pub use id::ImageId;
