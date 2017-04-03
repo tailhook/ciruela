@@ -15,10 +15,11 @@ use dir_signature::{ScannerConfig, HashType, v1, get_hash};
 mod options;
 
 use name;
+use ciruela::Hash;
 use ciruela::time::to_ms;
 use ciruela::proto::{SigData, sign};
 use global_options::GlobalOptions;
-use ciruela::proto::{Client, AppendDir, ImageInfo};
+use ciruela::proto::{Client, AppendDir, ImageInfo, BlockPointer};
 use ciruela::proto::RequestClient;
 
 
@@ -40,10 +41,35 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
     let image_id = get_hash(&mut io::Cursor::new(&indexbuf))
         .expect("hash valid in just created index")
         .into();
+    let (blocks, block_size) = {
+        let ref mut cur = io::Cursor::new(&indexbuf);
+        let mut parser = v1::Parser::new(cur)
+            .expect("just created index is valid");
+        let header = parser.get_header();
+        let block_size = header.get_block_size();
+        let mut blocks = HashMap::new();
+        for entry in parser.iter() {
+            match entry.expect("just created index is valid") {
+                v1::Entry::File { ref path, ref hashes, .. } => {
+                    let path = Arc::new(path.to_path_buf());
+                    for (idx, hash) in hashes.iter().enumerate() {
+                        blocks.insert(Hash::new(hash), BlockPointer {
+                            file: path.clone(),
+                            offset: idx as u64 * block_size,
+                        });
+                    }
+                }
+                _ => {}
+            }
+        }
+        (blocks, block_size)
+    };
     let image_info = Arc::new(ImageInfo {
         image_id: image_id,
+        block_size: block_size,
         index_data: indexbuf,
         location: dir.to_path_buf(),
+        blocks: blocks,
     });
     let timestamp = SystemTime::now();
     let mut signatures = HashMap::new();

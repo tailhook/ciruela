@@ -5,14 +5,16 @@ mod serializers;
 mod server;
 mod signature;
 mod stream_ext;
+mod hash;
 
 mod dir_commands;
 mod index_commands;
 
-pub use self::client::{Client, ImageInfo};
-pub use self::request::{Request, Response, Notification};
-pub use self::request::{RequestFuture, PacketStream};
+pub use self::client::{Client, ImageInfo, BlockPointer};
+pub use self::hash::Hash;
 pub use self::request::{RequestClient, RequestDispatcher, Registry, Sender};
+pub use self::request::{RequestFuture, PacketStream};
+pub use self::request::{Request, Response, Notification};
 pub use self::request::{WrapTrait}; // TODO(tailhook) hide it
 pub use self::server::serialize_response;
 pub use self::signature::{Signature, SigData, sign};

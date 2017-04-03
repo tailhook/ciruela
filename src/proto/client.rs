@@ -14,7 +14,7 @@ use serde_cbor::de::from_slice;
 use tk_easyloop;
 use tokio_core::net::TcpStream;
 
-use {ImageId};
+use {ImageId, Hash};
 use proto::{StreamExt};
 use proto::message::{Message, Request};
 use proto::index_commands::{PublishIndex, GetIndexResponse};
@@ -24,8 +24,15 @@ use proto::request::{Registry};
 
 pub struct ImageInfo {
     pub image_id: ImageId,
+    pub block_size: u64,
     pub index_data: Vec<u8>,
     pub location: PathBuf,
+    pub blocks: HashMap<Hash, BlockPointer>,
+}
+
+pub struct BlockPointer {
+    pub file: Arc<PathBuf>,
+    pub offset: u64,
 }
 
 

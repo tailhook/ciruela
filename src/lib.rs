@@ -22,3 +22,4 @@ pub mod database;
 pub mod time;
 
 pub use id::ImageId;
+pub use proto::Hash;

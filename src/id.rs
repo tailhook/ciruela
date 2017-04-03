@@ -12,17 +12,17 @@ struct ImageIdVisitor;
 
 #[derive(Clone, Hash, PartialEq, Eq)]
 enum Internal {
-    B16([u8; 16]),
+    B32([u8; 32]),
     Other(Arc<Box<[u8]>>),
 }
 
 impl<'a> From<&'a [u8]> for ImageId {
     fn from(value: &[u8]) -> ImageId {
         let value = value.as_ref();
-        if value.len() == 16 {
-            let mut array = [0u8; 16];
+        if value.len() == 32 {
+            let mut array = [0u8; 32];
             array.copy_from_slice(value);
-            ImageId(Internal::B16(array))
+            ImageId(Internal::B32(array))
         } else {
             ImageId(Internal::Other(Arc::new(
                 value.to_vec().into_boxed_slice())))
@@ -32,10 +32,10 @@ impl<'a> From<&'a [u8]> for ImageId {
 
 impl From<Vec<u8>> for ImageId {
     fn from(value: Vec<u8>) -> ImageId {
-        if value.len() == 16 {
-            let mut array = [0u8; 16];
+        if value.len() == 32 {
+            let mut array = [0u8; 32];
             array.copy_from_slice(&value);
-            ImageId(Internal::B16(array))
+            ImageId(Internal::B32(array))
         } else {
             ImageId(Internal::Other(Arc::new(value.into_boxed_slice())))
         }
@@ -45,7 +45,7 @@ impl From<Vec<u8>> for ImageId {
 impl fmt::Debug for ImageId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.0 {
-            Internal::B16(ref ar) => write!(f, "ImageId({})", ar.to_hex()),
+            Internal::B32(ref ar) => write!(f, "ImageId({})", ar.to_hex()),
             Internal::Other(ref slc) => write!(f, "ImageId({})", slc.to_hex()),
         }
     }
@@ -55,7 +55,7 @@ impl fmt::Display for ImageId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.0 {
             // TODO(tailhook) optimize to be zero-allocation
-            Internal::B16(ref ar) => write!(f, "{}", ar.to_hex()),
+            Internal::B32(ref ar) => write!(f, "{}", ar.to_hex()),
             Internal::Other(ref slc) => write!(f, "{}", slc.to_hex()),
         }
     }
@@ -70,10 +70,10 @@ impl Visitor for ImageIdVisitor {
     fn visit_bytes<E>(self, value: &[u8]) -> Result<Self::Value, E>
         where E: Error
     {
-        if value.len() == 16 {
-            let mut array = [0u8; 16];
+        if value.len() == 32 {
+            let mut array = [0u8; 32];
             array.copy_from_slice(value);
-            Ok(ImageId(Internal::B16(array)))
+            Ok(ImageId(Internal::B32(array)))
         } else {
             Ok(ImageId(Internal::Other(Arc::new(
                 value.to_vec().into_boxed_slice()))))
@@ -94,7 +94,7 @@ impl Serialize for ImageId {
         where S: Serializer
     {
         match self.0 {
-            Internal::B16(ref ar) => ser.serialize_bytes(ar),
+            Internal::B32(ref ar) => ser.serialize_bytes(ar),
             Internal::Other(ref slc) => ser.serialize_bytes(slc),
         }
     }
@@ -103,7 +103,7 @@ impl Serialize for ImageId {
 impl AsRef<[u8]> for ImageId {
     fn as_ref(&self) -> &[u8] {
         match self.0 {
-            Internal::B16(ref ar) => &ar[..],
+            Internal::B32(ref ar) => &ar[..],
             Internal::Other(ref slc) => &slc[..],
         }
     }
