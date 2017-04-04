@@ -21,7 +21,7 @@ pub use self::signature::{Signature, SigData, sign};
 pub use self::stream_ext::StreamExt;
 
 pub use self::dir_commands::{AppendDir, AppendDirAck, ReplaceDir};
-pub use self::index_commands::{PublishIndex};
+pub use self::index_commands::{PublishImage};
 pub use self::index_commands::{GetIndex, GetIndexResponse};
 
 // Protocol identifiers

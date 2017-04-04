@@ -17,7 +17,7 @@ use tokio_core::net::TcpStream;
 use {ImageId, Hash};
 use proto::{StreamExt};
 use proto::message::{Message, Request};
-use proto::index_commands::{PublishIndex, GetIndexResponse};
+use proto::index_commands::{PublishImage, GetIndexResponse};
 use proto::request::{Sender, Error, RequestDispatcher, RequestClient};
 use proto::request::{Registry};
 
@@ -159,7 +159,7 @@ impl Client {
             .expect("local_images is not poisoned")
             .insert(info.image_id.clone(), info.clone());
         self.channel.notification(
-            PublishIndex {
+            PublishImage {
                 image_id: info.image_id.clone(),
             }
         );

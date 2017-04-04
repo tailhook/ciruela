@@ -127,7 +127,7 @@ impl websocket::Dispatcher for Dispatcher {
                 Ok(Message::Response(request_id, resp)) => {
                     self.respond(request_id, resp);
                 }
-                Ok(Message::Notification(Notification::PublishIndex(idx))) => {
+                Ok(Message::Notification(Notification::PublishImage(idx))) => {
                     self.connection.images().insert(idx.image_id);
                     // TODO(tailhook) wakeup remote subsystem, so it can
                     // fetch image from this peer if image is currently in

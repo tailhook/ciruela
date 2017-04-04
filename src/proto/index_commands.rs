@@ -5,13 +5,13 @@ use proto::{Request, Response};
 
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct PublishIndex {
+pub struct PublishImage {
     pub image_id: ImageId,
 }
 
-impl Notification for PublishIndex {
+impl Notification for PublishImage {
     fn type_name(&self) -> &'static str {
-        "PublishIndex"
+        "PublishImage"
     }
 }
 

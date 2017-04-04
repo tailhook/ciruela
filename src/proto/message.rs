@@ -25,7 +25,7 @@ pub enum Type {
 }
 
 pub enum NotificationType {
-    PublishIndex,
+    PublishImage,
 }
 
 const TYPES: &'static [&'static str] = &[
@@ -34,7 +34,7 @@ const TYPES: &'static [&'static str] = &[
     ];
 
 const NOTIFICATION_TYPES: &'static [&'static str] = &[
-    "PublishIndex",
+    "PublishImage",
     ];
 
 pub enum Request {
@@ -48,7 +48,7 @@ pub enum Response {
 }
 
 pub enum Notification {
-    PublishIndex(index_commands::PublishIndex),
+    PublishImage(index_commands::PublishImage),
 }
 
 impl Deserialize for Message {
@@ -86,7 +86,7 @@ impl Visitor for NotificationTypeVisitor {
         where E: Error
     {
         match value {
-            "PublishIndex" => Ok(NotificationType::PublishIndex),
+            "PublishImage" => Ok(NotificationType::PublishImage),
             _ => Err(Error::unknown_field(value, NOTIFICATION_TYPES)),
         }
     }
@@ -126,8 +126,8 @@ impl Visitor for MessageVisitor {
                     None => return Err(Error::invalid_length(1, &self)),
                 };
                 let data = match typ {
-                    NotificationType::PublishIndex => match visitor.visit()? {
-                        Some(data) => Notification::PublishIndex(data),
+                    NotificationType::PublishImage => match visitor.visit()? {
+                        Some(data) => Notification::PublishImage(data),
                         None => return Err(Error::invalid_length(3, &self)),
                     },
                 };
