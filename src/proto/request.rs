@@ -112,68 +112,36 @@ pub trait RequestClient {
     }
 }
 
+fn respond<T: Request, D: RequestDispatcher + ?Sized>(request_id: u64,
+    value: T::Response, dispatcher: &D)
+{
+    let requests = dispatcher.request_registry();
+    match requests.remove(request_id) {
+        Some(mut r) => {
+            r.downcast_mut::<RequestWrap<T>>()
+            .map(|r| {
+                r.chan.take().unwrap()
+                .send(value)
+                .unwrap_or_else(|_| info!("Useless reply"))
+            })
+            .unwrap_or_else(|| {
+                error!("Wrong reply type for {}", request_id);
+            });
+        }
+        None => {
+            error!("Unsolicited reply {}", request_id);
+        }
+    }
+}
+
 pub trait RequestDispatcher {
     fn request_registry(&self) -> &Registry;
     fn respond(&self, request_id: u64, response: message::Response) {
-        use proto::message::Response;
+        use proto::message::Response as R;
         match response {
-            Response::AppendDir(ad) => {
-                let requests = self.request_registry();
-                match requests.remove(request_id) {
-                    Some(mut r) => {
-                        r.downcast_mut::<RequestWrap<AppendDir>>()
-                        .map(|r| {
-                            r.chan.take().unwrap()
-                            .send(ad)
-                            .unwrap_or_else(|_| info!("Useless reply"))
-                        })
-                        .unwrap_or_else(|| {
-                            error!("Wrong reply type for {}", request_id);
-                        });
-                    }
-                    None => {
-                        error!("Unsolicited reply {}", request_id);
-                    }
-                }
-            }
-            Response::GetIndex(gi) => {
-                let requests = self.request_registry();
-                match requests.remove(request_id) {
-                    Some(mut r) => {
-                        r.downcast_mut::<RequestWrap<GetIndex>>()
-                        .map(|r| {
-                            r.chan.take().unwrap()
-                            .send(gi)
-                            .unwrap_or_else(|_| info!("Useless reply"))
-                        })
-                        .unwrap_or_else(|| {
-                            error!("Wrong reply type for {}", request_id);
-                        });
-                    }
-                    None => {
-                        error!("Unsolicited reply {}", request_id);
-                    }
-                }
-            }
-            Response::GetBlock(gb) => {
-                let requests = self.request_registry();
-                match requests.remove(request_id) {
-                    Some(mut r) => {
-                        r.downcast_mut::<RequestWrap<GetBlock>>()
-                        .map(|r| {
-                            r.chan.take().unwrap()
-                            .send(gb)
-                            .unwrap_or_else(|_| info!("Useless reply"))
-                        })
-                        .unwrap_or_else(|| {
-                            error!("Wrong reply type for {}", request_id);
-                        });
-                    }
-                    None => {
-                        error!("Unsolicited reply {}", request_id);
-                    }
-                }
-            }
+            R::AppendDir(x) => respond::<AppendDir, _>(request_id, x, self),
+            R::GetIndex(x) => respond::<GetIndex, _>(request_id, x, self),
+            R::GetBlock(x) => respond::<GetBlock, _>(request_id, x, self),
         }
     }
 }
