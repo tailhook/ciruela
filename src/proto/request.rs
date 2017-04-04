@@ -14,6 +14,7 @@ use proto::{REQUEST, RESPONSE, NOTIFICATION};
 use proto::message;
 use proto::dir_commands::AppendDir;
 use proto::index_commands::GetIndex;
+use proto::block_commands::GetBlock;
 
 
 quick_error! {
@@ -135,14 +136,33 @@ pub trait RequestDispatcher {
                     }
                 }
             }
-            Response::GetIndex(ad) => {
+            Response::GetIndex(gi) => {
                 let requests = self.request_registry();
                 match requests.remove(request_id) {
                     Some(mut r) => {
                         r.downcast_mut::<RequestWrap<GetIndex>>()
                         .map(|r| {
                             r.chan.take().unwrap()
-                            .send(ad)
+                            .send(gi)
+                            .unwrap_or_else(|_| info!("Useless reply"))
+                        })
+                        .unwrap_or_else(|| {
+                            error!("Wrong reply type for {}", request_id);
+                        });
+                    }
+                    None => {
+                        error!("Unsolicited reply {}", request_id);
+                    }
+                }
+            }
+            Response::GetBlock(gb) => {
+                let requests = self.request_registry();
+                match requests.remove(request_id) {
+                    Some(mut r) => {
+                        r.downcast_mut::<RequestWrap<GetBlock>>()
+                        .map(|r| {
+                            r.chan.take().unwrap()
+                            .send(gb)
                             .unwrap_or_else(|_| info!("Useless reply"))
                         })
                         .unwrap_or_else(|| {

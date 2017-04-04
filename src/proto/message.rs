@@ -3,7 +3,7 @@ use std::fmt;
 use serde::{Deserialize, Deserializer};
 use serde::de::{Visitor, SeqVisitor, Error};
 
-use proto::{dir_commands, index_commands};
+use proto::{dir_commands, index_commands, block_commands};
 use proto::{NOTIFICATION, REQUEST, RESPONSE};
 
 
@@ -22,6 +22,7 @@ struct NotificationTypeVisitor;
 pub enum Type {
     AppendDir,
     GetIndex,
+    GetBlock,
 }
 
 pub enum NotificationType {
@@ -31,6 +32,7 @@ pub enum NotificationType {
 const TYPES: &'static [&'static str] = &[
     "AppendDir",
     "GetIndex",
+    "GetBlock",
     ];
 
 const NOTIFICATION_TYPES: &'static [&'static str] = &[
@@ -40,11 +42,13 @@ const NOTIFICATION_TYPES: &'static [&'static str] = &[
 pub enum Request {
     AppendDir(dir_commands::AppendDir),
     GetIndex(index_commands::GetIndex),
+    GetBlock(block_commands::GetBlock),
 }
 
 pub enum Response {
     AppendDir(dir_commands::AppendDirAck),
     GetIndex(index_commands::GetIndexResponse),
+    GetBlock(block_commands::GetBlockResponse),
 }
 
 pub enum Notification {
@@ -71,6 +75,7 @@ impl Visitor for TypeVisitor {
         match value {
             "AppendDir" => Ok(Type::AppendDir),
             "GetIndex" => Ok(Type::GetIndex),
+            "GetBlock" => Ok(Type::GetBlock),
             _ => Err(Error::unknown_field(value, TYPES)),
         }
     }
@@ -151,6 +156,10 @@ impl Visitor for MessageVisitor {
                         Some(data) => Request::GetIndex(data),
                         None => return Err(Error::invalid_length(3, &self)),
                     },
+                    Type::GetBlock => match visitor.visit()? {
+                        Some(data) => Request::GetBlock(data),
+                        None => return Err(Error::invalid_length(3, &self)),
+                    },
                 };
                 Ok(Message::Request(request_id, data))
             },
@@ -170,6 +179,10 @@ impl Visitor for MessageVisitor {
                     },
                     Type::GetIndex => match visitor.visit()? {
                         Some(data) => Response::GetIndex(data),
+                        None => return Err(Error::invalid_length(3, &self)),
+                    },
+                    Type::GetBlock => match visitor.visit()? {
+                        Some(data) => Response::GetBlock(data),
                         None => return Err(Error::invalid_length(3, &self)),
                     },
                 };

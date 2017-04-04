@@ -200,5 +200,21 @@ Note: index file can potentially be in different formats, but in any case:
   index file should contain a signature of some kind)
 
 
+GetBlock
+````````
+
+Fetch a block with specified hash.
+
+.. code-block:: cddl
+
+    $message /= [1, "GetBlock", request-id, get-block-params]
+    $message /= [2, "GetBlock", request-id, get-block-response]
+    get-block-params = {
+        hash: bytes,             ; binary hashsum of the block
+    }
+    get-block-response = {
+        ? data: bytes,           ; full original index file
+    }
+
 .. _cbor: http://cbor.io/
 .. _cddl: https://tools.ietf.org/html/draft-greevenbosch-appsawg-cbor-cddl-09

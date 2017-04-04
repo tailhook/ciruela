@@ -9,6 +9,7 @@ mod hash;
 
 mod dir_commands;
 mod index_commands;
+mod block_commands;
 
 pub use self::client::{Client, ImageInfo, BlockPointer};
 pub use self::hash::Hash;
@@ -23,6 +24,7 @@ pub use self::stream_ext::StreamExt;
 pub use self::dir_commands::{AppendDir, AppendDirAck, ReplaceDir};
 pub use self::index_commands::{PublishImage};
 pub use self::index_commands::{GetIndex, GetIndexResponse};
+pub use self::block_commands::{GetBlock, GetBlockResponse};
 
 // Protocol identifiers
 const NOTIFICATION: u8 = 0;
