@@ -32,7 +32,7 @@ impl fmt::Display for Hash {
     }
 }
 
-impl Visitor for HashVisitor {
+impl<'a> Visitor<'a> for HashVisitor {
     type Value = Hash;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
@@ -51,9 +51,9 @@ impl Visitor for HashVisitor {
     }
 }
 
-impl Deserialize for Hash {
+impl<'a> Deserialize<'a> for Hash {
     fn deserialize<D>(deserializer: D) -> Result<Hash, D::Error>
-        where D: Deserializer
+        where D: Deserializer<'a>
     {
         deserializer.deserialize_bytes(HashVisitor)
     }

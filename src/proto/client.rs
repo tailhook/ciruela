@@ -146,7 +146,8 @@ impl Client {
                 };
                 let stream = crx.packetize(&requests)
                     .map_err(|_| Error::UnexpectedTermination);
-                Loop::client(out, inp, stream, disp, &wcfg)
+                Loop::client(out, inp, stream, disp, &wcfg,
+                    &tk_easyloop::handle())
                 .map_err(|e| println!("websocket closed: {}", e))
             })
         );

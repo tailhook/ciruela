@@ -25,8 +25,9 @@ impl Serialize for SignatureEntry {
     }
 }
 
-impl Deserialize for SignatureEntry {
-    fn deserialize<D: Deserializer>(deserializer: D) -> Result<Self, D::Error>
+impl<'a> Deserialize<'a> for SignatureEntry {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where D: Deserializer<'a>,
     {
         let (ts, sig) = Deserialize::deserialize(deserializer)?;
         Ok(SignatureEntry {

@@ -10,7 +10,7 @@ use futures::sync::mpsc::{UnboundedReceiver};
 use serde_cbor::de::from_slice;
 use tk_http::websocket::{self, Frame, Error, Config, Loop};
 use tk_http::websocket::ServerCodec;
-use tk_easyloop::spawn;
+use tk_easyloop::{spawn, handle};
 use tk_bufstream::{WriteFramed, ReadFramed};
 use tokio_core::net::TcpStream;
 
@@ -68,7 +68,7 @@ impl Connection {
             requests: registry.clone(),
         };
         let rx = rx.packetize(&registry);
-        let fut = Loop::server(out, inp, rx, disp, cfg);
+        let fut = Loop::server(out, inp, rx, disp, cfg, &handle());
         return (cli, fut);
     }
 

@@ -12,8 +12,8 @@ pub fn write_timestamp<S>(tm: &SystemTime, ser: S) -> Result<S::Ok, S::Error>
 }
 
 
-pub fn read_timestamp<D>(des: D) -> Result<SystemTime, D::Error>
-    where D: Deserializer
+pub fn read_timestamp<'a, D>(des: D) -> Result<SystemTime, D::Error>
+    where D: Deserializer<'a>
 {
     let ms = u64::deserialize(des)?;
     // TODO(tailhook) this can overflow. How can we ensure that it doesn't?

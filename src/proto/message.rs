@@ -1,7 +1,7 @@
 use std::fmt;
 
 use serde::{Deserialize, Deserializer};
-use serde::de::{Visitor, SeqVisitor, Error};
+use serde::de::{Visitor, SeqAccess, Error};
 
 use proto::{dir_commands, index_commands, block_commands};
 use proto::{NOTIFICATION, REQUEST, RESPONSE};
@@ -55,15 +55,15 @@ pub enum Notification {
     PublishImage(index_commands::PublishImage),
 }
 
-impl Deserialize for Message {
+impl<'a> Deserialize<'a> for Message {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: Deserializer
+        where D: Deserializer<'a>
     {
         deserializer.deserialize_seq(MessageVisitor)
     }
 }
 
-impl Visitor for TypeVisitor {
+impl<'a> Visitor<'a> for TypeVisitor {
     type Value = Type;
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter.write_str(&TYPES.join(", "))
@@ -81,7 +81,7 @@ impl Visitor for TypeVisitor {
     }
 }
 
-impl Visitor for NotificationTypeVisitor {
+impl<'a> Visitor<'a> for NotificationTypeVisitor {
     type Value = NotificationType;
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter.write_str(&NOTIFICATION_TYPES.join(", "))
@@ -97,23 +97,23 @@ impl Visitor for NotificationTypeVisitor {
     }
 }
 
-impl Deserialize for Type {
+impl<'a> Deserialize<'a> for Type {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: Deserializer
+        where D: Deserializer<'a>
     {
         deserializer.deserialize_str(TypeVisitor)
     }
 }
 
-impl Deserialize for NotificationType {
+impl<'a> Deserialize<'a> for NotificationType {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: Deserializer
+        where D: Deserializer<'a>
     {
         deserializer.deserialize_str(NotificationTypeVisitor)
     }
 }
 
-impl Visitor for MessageVisitor {
+impl<'a> Visitor<'a> for MessageVisitor {
     type Value = Message;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
@@ -122,16 +122,16 @@ impl Visitor for MessageVisitor {
 
     #[inline]
     fn visit_seq<V>(self, mut visitor: V) -> Result<Message, V::Error>
-        where V: SeqVisitor,
+        where V: SeqAccess<'a>,
     {
-        match visitor.visit()? {
+        match visitor.next_element()? {
             Some(NOTIFICATION) => {
-                let typ = match visitor.visit()? {
+                let typ = match visitor.next_element()? {
                     Some(typ) => typ,
                     None => return Err(Error::invalid_length(1, &self)),
                 };
                 let data = match typ {
-                    NotificationType::PublishImage => match visitor.visit()? {
+                    NotificationType::PublishImage => match visitor.next_element()? {
                         Some(data) => Notification::PublishImage(data),
                         None => return Err(Error::invalid_length(3, &self)),
                     },
@@ -139,24 +139,24 @@ impl Visitor for MessageVisitor {
                 Ok(Message::Notification(data))
             }
             Some(REQUEST) => {
-                let typ = match visitor.visit()? {
+                let typ = match visitor.next_element()? {
                     Some(typ) => typ,
                     None => return Err(Error::invalid_length(1, &self)),
                 };
-                let request_id = match visitor.visit()? {
+                let request_id = match visitor.next_element()? {
                     Some(x) => x,
                     None => return Err(Error::invalid_length(2, &self)),
                 };
                 let data = match typ {
-                    Type::AppendDir => match visitor.visit()? {
+                    Type::AppendDir => match visitor.next_element()? {
                         Some(data) => Request::AppendDir(data),
                         None => return Err(Error::invalid_length(3, &self)),
                     },
-                    Type::GetIndex => match visitor.visit()? {
+                    Type::GetIndex => match visitor.next_element()? {
                         Some(data) => Request::GetIndex(data),
                         None => return Err(Error::invalid_length(3, &self)),
                     },
-                    Type::GetBlock => match visitor.visit()? {
+                    Type::GetBlock => match visitor.next_element()? {
                         Some(data) => Request::GetBlock(data),
                         None => return Err(Error::invalid_length(3, &self)),
                     },
@@ -164,24 +164,24 @@ impl Visitor for MessageVisitor {
                 Ok(Message::Request(request_id, data))
             },
             Some(RESPONSE) => {
-                let typ = match visitor.visit()? {
+                let typ = match visitor.next_element()? {
                     Some(typ) => typ,
                     None => return Err(Error::invalid_length(1, &self)),
                 };
-                let request_id = match visitor.visit()? {
+                let request_id = match visitor.next_element()? {
                     Some(x) => x,
                     None => return Err(Error::invalid_length(2, &self)),
                 };
                 let data = match typ {
-                    Type::AppendDir => match visitor.visit()? {
+                    Type::AppendDir => match visitor.next_element()? {
                         Some(data) => Response::AppendDir(data),
                         None => return Err(Error::invalid_length(3, &self)),
                     },
-                    Type::GetIndex => match visitor.visit()? {
+                    Type::GetIndex => match visitor.next_element()? {
                         Some(data) => Response::GetIndex(data),
                         None => return Err(Error::invalid_length(3, &self)),
                     },
-                    Type::GetBlock => match visitor.visit()? {
+                    Type::GetBlock => match visitor.next_element()? {
                         Some(data) => Response::GetBlock(data),
                         None => return Err(Error::invalid_length(3, &self)),
                     },

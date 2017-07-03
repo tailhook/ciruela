@@ -5,7 +5,7 @@ use crypto::ed25519;
 use hex::ToHex;
 use serde::{Serialize, Serializer};
 use serde::{Deserialize, Deserializer};
-use serde::de::{Visitor, SeqVisitor, Error};
+use serde::de::{Visitor, SeqAccess, Error};
 use serde_cbor::ser::Serializer as Cbor;
 use ssh_keys::PrivateKey;
 
@@ -79,9 +79,9 @@ impl<'a> Serialize for Bytes<'a> {
     }
 }
 
-impl Deserialize for Signature {
+impl<'a> Deserialize<'a> for Signature {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: Deserializer
+        where D: Deserializer<'a>
     {
         deserializer.deserialize_seq(SignatureVisitor)
     }
@@ -109,7 +109,7 @@ impl Clone for Signature {
     }
 }
 
-impl Visitor for TypeVisitor {
+impl<'a> Visitor<'a> for TypeVisitor {
     type Value = SignatureType;
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter.write_str(&TYPES.join(", "))
@@ -125,7 +125,7 @@ impl Visitor for TypeVisitor {
     }
 }
 
-impl Visitor for Ed25519Visitor {
+impl<'a> Visitor<'a> for Ed25519Visitor {
     type Value = Ed25519;
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter.write_str("64 bytes")
@@ -143,23 +143,23 @@ impl Visitor for Ed25519Visitor {
     }
 }
 
-impl Deserialize for SignatureType {
+impl<'a> Deserialize<'a> for SignatureType {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: Deserializer
+        where D: Deserializer<'a>
     {
         deserializer.deserialize_str(TypeVisitor)
     }
 }
 
-impl Deserialize for Ed25519 {
+impl<'a> Deserialize<'a> for Ed25519 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: Deserializer
+        where D: Deserializer<'a>
     {
         deserializer.deserialize_bytes(Ed25519Visitor)
     }
 }
 
-impl Visitor for SignatureVisitor {
+impl<'a> Visitor<'a> for SignatureVisitor {
     type Value = Signature;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
@@ -168,10 +168,10 @@ impl Visitor for SignatureVisitor {
 
     #[inline]
     fn visit_seq<V>(self, mut visitor: V) -> Result<Signature, V::Error>
-        where V: SeqVisitor,
+        where V: SeqAccess<'a>,
     {
-        match visitor.visit()? {
-            Some(SignatureType::SshEd25519) => match visitor.visit()? {
+        match visitor.next_element()? {
+            Some(SignatureType::SshEd25519) => match visitor.next_element()? {
                 Some(Ed25519(value)) => Ok(Signature::SshEd25519(value)),
                 None => Err(Error::invalid_length(1, &self)),
             },

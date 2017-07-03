@@ -61,7 +61,7 @@ impl fmt::Display for ImageId {
     }
 }
 
-impl Visitor for ImageIdVisitor {
+impl<'a> Visitor<'a> for ImageIdVisitor {
     type Value = ImageId;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
@@ -81,9 +81,9 @@ impl Visitor for ImageIdVisitor {
     }
 }
 
-impl Deserialize for ImageId {
+impl<'a> Deserialize<'a> for ImageId {
     fn deserialize<D>(deserializer: D) -> Result<ImageId, D::Error>
-        where D: Deserializer
+        where D: Deserializer<'a>
     {
         deserializer.deserialize_bytes(ImageIdVisitor)
     }
