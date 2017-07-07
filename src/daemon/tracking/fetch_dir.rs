@@ -74,7 +74,7 @@ pub fn start(sys: &Subsystem, cmd: FetchDir) {
                                 .map_err(|_| debug!("Useless index fetch"))
                                 .ok();
                             })
-                            // TODO(tailhok) check another connection on error
+                            // TODO(tailhook) check another connection on error
                             .map_err(|e| error!("Error fetching index: {}", e))
                             .map_err(|()| unimplemented!())
                         } else {
@@ -89,9 +89,7 @@ pub fn start(sys: &Subsystem, cmd: FetchDir) {
         .then(move |result| {
             match result {
                 Ok(index) => {
-                    println!("Got image {:?}", index.id);
-                    sys1.state().images.insert(cmd.image_id.clone(),
-                        index.weak());
+                    sys1.commit_index_and_fetch(&cmd.image_id, &index);
                 }
                 Err(e) => {
                     println!("Error getting image {:?}", e);

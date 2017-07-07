@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use std::hash::{Hash, Hasher};
+use std::hash::{Hasher};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -16,10 +16,11 @@ use tokio_core::net::TcpStream;
 
 use ciruela::proto::message::{Message, Request, Notification};
 use ciruela::proto::{GetIndex, GetIndexResponse};
+use ciruela::proto::{GetBlock, GetBlockResponse};
 use ciruela::proto::{RequestClient, RequestDispatcher, Sender};
 use ciruela::proto::{RequestFuture, Registry, StreamExt, PacketStream};
 use ciruela::proto::{WrapTrait};
-use ciruela::ImageId;
+use ciruela::{ImageId, Hash};
 use metadata::Meta;
 
 lazy_static! {
@@ -83,8 +84,16 @@ impl Connection {
 
     pub fn fetch_index(&self, id: &ImageId) -> RequestFuture<GetIndexResponse>
     {
+        info!("Fetching index {}", id);
         self.request(GetIndex {
             id: id.clone()
+        })
+    }
+    pub fn fetch_block(&self, hash: &Hash) -> RequestFuture<GetBlockResponse>
+    {
+        info!("Fetching block {}", hash);
+        self.request(GetBlock {
+            hash: hash.clone()
         })
     }
 }
@@ -156,7 +165,7 @@ impl RequestDispatcher for Dispatcher {
     }
 }
 
-impl Hash for Connection {
+impl ::std::hash::Hash for Connection {
     fn hash<H>(&self, state: &mut H)
         where H: Hasher
     {

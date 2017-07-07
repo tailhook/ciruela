@@ -1,4 +1,5 @@
 mod fetch_dir;
+mod subsystem;
 
 use std::sync::{Arc, Weak, Mutex, MutexGuard};
 use std::collections::HashMap;
@@ -13,15 +14,20 @@ use index::{Index, IndexData};
 use metadata::Meta;
 use remote::Remote;
 use disk::Disk;
-use ciruela::ImageId;
+use ciruela::{ImageId, Hash};
 use dir_config::DirConfig;
 
 
+type Block = Vec<u8>;
 type ImageFuture = Shared<Receiver<Index>>;
+type BlockFuture = Shared<Receiver<Block>>;
 
 pub struct State {
+
     image_futures: HashMap<ImageId, ImageFuture>,
     images: HashMap<ImageId, Weak<IndexData>>,
+
+    block_futures: HashMap<Hash, BlockFuture>,
 }
 
 #[derive(Clone)]
@@ -54,6 +60,7 @@ impl Tracking {
             state: Arc::new(Mutex::new(State {
                 image_futures: HashMap::new(),
                 images: HashMap::new(),
+                block_futures: HashMap::new(),
             })),
             chan: tx,
         };

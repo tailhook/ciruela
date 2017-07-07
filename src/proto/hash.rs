@@ -5,7 +5,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::de::{Visitor, Error};
 
 
-#[derive(Hash, PartialEq, Eq)]
+#[derive(Hash, PartialEq, Eq, Clone)]
 pub struct Hash([u8; 32]);
 
 struct HashVisitor;
