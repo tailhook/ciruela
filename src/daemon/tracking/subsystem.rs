@@ -68,7 +68,7 @@ impl Subsystem {
             })
             .buffer_unordered(10)
             .for_each(|x| {
-                println!("Fetch block result {:?}", x);
+                println!("Fetch block result {:?}", *x);
                 Ok(())
             })
             .map_err(|e| {

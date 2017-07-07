@@ -1,7 +1,9 @@
+use std::collections::HashMap;
+use std::fs::{File};
+use std::io::{self, Read, Seek, SeekFrom};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::collections::HashMap;
 
 use futures::{Async, Future};
 use futures::future::{FutureResult, ok};
@@ -18,6 +20,7 @@ use {ImageId, Hash};
 use proto::{StreamExt};
 use proto::message::{Message, Request};
 use proto::index_commands::{PublishImage, GetIndexResponse};
+use proto::block_commands::{GetBlockResponse};
 use proto::request::{Sender, Error, RequestDispatcher, RequestClient};
 use proto::request::{Registry};
 
@@ -30,6 +33,7 @@ pub struct ImageInfo {
     pub blocks: HashMap<Hash, BlockPointer>,
 }
 
+#[derive(Debug, Clone)]
 pub struct BlockPointer {
     pub file: Arc<PathBuf>,
     pub offset: u64,
@@ -38,7 +42,6 @@ pub struct BlockPointer {
 
 pub struct Client {
     channel: Sender,
-    pool: CpuPool,
     local_images: Arc<Mutex<HashMap<ImageId, Arc<ImageInfo>>>>,
 }
 
@@ -51,6 +54,7 @@ struct MyDispatcher {
     requests: Registry,
     channel: Sender,
     local_images: Arc<Mutex<HashMap<ImageId, Arc<ImageInfo>>>>,
+    pool: CpuPool,
 }
 
 impl Dispatcher for MyDispatcher {
@@ -73,6 +77,37 @@ impl Dispatcher for MyDispatcher {
                             self.channel.error_response(req_id,
                                 Error::IndexNotFound)
                         });
+                }
+                Ok(Message::Request(req_id, Request::GetBlock(req))) => {
+                    let images = self.local_images.lock()
+                        .expect("local_images is not poisoned");
+                    for img in images.values() {
+                        if let Some(block) = img.blocks.get(&req.hash) {
+                            let chan = self.channel.clone();
+                            let img = img.clone();
+                            let block = block.clone();
+                            self.pool.spawn_fn(move || {
+                                match img.read_block(&block) {
+                                    Ok(data) => {
+                                        chan.response(req_id,
+                                            GetBlockResponse {
+                                                data: data,
+                                            });
+                                    }
+                                    Err(e) => {
+                                        error!("Can't read block {:?}: {}",
+                                            block, e);
+                                        chan.error_response(req_id,
+                                            Error::CantReadBlock);
+                                    }
+                                }
+                                Ok::<(), ()>(())
+                            }).forget();
+                            return ok(());
+                        }
+                    }
+                    self.channel.error_response(req_id,
+                        Error::BlockNotFound)
                 }
                 Ok(Message::Request(_req_id, _msg)) => {
                     unimplemented!();
@@ -134,7 +169,6 @@ impl Client {
                 let local_images = Arc::new(Mutex::new(HashMap::new()));
                 tx.send(Client {
                     channel: ctx.clone(),
-                    pool: pool,
                     local_images: local_images.clone(),
                 }).unwrap_or_else(|_| {
                     info!("Client future discarded before connected");
@@ -143,6 +177,7 @@ impl Client {
                     requests: requests.clone(),
                     channel: ctx,
                     local_images: local_images,
+                    pool: pool,
                 };
                 let stream = crx.packetize(&requests)
                     .map_err(|_| Error::UnexpectedTermination);
@@ -172,5 +207,19 @@ impl Future for ClientFuture {
     type Error = ();
     fn poll(&mut self) -> Result<Async<Client>, ()> {
         self.chan.poll().map_err(|_| ())
+    }
+}
+
+impl ImageInfo {
+    fn read_block(&self, pointer: &BlockPointer) -> Result<Vec<u8>, io::Error>
+    {
+        let mut result = vec![0u8; self.block_size as usize];
+        let mut file = File::open(self.location
+            .join(pointer.file.strip_prefix("/")
+                  .expect("block path is absolute")))?;
+        file.seek(SeekFrom::Start(pointer.offset))?;
+        let bytes = file.read(&mut result[..])?;
+        result.truncate(bytes);
+        Ok(result)
     }
 }

@@ -14,7 +14,7 @@ pub struct GetBlockResponse {
 impl Request for GetBlock {
     type Response = GetBlockResponse;
     fn type_name(&self) -> &'static str {
-        return "GetIndex";
+        return "GetBlock";
     }
 }
 

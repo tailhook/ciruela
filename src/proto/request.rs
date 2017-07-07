@@ -1,3 +1,4 @@
+use std::fmt;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::collections::HashMap;
 
@@ -25,25 +26,29 @@ quick_error! {
         }
         IndexNotFound {
         }
+        BlockNotFound {
+        }
         IndexParseError(id: ImageId, err: ::dir_signature::v1::ParseError) {
             context(id: &'a ImageId, err: ::dir_signature::v1::ParseError)
             -> (id.clone(), err)
+        }
+        CantReadBlock {
         }
     }
 }
 
 
 
-pub trait Request: Serialize + 'static {
-    type Response: 'static;
+pub trait Request: Serialize + Send + 'static {
+    type Response: Send + 'static;
     fn type_name(&self) -> &'static str;
 }
 
-pub trait Response: Serialize + 'static {
+pub trait Response: Serialize + Send + 'static {
     fn type_name(&self) -> &'static str;
 }
 
-pub trait Notification: Serialize + 'static {
+pub trait Notification: Serialize + Send + 'static {
     fn type_name(&self) -> &'static str;
 }
 
@@ -51,7 +56,7 @@ pub struct RequestFuture<R> {
     chan: Receiver<R>,
 }
 
-pub trait WrapTrait: mopa::Any {
+pub trait WrapTrait: mopa::Any + Send {
     fn is_request(&self) -> bool;
     fn serialize_req(&self, request_id: u64) -> Packet;
     fn serialize(&self) -> Packet;
@@ -73,7 +78,7 @@ pub struct ResponseWrap<R: Response> {
     data: R,
 }
 
-pub struct ErrorWrap<E: ::std::error::Error> {
+pub struct ErrorWrap<E: ::std::error::Error + Send> {
     request_id: u64,
     error: E,
 }
@@ -188,7 +193,7 @@ impl<N: Response> WrapTrait for ResponseWrap<N> {
     }
 }
 
-impl<E: ::std::error::Error + 'static> WrapTrait for ErrorWrap<E> {
+impl<E: ::std::error::Error + Send + 'static> WrapTrait for ErrorWrap<E> {
     fn is_request(&self) -> bool {
         false
     }
@@ -202,11 +207,15 @@ impl<E: ::std::error::Error + 'static> WrapTrait for ErrorWrap<E> {
     }
 }
 
-impl<R> Future for RequestFuture<R> {
+impl<R: fmt::Debug> Future for RequestFuture<R> {
     type Item = R;
     type Error = Error;
     fn poll(&mut self) -> Result<Async<R>, Error> {
         self.chan.poll().map_err(Into::into)
+        .map(|v| {
+            debug!("Received response {:?}", v);
+            v
+        })
     }
 }
 
@@ -303,7 +312,7 @@ impl Sender {
         }).ok();
     }
     pub fn error_response<E>(&self, request_id: u64, e: E)
-        where E: ::std::error::Error + 'static
+        where E: ::std::error::Error + Send + 'static
     {
         self.0.send(Box::new(ErrorWrap {
             request_id: request_id,
