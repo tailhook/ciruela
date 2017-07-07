@@ -30,7 +30,7 @@ pub fn start(sys: &Subsystem, cmd: FetchDir) {
         .and_then(|x| x.upgrade()).map(Index);
     let cmd = Arc::new(cmd);
     if let Some(index) = cached {
-        println!("Image {:?} is already cached", cmd.image_id);
+        info!("Image {:?} is already cached", cmd.image_id);
         return;
     }
     let old_future = state.image_futures.get(&cmd.image_id).map(Clone::clone);
@@ -93,7 +93,7 @@ pub fn start(sys: &Subsystem, cmd: FetchDir) {
                     commit_index_and_fetch_blocks(sys1, cmd, &index);
                 }
                 Err(e) => {
-                    println!("Error getting image {:?}", e);
+                    error!("Error getting image {:?}", e);
                     sys1.state().image_futures.remove(&cmd.image_id);
                 }
             }
