@@ -1,5 +1,4 @@
 mod fetch_dir;
-mod subsystem;
 
 use std::sync::{Arc, Weak, Mutex, MutexGuard};
 use std::collections::HashMap;

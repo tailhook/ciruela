@@ -2,15 +2,16 @@ use std::io::Cursor;
 use std::sync::Arc;
 use std::path::PathBuf;
 
-use tk_easyloop;
-use futures::Future;
+use futures::{Future, Stream};
+use futures::stream::iter;
 use futures::sync::oneshot::channel;
 use quick_error::ResultExt;
+use tk_easyloop::spawn;
 
-use ciruela::ImageId;
+use ciruela::{ImageId, Hash};
 use config::Directory;
 use index::Index;
-use tracking::{Subsystem};
+use tracking::{Subsystem, Block};
 use metadata::Error;
 
 
@@ -42,7 +43,7 @@ pub fn start(sys: &Subsystem, cmd: FetchDir) {
         let cmd = cmd.clone();
         let sys = sys.clone();
         state.image_futures.insert(cmd.image_id.clone(), future.clone());
-        tk_easyloop::spawn(sys.meta.read_index(&cmd.image_id)
+        spawn(sys.meta.read_index(&cmd.image_id)
             .then(move |result| {
                 match result {
                     Ok(index) => {
@@ -85,11 +86,11 @@ pub fn start(sys: &Subsystem, cmd: FetchDir) {
             }));
         future
     };
-    tk_easyloop::spawn(future
+    spawn(future
         .then(move |result| {
             match result {
                 Ok(index) => {
-                    sys1.commit_index_and_fetch(&cmd.image_id, &index);
+                    commit_index_and_fetch_blocks(sys1, cmd, &index);
                 }
                 Err(e) => {
                     println!("Error getting image {:?}", e);
@@ -97,5 +98,72 @@ pub fn start(sys: &Subsystem, cmd: FetchDir) {
                 }
             }
             Ok(())
+        }));
+}
+
+fn commit_index_and_fetch_blocks(sys: Subsystem, cmd: Arc<FetchDir>,
+    index: &Index)
+{
+    use dir_signature::v1::Entry::*;
+
+    let sys = sys.clone();
+    let image_id = cmd.image_id.clone();
+    sys.state().images.insert(image_id.clone(), index.weak());
+    // TODO(tailhook) implement cancellation and throttling
+    // TODO(tailhook) maybe global BufferUnordered rather then per-image
+    spawn(iter(
+            index.entries.iter()
+            .flat_map(|entry| {
+                match *entry {
+                    Dir(..) => Vec::new(),
+                    Link(..) => Vec::new(),
+                    File { ref hashes, .. } => {
+                        let mut result = Vec::new();
+                        for hash in hashes.iter() {
+                            let hash = Hash::new(hash);
+                            result.push(Ok(hash))
+                        }
+                        result
+                    }
+                }
+            }).collect::<Vec<_>>()
+        ).map(move |hash| {
+            let h1 = hash.clone();
+            let h2 = hash.clone();
+            let sys = sys.clone();
+            let mut state = sys.state();
+            if let Some(fut) = state.block_futures.get(&hash) {
+                return fut.clone();
+            }
+            let (tx, rx) = channel::<Block>();
+            let fut = rx.shared();
+            state.block_futures.insert(hash, fut.clone());
+            if let Some(conn) =
+                sys.remote.get_connection_for_index(&image_id)
+            {
+                spawn(
+                    conn.fetch_block(&h1)
+                    .map_err(move |e| {
+                        // TODO(tailhook) ask another connection
+                        error!("Error fetching block {}: {}", h1, e);
+                    })
+                    .and_then(move |block| tx.send(block.data)
+                        .map_err(|_| {
+                            debug!("Block future for {} is dropped before \
+                                    resolving", h2);
+                    })));
+            } else {
+                unimplemented!();
+            }
+            fut
+        })
+        .buffer_unordered(10)
+        .for_each(|x| {
+            println!("Fetch block result {:?}", *x);
+            Ok(())
+        })
+        .map_err(|e| {
+            // TODO(tailhook) figure out how to silence the future earlier
+            error!("Shared future error: {:?}", e);
         }));
 }
