@@ -42,12 +42,26 @@ mod tracking;
 mod dir_config;
 mod index;
 
+fn init_logging() {
+    let format = |record: &log::LogRecord| {
+        format!("{} [{}] {}: {}", time::now_utc().rfc3339(),
+            record.location().module_path(),
+            record.level(), record.args())
+    };
+
+    let mut builder = env_logger::LogBuilder::new();
+    builder.format(format).filter(None, log::LogLevelFilter::Warn);
+
+    if let Ok(value) = env::var("RUST_LOG") {
+       builder.parse(&value);
+    }
+
+    builder.init()
+        .expect("can always initialize logging subsystem");
+}
 
 fn main() {
-    if let Err(_) = env::var("RUST_LOG") {
-        env::set_var("RUST_LOG", "warn");
-    }
-    env_logger::init().unwrap();
+    init_logging();
 
     let mut config_dir = PathBuf::from("/etc/ciruela");
     let mut db_dir = PathBuf::from("/var/lib/ciruela");
