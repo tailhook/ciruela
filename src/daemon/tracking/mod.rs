@@ -39,6 +39,7 @@ pub struct Tracking {
 pub struct Subsystem {
     state: Arc<Mutex<State>>,
     meta: Meta,
+    disk: Disk,
     remote: Remote,
 }
 
@@ -95,6 +96,7 @@ pub fn start(init: TrackingInit, meta: &Meta, remote: &Remote, disk: &Disk)
     let TrackingInit { chan, tracking } = init;
     let sys = Subsystem {
         meta: meta.clone(),
+        disk: disk.clone(),
         state: tracking.state.clone(),
         remote: remote.clone(),
     };

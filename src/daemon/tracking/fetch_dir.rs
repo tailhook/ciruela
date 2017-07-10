@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::path::PathBuf;
 
 use futures::{Future, Stream};
+use futures::future::{ok, Either};
 use futures::stream::iter;
 use futures::sync::oneshot::channel;
 use quick_error::ResultExt;
@@ -10,9 +11,10 @@ use tk_easyloop::spawn;
 
 use ciruela::{ImageId, Hash};
 use config::Directory;
+use disk::Image;
 use index::Index;
-use tracking::{Subsystem, Block};
 use metadata::Error;
+use tracking::{Subsystem, Block};
 
 
 pub struct FetchDir {
@@ -90,29 +92,41 @@ pub fn start(sys: &Subsystem, cmd: FetchDir) {
         .then(move |result| {
             match result {
                 Ok(index) => {
-                    commit_index_and_fetch_blocks(sys1, cmd, &index);
+                    sys1.state().images
+                        .insert(cmd.image_id.clone(), index.weak());
+                    // TODO(tailhook) sys1.meta.store_index()
+                    Either::A(sys1.disk.start_image(
+                        cmd.config.directory.clone(),
+                        cmd.parent.clone(),
+                        cmd.image_name.clone(),
+                        index.clone())
+                    .map(move |img| {
+                        debug!("Created dir");
+                        fetch_blocks(sys1, img);
+                    })
+                    .map_err(move |e| {
+                        error!("Can't start image {:?}: {}",
+                            cmd.image_name, e);
+                    }))
                 }
                 Err(e) => {
                     error!("Error getting image {:?}", e);
                     sys1.state().image_futures.remove(&cmd.image_id);
+                    Either::B(ok(()))
                 }
             }
-            Ok(())
         }));
 }
 
-fn commit_index_and_fetch_blocks(sys: Subsystem, cmd: Arc<FetchDir>,
-    index: &Index)
+fn fetch_blocks(sys: Subsystem, image: Image)
 {
     use dir_signature::v1::Entry::*;
 
     let sys = sys.clone();
-    let image_id = cmd.image_id.clone();
-    sys.state().images.insert(image_id.clone(), index.weak());
     // TODO(tailhook) implement cancellation and throttling
     // TODO(tailhook) maybe global BufferUnordered rather then per-image
     spawn(iter(
-            index.entries.iter()
+            image.index.entries.iter()
             .flat_map(|entry| {
                 match *entry {
                     Dir(..) => Vec::new(),
@@ -139,7 +153,7 @@ fn commit_index_and_fetch_blocks(sys: Subsystem, cmd: Arc<FetchDir>,
             let fut = rx.shared();
             state.block_futures.insert(hash, fut.clone());
             if let Some(conn) =
-                sys.remote.get_connection_for_index(&image_id)
+                sys.remote.get_connection_for_index(&image.index.id)
             {
                 spawn(
                     conn.fetch_block(&h1)
@@ -147,6 +161,7 @@ fn commit_index_and_fetch_blocks(sys: Subsystem, cmd: Arc<FetchDir>,
                         // TODO(tailhook) ask another connection
                         error!("Error fetching block {}: {}", h1, e);
                     })
+                    // TODO(tailhook) check hashsum
                     .and_then(move |block| tx.send(block.data)
                         .map_err(|_| {
                             debug!("Block future for {} is dropped before \
