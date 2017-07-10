@@ -17,7 +17,7 @@ use ciruela::{ImageId, Hash};
 use dir_config::DirConfig;
 
 
-type Block = Vec<u8>;
+pub type Block = Arc<Vec<u8>>;
 type ImageFuture = Shared<Receiver<Index>>;
 type BlockFuture = Shared<Receiver<Block>>;
 

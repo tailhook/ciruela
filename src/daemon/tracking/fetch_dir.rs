@@ -122,6 +122,7 @@ fn fetch_blocks(sys: Subsystem, image: Image)
 {
     use dir_signature::v1::Entry::*;
 
+    let image = Arc::new(image);
     let sys = sys.clone();
     // TODO(tailhook) implement cancellation and throttling
     // TODO(tailhook) maybe global BufferUnordered rather then per-image
@@ -131,54 +132,75 @@ fn fetch_blocks(sys: Subsystem, image: Image)
                 match *entry {
                     Dir(..) => Vec::new(),
                     Link(..) => Vec::new(),
-                    File { ref hashes, .. } => {
+                    File { ref hashes, ref path, .. } => {
+                        let arc = Arc::new(path.clone());
                         let mut result = Vec::new();
-                        for hash in hashes.iter() {
+                        for (i, hash) in hashes.iter().enumerate() {
                             let hash = Hash::new(hash);
-                            result.push(Ok(hash))
+                            result.push(Ok((
+                                hash,
+                                arc.clone(),
+                                (i as u64)*image.index.block_size,
+                            )))
                         }
                         result
                     }
                 }
             }).collect::<Vec<_>>()
-        ).map(move |hash| {
+        ).map(move |(hash, path, offset)| {
             let h1 = hash.clone();
             let h2 = hash.clone();
             let sys = sys.clone();
+            let sys1 = sys.clone();
+            let image = image.clone();
             let mut state = sys.state();
-            if let Some(fut) = state.block_futures.get(&hash) {
-                return fut.clone();
-            }
-            let (tx, rx) = channel::<Block>();
-            let fut = rx.shared();
-            state.block_futures.insert(hash, fut.clone());
-            if let Some(conn) =
-                sys.remote.get_connection_for_index(&image.index.id)
-            {
-                spawn(
-                    conn.fetch_block(&h1)
-                    .map_err(move |e| {
-                        // TODO(tailhook) ask another connection
-                        error!("Error fetching block {}: {}", h1, e);
-                    })
-                    // TODO(tailhook) check hashsum
-                    .and_then(move |block| tx.send(block.data)
-                        .map_err(|_| {
-                            debug!("Block future for {} is dropped before \
-                                    resolving", h2);
-                    })));
+            let fut = state.block_futures.get(&hash).cloned();
+            let fut = if let Some(fut) = fut {
+                fut
             } else {
-                unimplemented!();
-            }
+                let (tx, rx) = channel::<Block>();
+                let fut = rx.shared();
+                state.block_futures.insert(hash, fut.clone());
+                if let Some(conn) =
+                    sys.remote.get_connection_for_index(&image.index.id)
+                {
+                    spawn(
+                        conn.fetch_block(&h1)
+                        .map_err(move |e| {
+                            // TODO(tailhook) ask another connection
+                            error!("Error fetching block {}: {}", h1, e);
+                        })
+                        // TODO(tailhook) check hashsum
+                        .and_then(move |block| {
+                            tx.send(Arc::new(block.data))
+                            .map_err(|_| {
+                                debug!("Block future for {} is dropped before \
+                                        resolving", h2);
+                            })
+                        }));
+                    fut
+                } else {
+                    unimplemented!();
+                }
+            };
             fut
+            .and_then(move |block| {
+                sys1.disk.write_block(image, path, offset, block.clone())
+                .map_err(|e| {
+                    error!("Error writing block: {}", e);
+                    unimplemented!();
+                })
+            })
         })
         .buffer_unordered(10)
-        .for_each(|x| {
-            println!("Fetch block result {:?}", *x);
+        .map_err(|e| {
+            error!("Error fetching block: {}", *e);
+            unimplemented!();
+        })
+        .for_each(|()| {
             Ok(())
         })
-        .map_err(|e| {
-            // TODO(tailhook) figure out how to silence the future earlier
-            error!("Shared future error: {:?}", e);
+        .map(|()| {
+            println!("DONE");
         }));
 }

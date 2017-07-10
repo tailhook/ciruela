@@ -1,4 +1,4 @@
-
+use std::io::{self, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -12,6 +12,7 @@ use index::Index;
 use config::Config;
 use disk::{Init, Error};
 use metadata::Meta;
+use tracking::Block;
 
 
 #[derive(Clone)]
@@ -61,6 +62,44 @@ impl Disk {
             })
         })
     }
+    pub fn write_block(&self, image: Arc<Image>,
+                       path: Arc<PathBuf>, offset: u64,
+                       block: Block)
+        -> CpuFuture<(), Error>
+    {
+        self.pool.spawn_fn(move || {
+            debug!("Writing block {:?}:{}", path, offset);
+            let path = path
+                .strip_prefix("/")
+                .expect("path is absolute");
+            let mut dir_tmp;
+            let parent = path.parent().expect("path is never root");
+            let dir = if parent != Path::new("") {
+                let mut pit = parent.iter();
+                dir_tmp = open_subdir(&image.temporary, pit.next().unwrap())?;
+                for component in pit {
+                    dir_tmp = open_subdir(&dir_tmp, component)?;
+                }
+                &dir_tmp
+            } else {
+                &image.temporary
+            };
+            let fname = path.file_name()
+                .expect("path has a filename");
+            write_block(&dir, Path::new(fname), offset, block)
+                .map_err(|e| Error::WriteFile(recover_path(&dir, fname), e))?;
+            Ok(())
+        })
+    }
+}
+
+fn write_block(dir: &Dir, filename: &Path, offset: u64, block: Block)
+    -> io::Result<()>
+{
+    let mut file = dir.update_file(filename, 0o644)?;
+    file.seek(SeekFrom::Start(offset))?;
+    file.write_all(&block[..])?;
+    Ok(())
 }
 
 pub fn open_subdir<P: AsRef<Path>>(dir: &Dir, name: P)
@@ -68,13 +107,20 @@ pub fn open_subdir<P: AsRef<Path>>(dir: &Dir, name: P)
 {
     match dir.sub_dir(name.as_ref()) {
         Ok(dir) => Ok(dir),
-        Err(e) => match dir.create_dir(name.as_ref(), 0o755) {
+        Err(ref e) if e.kind() == io::ErrorKind::NotFound
+        => match dir.create_dir(name.as_ref(), 0o755) {
             Ok(()) => match dir.sub_dir(name.as_ref()) {
                 Ok(dir) => Ok(dir),
                 Err(e) => Err(Error::CreateDirRace(recover_path(dir, name), e)),
             },
+            Err(ref e) if e.kind() == io::ErrorKind::AlreadyExists
+            => {
+                dir.sub_dir(name.as_ref())
+                .map_err(|e| Error::OpenDir(recover_path(dir, name), e))
+            }
             Err(e) => Err(Error::CreateDir(recover_path(dir, name), e)),
         },
+        Err(e) => Err(Error::OpenDir(recover_path(dir, name), e)),
     }
 }
 
