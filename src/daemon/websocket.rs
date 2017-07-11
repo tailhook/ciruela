@@ -147,8 +147,17 @@ impl websocket::Dispatcher for Dispatcher {
                     // hanging state
                 }
                 Err(e) => {
-                    error!("Failed to deserialize frame, \
-                        error: {}, frame: {:?}", e, frame);
+                    match *frame {
+                        Frame::Binary(x) => {
+                            error!("Failed to deserialize frame, \
+                                error: {}, frame: {}", e,
+                                String::from_utf8_lossy(x));
+                        }
+                        _ => {
+                            error!("Failed to deserialize frame, \
+                                error: {}, frame: {:?}", e, frame);
+                        }
+                    }
                 }
             },
             _ => {

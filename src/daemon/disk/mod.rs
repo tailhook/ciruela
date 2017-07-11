@@ -1,4 +1,5 @@
 mod commit;
+mod dir;
 mod error;
 mod public;
 

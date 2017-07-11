@@ -27,8 +27,31 @@ quick_error! {
         }
         WriteFile(path: PathBuf, e: io::Error) {
             description("error writing file")
-            display("erorr writing {:?}: {}", path, e)
+            display("error writing {:?}: {}", path, e)
             cause(e)
+        }
+        ReadFile(path: PathBuf, e: io::Error) {
+            description("error reading file")
+            display("error reading {:?}: {}", path, e)
+            cause(e)
+        }
+        SetPermissions(path: PathBuf, e: io::Error) {
+            description("error setting permissions")
+            display("error setting permissions on {:?}: {}", path, e)
+            cause(e)
+        }
+        CreateSymlink(path: PathBuf, e: io::Error) {
+            description("error creating symlink")
+            display("error creating symlink {:?}: {}", path, e)
+            cause(e)
+        }
+        Checksum(path: PathBuf) {
+            description("error verifing checksum")
+            display("error verifing checksum {:?}", path)
+        }
+        Commit(path: PathBuf, e: io::Error) {
+            description("error commiting dir")
+            display("error commiting dir {:?}", path)
         }
     }
 }

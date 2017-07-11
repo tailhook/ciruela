@@ -5,7 +5,7 @@ dependencies = [
  "abstract-ns 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "argparse 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "base64 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "dir-signature 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "dir-signature 0.1.1 (git+https://github.com/tailhook/dir-signature?rev=921729d)",
  "env_logger 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-cpupool 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -15,7 +15,7 @@ dependencies = [
  "matches 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "mopa 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "ns-std-threaded 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "openat 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "openat 0.1.5 (git+https://github.com/tailhook/openat?rev=eab60c6)",
  "quick-error 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "quire 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "rust-crypto 0.2.36 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -169,7 +169,7 @@ dependencies = [
 [[package]]
 name = "dir-signature"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
+source = "git+https://github.com/tailhook/dir-signature?rev=921729d#921729d3e07fde779dc1ae8da441c6ab729f47f3"
 dependencies = [
  "argparse 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "blake2 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -470,6 +470,14 @@ dependencies = [
 name = "odds"
 version = "0.2.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "openat"
+version = "0.1.5"
+source = "git+https://github.com/tailhook/openat?rev=eab60c6#eab60c6418566c254b264eae5b428ebb9f2cc25e"
+dependencies = [
+ "libc 0.2.26 (registry+https://github.com/rust-lang/crates.io-index)",
+]
 
 [[package]]
 name = "openat"
@@ -921,7 +929,7 @@ dependencies = [
 "checksum digest 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "867593eac3ccb902465375ee94401490009054da278d4bb2f11a6f8b5bfeca98"
 "checksum digest-buffer 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "59789dfde9b5461a582b55d721698169a5ad27927b5d8fb07cdfecc013b63f28"
 "checksum digest-writer 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "8584c31eb1c21996908c5560d036798ee150955c8cc19f78cfeeef3277f811c1"
-"checksum dir-signature 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "68a36a6193b88c25d004c44a7ccb510b1d9c7bd8a6c73cd3656cc44504eadcf5"
+"checksum dir-signature 0.1.1 (git+https://github.com/tailhook/dir-signature?rev=921729d)" = "<none>"
 "checksum either 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "18785c1ba806c258137c937e44ada9ee7e69a37e3c72077542cd2f069d78562a"
 "checksum env_logger 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)" = "15abd780e45b3ea4f76b4e9a26ff4843258dd8a3eed2775a0e7368c2e7936c2f"
 "checksum env_logger 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)" = "3ddf21e73e016298f5cb37d6ef8e8da8e39f91f9ec8b0df44b7deb16a9f8cd5b"
@@ -959,6 +967,7 @@ dependencies = [
 "checksum num-traits 0.1.39 (registry+https://github.com/rust-lang/crates.io-index)" = "1708c0628602a98b52fad936cf3edb9a107af06e52e49fdf0707e884456a6af6"
 "checksum num_cpus 1.6.2 (registry+https://github.com/rust-lang/crates.io-index)" = "aec53c34f2d0247c5ca5d32cca1478762f301740468ee9ee6dcb7a0dd7a0c584"
 "checksum odds 0.2.25 (registry+https://github.com/rust-lang/crates.io-index)" = "c3df9b730298cea3a1c3faa90b7e2f9df3a9c400d0936d6015e6165734eefcba"
+"checksum openat 0.1.5 (git+https://github.com/tailhook/openat?rev=eab60c6)" = "<none>"
 "checksum openat 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)" = "210465372ad9179f824463cb773ccd89fbd16682f1135e44c408c856c6563b4a"
 "checksum percent-encoding 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "de154f638187706bde41d9b4738748933d64e6b37bdbffc0b47a97d16a6ae356"
 "checksum quick-error 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "3c36987d4978eb1be2e422b1e0423a557923a5c3e7e6f31d5699e9aafaefa469"
