@@ -2,10 +2,8 @@ use std::io::{self, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use futures::sync::mpsc::{unbounded, UnboundedSender};
 use futures_cpupool::{CpuPool, CpuFuture};
 use openat::Dir;
-use tk_easyloop;
 
 use openat;
 use index::Index;
@@ -13,6 +11,7 @@ use config::Config;
 use disk::{Init, Error};
 use metadata::Meta;
 use tracking::Block;
+use disk::commit::commit_image;
 
 
 #[derive(Clone)]
@@ -89,6 +88,12 @@ impl Disk {
             write_block(&dir, Path::new(fname), offset, block)
                 .map_err(|e| Error::WriteFile(recover_path(&dir, fname), e))?;
             Ok(())
+        })
+    }
+    pub fn commit_image(&self, image: Arc<Image>) -> CpuFuture<(), Error> {
+        self.pool.spawn_fn(move || {
+            debug!("Commiting {:?}", image.image_name);
+            commit_image(image)
         })
     }
 }

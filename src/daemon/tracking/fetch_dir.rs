@@ -123,7 +123,9 @@ fn fetch_blocks(sys: Subsystem, image: Image)
     use dir_signature::v1::Entry::*;
 
     let image = Arc::new(image);
+    let image2 = image.clone();
     let sys = sys.clone();
+    let sys2 = sys.clone();
     // TODO(tailhook) implement cancellation and throttling
     // TODO(tailhook) maybe global BufferUnordered rather then per-image
     spawn(iter(
@@ -200,7 +202,11 @@ fn fetch_blocks(sys: Subsystem, image: Image)
         .for_each(|()| {
             Ok(())
         })
-        .map(|()| {
-            println!("DONE");
+        .and_then(move |()| {
+            sys2.disk.commit_image(image2)
+        })
+        .map_err(|e| {
+            error!("Error commiting image: {}", e);
+            unimplemented!();
         }));
 }

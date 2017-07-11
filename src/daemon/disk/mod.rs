@@ -1,3 +1,4 @@
+mod commit;
 mod error;
 mod public;
 
