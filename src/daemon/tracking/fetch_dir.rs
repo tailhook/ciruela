@@ -157,8 +157,10 @@ fn fetch_blocks(sys: Subsystem, image: Image, cmd: Arc<FetchDir>)
         ).map(move |(hash, path, offset)| {
             let h1 = hash.clone();
             let h2 = hash.clone();
+            let h3 = hash.clone();
             let sys = sys.clone();
             let sys1 = sys.clone();
+            let sys2 = sys.clone();
             let image = image.clone();
             let mut state = sys.state();
             let fut = state.block_futures.get(&hash).cloned();
@@ -197,6 +199,9 @@ fn fetch_blocks(sys: Subsystem, image: Image, cmd: Arc<FetchDir>)
                     error!("Error writing block: {}", e);
                     unimplemented!();
                 })
+            })
+            .map(move |()| {
+                sys2.state().block_futures.remove(&h3);
             })
         })
         .buffer_unordered(10)
