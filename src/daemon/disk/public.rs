@@ -11,7 +11,6 @@ use disk::dir::{ensure_path, ensure_subdir, recover_path, DirBorrow};
 use disk::{Init, Error};
 use index::Index;
 use metadata::Meta;
-use openat;
 use tracking::Block;
 
 

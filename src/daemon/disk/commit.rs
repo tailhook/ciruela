@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use std::time::Instant;
-use std::os::unix::fs::{PermissionsExt, symlink};
+use std::os::unix::fs::PermissionsExt;
 
 use disk::dir::{ensure_path, recover_path};
 use disk::error::Error;
@@ -26,7 +26,7 @@ pub fn commit_image(image: Arc<Image>) -> Result<(), Error> {
                 debug_assert!(*dpath == path.parent().unwrap());
                 // ... and having filenames
                 let filename = path.file_name().expect("file has filename");
-                let mut file = dir.create_file(filename, 0o644)
+                let file = dir.create_file(filename, 0o644)
                     .map_err(|e| Error::WriteFile(
                         recover_path(dir, filename), e))?;
                 if exe {
@@ -47,6 +47,7 @@ pub fn commit_image(image: Arc<Image>) -> Result<(), Error> {
                 let ok = hashes.check_file(&mut file)
                     .map_err(|e| Error::ReadFile(
                         recover_path(dir, filename), e))?;
+                // TODO(tailhook) recheck filesize
                 if !ok {
                     return Err(
                         Error::Checksum(recover_path(dir, filename)));

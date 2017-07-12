@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
-use std::io::{self, stdout, stderr};
+use std::io::{self, Write, stdout, stderr};
+use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::process::exit;
 use std::sync::{Arc, Mutex};
@@ -27,11 +28,11 @@ use ciruela::proto::message::Notification;
 
 struct Progress {
     hosts_done: Vec<String>,
-    hosts_needed: HashSet<Arc<String>>,
+    hosts_needed: HashSet<SocketAddr>,
     done: Option<Sender<()>>,
 }
 
-struct Tracker(Arc<String>, Arc<Mutex<Progress>>);
+struct Tracker(SocketAddr, Arc<Mutex<Progress>>);
 
 impl Listener for Tracker {
     fn notification(&self, n: Notification) {
@@ -44,15 +45,19 @@ impl Listener for Tracker {
                 if !img.forwarded {
                     pro.hosts_needed.remove(&self.0);
                 }
+                println!("needed {:?}, {}", pro.hosts_needed, self.0);
                 if pro.hosts_needed.len() == 0 {
-                    println!("Fetched from {}", pro.hosts_done.join(", "));
-                    println!("Fetched from all required. {} total.",
-                        pro.hosts_done.len());
+                    writeln!(&mut stderr(),
+                        "Fetched from {}", pro.hosts_done.join(", ")).ok();
+                    writeln!(&mut stderr(),
+                        "Fetched from all required. {} total.",
+                        pro.hosts_done.len()).ok();
                     pro.done.take().map(|chan| {
                         chan.send(()).expect("sending done");
                     });
                 } else {
-                    print!("Fetched from {}\r", pro.hosts_done.join(", "));
+                    write!(&mut stderr(),
+                        "Fetched from {}\r", pro.hosts_done.join(", ")).ok();
                 }
             }
             _ => {}
@@ -160,10 +165,12 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                             let host = host4.clone();
                             let image_info = image_info.clone();
                             let pool = pool.clone();
-                            let tracker = Tracker(host.clone(),
+                            let progress = progress.clone();
+                            let progress2 = progress.clone();
+                            let tracker = Tracker(addr,
                                                   progress.clone());
                             progress.lock().expect("progress is ok")
-                                .hosts_needed.insert(host.clone());
+                                .hosts_needed.insert(addr);
                             let done_rx = done_rx.clone();
                             Client::spawn(addr, &host, &pool, tracker)
                             .and_then(move |mut cli| {
@@ -185,8 +192,9 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                                 // TODO(tailhook) read notifications
                                 if !response.accepted {
                                     progress.lock().expect("progress is ok")
-                                        .hosts_needed.remove(host.clone());
-                                    error!("AppendDir rejected by {}", host);
+                                        .hosts_needed.remove(&addr);
+                                    error!("AppendDir rejected by {} / {}",
+                                        host, addr);
                                     Either::A(ok(false))
                                 } else {
                                     // TODO(tailhook) not just timeout
@@ -206,6 +214,8 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                             .then(move |res| match res {
                                 Ok(x) => Ok(x),
                                 Err(()) => {
+                                    progress2.lock().expect("progress is ok")
+                                        .hosts_needed.remove(&addr);
                                     // Always succeed, for now, so join will
                                     // drive all the futures, even if one
                                     // failed

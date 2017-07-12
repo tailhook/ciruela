@@ -1,11 +1,10 @@
-use std::io::{self, BufReader, BufRead};
-use std::sync::Arc;
+use std::io::{self, BufReader};
 
 use hex::ToHex;
 use std::fs::File;
 
 use ciruela::ImageId;
-use index::{Index, IndexData};
+use index::Index;
 use metadata::{Meta, Error};
 use metadata::dir_ext::{DirExt, recover};
 
