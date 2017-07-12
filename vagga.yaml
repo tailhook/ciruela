@@ -30,7 +30,7 @@ commands:
     container: ubuntu
     prerequisites: [make]
     environ: &exenv
-      RUST_LOG: info
+      RUST_LOG: debug,tokio_core=warn
     run:
     - ./target/debug/ciruela-server
     - --config-base-dir=./example-configs
@@ -74,6 +74,5 @@ containers:
 
   doc:
     setup:
-    - !Alpine v3.4
-    - !Repo edge/main  # because in 3.4 sphinx is broken
+    - !Alpine v3.6
     - !Install [alpine-base, py-sphinx, py-requests, make]
