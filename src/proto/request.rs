@@ -211,11 +211,13 @@ impl<R: fmt::Debug> Future for RequestFuture<R> {
     type Item = R;
     type Error = Error;
     fn poll(&mut self) -> Result<Async<R>, Error> {
-        self.chan.poll().map_err(Into::into)
-        .map(|v| {
-            debug!("Received response {:?}", v);
-            v
-        })
+        match self.chan.poll()? {
+            Async::Ready(x) => {
+                debug!("Received response {:?}", x);
+                Ok(Async::Ready(x))
+            }
+            Async::NotReady => Ok(Async::NotReady),
+        }
     }
 }
 
