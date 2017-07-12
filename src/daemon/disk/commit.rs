@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Instant;
 use std::os::unix::fs::{PermissionsExt, symlink};
 
 use disk::dir::{ensure_path, recover_path};
@@ -10,6 +11,7 @@ use dir_signature::v1::Entry::*;
 
 pub fn commit_image(image: Arc<Image>) -> Result<(), Error> {
     debug!("Preparing commit {:?}", image.image_name);
+    let start = Instant::now();
     // TODO(tailhook) maybe throttle
     let mut dir = None;
     for entry in &image.index.entries {
@@ -17,6 +19,21 @@ pub fn commit_image(image: Arc<Image>) -> Result<(), Error> {
             Dir(ref path) => {
                 dir = Some((ensure_path(&image.temporary, path)?, path));
                 // TODO(tailhook) check permissions?
+            }
+            File { ref path, exe, size, .. } if size == 0 => {
+                let &(ref dir, ref dpath) = dir.as_ref().unwrap();
+                // Assuming dir-signature can't yield records out of order..
+                debug_assert!(*dpath == path.parent().unwrap());
+                // ... and having filenames
+                let filename = path.file_name().expect("file has filename");
+                let mut file = dir.create_file(filename, 0o644)
+                    .map_err(|e| Error::WriteFile(
+                        recover_path(dir, filename), e))?;
+                if exe {
+                    file.set_permissions(PermissionsExt::from_mode(0o755))
+                    .map_err(|e| Error::SetPermissions(
+                        recover_path(dir, filename), e))?;
+                }
             }
             File { ref path, exe, size, ref hashes } => {
                 let &(ref dir, ref dpath) = dir.as_ref().unwrap();
@@ -52,7 +69,10 @@ pub fn commit_image(image: Arc<Image>) -> Result<(), Error> {
         }
     }
     // TODO(tailhook) check extra files and directories
-    debug!("Commiting {:?}", image.image_name);
+    info!("{:?}: Checked in {}. Commiting {:?}",
+        image.virtual_path,
+        (Instant::now() - start).as_secs(),
+        image.image_name);
 
     image.parent.local_rename(&image.temporary_name, &image.image_name)
         .map_err(|e| Error::Commit(
