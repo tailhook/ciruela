@@ -162,6 +162,8 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                             let pool = pool.clone();
                             let tracker = Tracker(host.clone(),
                                                   progress.clone());
+                            progress.lock().expect("progress is ok")
+                                .hosts_needed.insert(host.clone());
                             let done_rx = done_rx.clone();
                             Client::spawn(addr, &host, &pool, tracker)
                             .and_then(move |mut cli| {
@@ -182,6 +184,8 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                                     addr, response);
                                 // TODO(tailhook) read notifications
                                 if !response.accepted {
+                                    progress.lock().expect("progress is ok")
+                                        .hosts_needed.remove(host.clone());
                                     error!("AppendDir rejected by {}", host);
                                     Either::A(ok(false))
                                 } else {
