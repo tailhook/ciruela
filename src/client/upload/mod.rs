@@ -1,16 +1,17 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::{self, stdout, stderr};
 use std::path::PathBuf;
 use std::process::exit;
-use std::sync::Arc;
-use std::time::{SystemTime, Duration};
+use std::sync::{Arc, Mutex};
+use std::time::SystemTime;
 
 use abstract_ns::Resolver;
-use futures::future::{Future, Either, join_all, ok};
-use futures_cpupool::CpuPool;
-use tk_easyloop::{self, timeout};
 use argparse::{ArgumentParser};
 use dir_signature::{ScannerConfig, HashType, v1, get_hash};
+use futures::future::{Future, Either, join_all, ok};
+use futures::sync::oneshot::{channel, Sender};
+use futures_cpupool::CpuPool;
+use tk_easyloop;
 
 mod options;
 
@@ -21,7 +22,43 @@ use ciruela::proto::{SigData, sign};
 use global_options::GlobalOptions;
 use ciruela::proto::{Client, AppendDir, ImageInfo, BlockPointer};
 use ciruela::proto::RequestClient;
+use ciruela::proto::{Listener};
+use ciruela::proto::message::Notification;
 
+struct Progress {
+    hosts_done: Vec<String>,
+    hosts_needed: HashSet<Arc<String>>,
+    done: Option<Sender<()>>,
+}
+
+struct Tracker(Arc<String>, Arc<Mutex<Progress>>);
+
+impl Listener for Tracker {
+    fn notification(&self, n: Notification) {
+        use ciruela::proto::message::Notification::*;
+        match n {
+            ReceivedImage(img) => {
+                // TODO(tailhook) check image id and path
+                let mut pro = self.1.lock().expect("progress is not poisoned");
+                pro.hosts_done.push(img.hostname);
+                if !img.forwarded {
+                    pro.hosts_needed.remove(&self.0);
+                }
+                if pro.hosts_needed.len() == 0 {
+                    println!("Fetched from {}", pro.hosts_done.join(", "));
+                    println!("Fetched from all required. {} total.",
+                        pro.hosts_done.len());
+                    pro.done.take().map(|chan| {
+                        chan.send(()).expect("sending done");
+                    });
+                } else {
+                    print!("Fetched from {}\r", pro.hosts_done.join(", "));
+                }
+            }
+            _ => {}
+        }
+    }
+}
 
 fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
     -> Result<bool, ()>
@@ -84,6 +121,13 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
         }, &opt.private_keys));
     }
     let signatures = Arc::new(signatures);
+    let (done_tx, done_rx) = channel();
+    let done_rx = done_rx.shared();
+    let progress = Arc::new(Mutex::new(Progress {
+        hosts_done: Vec::new(),
+        hosts_needed: HashSet::new(),
+        done: Some(done_tx),
+    }));
 
     tk_easyloop::run(|| {
         let resolver = name::resolver();
@@ -98,12 +142,16 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                 let image_info = image_info.clone();
                 let pool = pool.clone();
                 let signatures = signatures.clone();
+                let done_rx = done_rx.clone();
+                let progress = progress.clone();
                 resolver.resolve(&host)
                 .map_err(move |e| {
                     error!("Error resolving host {}: {}", host2, e);
                 })
                 .and_then(move |addr| name::pick_hosts(&*host3, addr))
                 .and_then(move |names| {
+                    let done_rx = done_rx.clone();
+                    let progress = progress.clone();
                     join_all(
                         names.iter()
                         .map(move |&addr| {
@@ -112,7 +160,10 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                             let host = host4.clone();
                             let image_info = image_info.clone();
                             let pool = pool.clone();
-                            Client::spawn(addr, &host, &pool)
+                            let tracker = Tracker(host.clone(),
+                                                  progress.clone());
+                            let done_rx = done_rx.clone();
+                            Client::spawn(addr, &host, &pool, tracker)
                             .and_then(move |mut cli| {
                                 info!("Connected to {}", addr);
                                 cli.register_index(&image_info);
@@ -135,9 +186,17 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                                     Either::A(ok(false))
                                 } else {
                                     // TODO(tailhook) not just timeout
-                                    Either::B(timeout(Duration::new(10, 0))
-                                        .map_err(|_| unimplemented!())
-                                        .map(|_| true))
+                                    Either::B(done_rx.clone()
+                                        .then(|v| match v {
+                                            Ok(_) => Ok(true),
+                                            Err(_) => {
+                                                debug!("Connection closed \
+                                                        before all \
+                                                        notifications \
+                                                        are received");
+                                                Ok(false)
+                                            }
+                                        }))
                                 }
                             })
                             .then(move |res| match res {

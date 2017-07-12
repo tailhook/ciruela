@@ -1,8 +1,10 @@
-use std::sync::{Arc, Mutex, MutexGuard};
 use std::collections::HashSet;
+use std::path::Path;
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use websocket::Connection;
 use ciruela::ImageId;
+use ciruela::proto::ReceivedImage;
 
 
 pub struct Connections {
@@ -36,6 +38,19 @@ impl Remote {
             }
         }
         return None;
+    }
+    pub fn notify_received_image(&self, ref id: ImageId, path: &Path) {
+        for conn in self.inner().connections.iter() {
+            if conn.has_image(id) {
+                conn.notification(ReceivedImage {
+                    id: id.clone(),
+                    // TODO(tailhook)
+                    hostname: String::from("localhost"),
+                    forwarded: false,
+                    path: path.to_path_buf(),
+                })
+            }
+        }
     }
 }
 

@@ -18,6 +18,7 @@ use tracking::{Subsystem, Block};
 
 
 pub struct FetchDir {
+    pub virtual_path: PathBuf,
     pub image_id: ImageId,
     pub base_dir: PathBuf,
     pub parent: PathBuf,
@@ -31,6 +32,7 @@ pub fn start(sys: &Subsystem, cmd: FetchDir) {
     let cached = state.images.get(&cmd.image_id)
         .and_then(|x| x.upgrade()).map(Index);
     let cmd = Arc::new(cmd);
+    let cmd2 = cmd.clone();
     if let Some(index) = cached {
         info!("Image {:?} is already cached", cmd.image_id);
         return;
@@ -99,14 +101,15 @@ pub fn start(sys: &Subsystem, cmd: FetchDir) {
                         cmd.config.directory.clone(),
                         cmd.parent.clone(),
                         cmd.image_name.clone(),
-                        index.clone())
+                        index.clone(),
+                        cmd.virtual_path.clone())
                     .map(move |img| {
                         debug!("Created dir");
-                        fetch_blocks(sys1, img);
+                        fetch_blocks(sys1, img, cmd);
                     })
                     .map_err(move |e| {
                         error!("Can't start image {:?}: {}",
-                            cmd.image_name, e);
+                            cmd2.image_name, e);
                     }))
                 }
                 Err(e) => {
@@ -118,14 +121,16 @@ pub fn start(sys: &Subsystem, cmd: FetchDir) {
         }));
 }
 
-fn fetch_blocks(sys: Subsystem, image: Image)
+fn fetch_blocks(sys: Subsystem, image: Image, cmd: Arc<FetchDir>)
 {
     use dir_signature::v1::Entry::*;
 
     let image = Arc::new(image);
     let image2 = image.clone();
+    let image_id = image.index.id.clone();
     let sys = sys.clone();
     let sys2 = sys.clone();
+    let sys3 = sys.clone();
     // TODO(tailhook) implement cancellation and throttling
     // TODO(tailhook) maybe global BufferUnordered rather then per-image
     spawn(iter(
@@ -204,6 +209,9 @@ fn fetch_blocks(sys: Subsystem, image: Image)
         })
         .and_then(move |()| {
             sys2.disk.commit_image(image2)
+        })
+        .map(move |()| {
+            sys3.remote.notify_received_image(image_id, &cmd.virtual_path)
         })
         .map_err(|e| {
             error!("Error commiting image: {}", e);

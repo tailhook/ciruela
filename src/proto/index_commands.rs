@@ -1,20 +1,35 @@
 use std::fmt;
+use std::path::PathBuf;
 
 use serde_bytes;
 
-use proto::Notification;
+use proto::request::Notification;
 use {ImageId};
 use proto::{Request, Response};
 
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct PublishImage {
-    pub image_id: ImageId,
+    pub id: ImageId,
 }
 
 impl Notification for PublishImage {
     fn type_name(&self) -> &'static str {
         "PublishImage"
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ReceivedImage {
+    pub id: ImageId,
+    pub path: PathBuf,
+    pub hostname: String,
+    pub forwarded: bool,
+}
+
+impl Notification for ReceivedImage {
+    fn type_name(&self) -> &'static str {
+        "ReceivedImage"
     }
 }
 

@@ -172,6 +172,32 @@ This notification basically means that peer can issue ``GetIndex`` in
 backwards direction.
 
 
+ReceivedImage
+`````````````
+
+Notifies peer that some host (maybe this one, or other peer) received
+and commited this image. The notification is usually sent after
+``PublishImage`` for the specified id.
+
+The notification can be used by cicuela command-line client to determine that
+at least one host (or at least N hosts) received the image and it's safe to
+disconnect from the network and also to display progress.
+
+.. code-block:: cddl
+
+    $message /= [0, "ReceivedImage", recevied-image-params]
+    received-image-params = {
+        id: bytes,               ; binary hashsum of the image (bottom line
+                                 ; of the index file but in binary form)
+        path: text,              ; path where image was stored
+        hostname: string,        ; hostname of the receiver
+        forwarded: bool,         ; whether message originated from this host
+                                 ; or forwarded
+    }
+
+The ``forwarded`` field might be used to skip check on ``hostname`` field.
+
+
 GetIndex
 ````````
 

@@ -22,6 +22,7 @@ pub struct Disk {
 }
 
 pub struct Image {
+    pub virtual_path: PathBuf,
     pub parent: Dir,
     pub image_name: String,
     pub temporary_name: String,
@@ -42,7 +43,7 @@ impl Disk {
     }
     pub fn start_image(&self, base_dir: PathBuf,
         parent: PathBuf, image_name: String,
-        index: Index)
+        index: Index, virtual_path: PathBuf)
         -> CpuFuture<Image, Error>
     {
         self.pool.spawn_fn(move || {
@@ -55,6 +56,7 @@ impl Disk {
             let tmp_name = format!(".tmp.{}", image_name);
             let temp_dir = ensure_subdir(&dir, &tmp_name)?;
             Ok(Image {
+                virtual_path: virtual_path,
                 parent: dir,
                 image_name: image_name.to_string(),
                 temporary_name: tmp_name,

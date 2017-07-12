@@ -22,6 +22,7 @@ pub fn find_config_dir<'x>(cfg: &'x Arc<Config>, path: &'x Path)
                     num_levels, config.num_levels));
             } else {
                 return Ok(DirConfig {
+                    virtual_path: path,
                     base: keypath,
                     // all these unwraps are guaranteed by path
                     // and config checking (num_levels > 0) and check_path())

@@ -14,12 +14,12 @@ use tk_easyloop::{spawn, handle};
 use tk_bufstream::{WriteFramed, ReadFramed};
 use tokio_core::net::TcpStream;
 
-use ciruela::proto::message::{Message, Request, Notification};
+use ciruela::proto::message::{Message, Request};
 use ciruela::proto::{GetIndex, GetIndexResponse};
 use ciruela::proto::{GetBlock, GetBlockResponse};
 use ciruela::proto::{RequestClient, RequestDispatcher, Sender};
 use ciruela::proto::{RequestFuture, Registry, StreamExt, PacketStream};
-use ciruela::proto::{WrapTrait};
+use ciruela::proto::{WrapTrait, Notification};
 use ciruela::{ImageId, Hash};
 use metadata::Meta;
 
@@ -96,6 +96,9 @@ impl Connection {
             hash: hash.clone()
         })
     }
+    pub fn notification<N: Notification>(&self, n: N) {
+        self.0.sender.notification(n)
+    }
 }
 
 impl RequestClient for Connection {
@@ -112,6 +115,8 @@ impl websocket::Dispatcher for Dispatcher {
     // TODO(tailhook) implement backpressure
     type Future = FutureResult<(), Error>;
     fn frame(&mut self, frame: &Frame) -> Self::Future {
+        use ciruela::proto::message::Notification as N;
+
         match *frame {
             Frame::Binary(data) => match from_slice(data) {
                 Ok(Message::Request(request_id, Request::AppendDir(ad))) => {
@@ -140,11 +145,15 @@ impl websocket::Dispatcher for Dispatcher {
                 Ok(Message::Response(request_id, resp)) => {
                     self.respond(request_id, resp);
                 }
-                Ok(Message::Notification(Notification::PublishImage(idx))) => {
-                    self.connection.images().insert(idx.image_id);
+                Ok(Message::Notification(N::PublishImage(idx))) => {
+                    self.connection.images().insert(idx.id);
                     // TODO(tailhook) wakeup remote subsystem, so it can
                     // fetch image from this peer if image is currently in
                     // hanging state
+                }
+                Ok(Message::Notification(N::ReceivedImage(_))) => {
+                    // ignoring for now
+                    // TODO(tailhook) forward the notification
                 }
                 Err(e) => {
                     match *frame {

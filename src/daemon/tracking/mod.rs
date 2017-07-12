@@ -72,6 +72,7 @@ impl Tracking {
     }
     pub fn fetch_dir(&self, image: &ImageId, cfg: DirConfig) {
         self.send(Command::FetchDir(fetch_dir::FetchDir {
+            virtual_path: cfg.virtual_path.to_path_buf(),
             image_id: image.clone(),
             base_dir: cfg.base.to_path_buf(),
             parent: cfg.parent.to_path_buf(),

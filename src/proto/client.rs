@@ -18,7 +18,7 @@ use tokio_core::net::TcpStream;
 
 use {ImageId, Hash};
 use proto::{StreamExt};
-use proto::message::{Message, Request};
+use proto::message::{Message, Request, Notification};
 use proto::index_commands::{PublishImage, GetIndexResponse};
 use proto::block_commands::{GetBlockResponse};
 use proto::request::{Sender, Error, RequestDispatcher, RequestClient};
@@ -49,15 +49,19 @@ pub struct ClientFuture {
     chan: Receiver<Client>,
 }
 
+pub trait Listener {
+    fn notification(&self, n: Notification);
+}
 
-struct MyDispatcher {
+struct MyDispatcher<L> {
     requests: Registry,
     channel: Sender,
     local_images: Arc<Mutex<HashMap<ImageId, Arc<ImageInfo>>>>,
     pool: CpuPool,
+    listener: L,
 }
 
-impl Dispatcher for MyDispatcher {
+impl<L: Listener> Dispatcher for MyDispatcher<L> {
     type Future = FutureResult<(), WsError>;
     fn frame(&mut self, frame: &Frame) -> FutureResult<(), WsError> {
         match *frame {
@@ -115,8 +119,8 @@ impl Dispatcher for MyDispatcher {
                 Ok(Message::Response(request_id, resp)) => {
                     self.respond(request_id, resp)
                 }
-                Ok(Message::Notification(..)) => {
-                    unimplemented!();
+                Ok(Message::Notification(n)) => {
+                    self.listener.notification(n);
                 }
                 Err(e) => {
                     error!("Failed to deserialize frame, \
@@ -131,7 +135,7 @@ impl Dispatcher for MyDispatcher {
     }
 }
 
-impl RequestDispatcher for MyDispatcher {
+impl<L> RequestDispatcher for MyDispatcher<L> {
     fn request_registry(&self) -> &Registry {
         &self.requests
     }
@@ -144,8 +148,10 @@ impl RequestClient for Client {
 }
 
 impl Client {
-    pub fn spawn(addr: SocketAddr, host: &Arc<String>, pool: &CpuPool)
+    pub fn spawn<L>(addr: SocketAddr, host: &Arc<String>,
+        pool: &CpuPool, listener: L)
         -> ClientFuture
+        where L: Listener + 'static
     {
         let host = host.to_string();
         let (tx, rx) = oneshot();
@@ -178,6 +184,7 @@ impl Client {
                     channel: ctx,
                     local_images: local_images,
                     pool: pool,
+                    listener: listener,
                 };
                 let stream = crx.packetize(&requests)
                     .map_err(|_| Error::UnexpectedTermination);
@@ -196,7 +203,7 @@ impl Client {
             .insert(info.image_id.clone(), info.clone());
         self.channel.notification(
             PublishImage {
-                image_id: info.image_id.clone(),
+                id: info.image_id.clone(),
             }
         );
     }

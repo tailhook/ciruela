@@ -11,7 +11,7 @@ mod dir_commands;
 mod index_commands;
 mod block_commands;
 
-pub use self::client::{Client, ImageInfo, BlockPointer};
+pub use self::client::{Client, ImageInfo, BlockPointer, Listener};
 pub use self::hash::Hash;
 pub use self::request::{RequestClient, RequestDispatcher, Registry, Sender};
 pub use self::request::{RequestFuture, PacketStream};
@@ -22,7 +22,7 @@ pub use self::signature::{Signature, SigData, sign};
 pub use self::stream_ext::StreamExt;
 
 pub use self::dir_commands::{AppendDir, AppendDirAck, ReplaceDir};
-pub use self::index_commands::{PublishImage};
+pub use self::index_commands::{PublishImage, ReceivedImage};
 pub use self::index_commands::{GetIndex, GetIndexResponse};
 pub use self::block_commands::{GetBlock, GetBlockResponse};
 
