@@ -84,14 +84,14 @@ impl Connection {
 
     pub fn fetch_index(&self, id: &ImageId) -> RequestFuture<GetIndexResponse>
     {
-        info!("Fetching index {}", id);
+        debug!("Fetching index {}", id);
         self.request(GetIndex {
             id: id.clone()
         })
     }
     pub fn fetch_block(&self, hash: &Hash) -> RequestFuture<GetBlockResponse>
     {
-        info!("Fetching block {}", hash);
+        debug!("Fetching block {}", hash);
         self.request(GetBlock {
             hash: hash.clone()
         })
