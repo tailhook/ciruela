@@ -2,6 +2,8 @@ use proto::{Request, Response};
 use std::fmt;
 use {Hash};
 
+use serde_bytes;
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct GetBlock {
     pub hash: Hash,
@@ -9,6 +11,7 @@ pub struct GetBlock {
 
 #[derive(Serialize, Deserialize)]
 pub struct GetBlockResponse {
+    #[serde(with="serde_bytes")]
     pub data: Vec<u8>,
 }
 

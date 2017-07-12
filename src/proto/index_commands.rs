@@ -1,6 +1,8 @@
 use std::fmt;
-use proto::Notification;
 
+use serde_bytes;
+
+use proto::Notification;
 use {ImageId};
 use proto::{Request, Response};
 
@@ -23,6 +25,7 @@ pub struct GetIndex {
 
 #[derive(Serialize, Deserialize)]
 pub struct GetIndexResponse {
+    #[serde(with="serde_bytes")]
     pub data: Vec<u8>,
 }
 
