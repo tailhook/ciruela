@@ -1,10 +1,11 @@
-use std::sync::Arc;
-use std::path::{Path, PathBuf};
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::time::Duration;
 
 use scan_dir::ScanDir;
 use quire::validate::{Directory as Dir, Structure, Numeric, Scalar, Sequence};
-use quire::{parse_config, Options, ErrorList};
+use quire::{parse_config, Options, ErrorList, De};
 
 
 pub struct Config {
@@ -20,6 +21,11 @@ pub struct Directory {
     pub num_levels: usize,
     pub upload_keys: Vec<String>,
     pub download_keys: Vec<String>,
+    pub auto_clean: bool,
+    pub keep_list_file: Option<PathBuf>,
+    pub keep_min_directories: usize,
+    pub keep_max_directories: usize,
+    pub keep_recent: De<Duration>,
 }
 
 fn directory_validator<'x>() -> Structure<'x> {
@@ -30,6 +36,11 @@ fn directory_validator<'x>() -> Structure<'x> {
     .member("num_levels", Numeric::new().min(1).max(16))
     .member("upload_keys", Sequence::new(Scalar::new()))
     .member("download_keys", Sequence::new(Scalar::new()))
+    .member("auto-clean", Scalar::new().default(false))
+    .member("keep-list-file", Scalar::new().optional())
+    .member("keep-min-directories", Numeric::new().min(1).default(2))
+    .member("keep-max-directories", Numeric::new().min(1).default(100))
+    .member("keep-recent", Scalar::new().default("2 days"))
 }
 
 pub fn read_dirs(path: &Path)

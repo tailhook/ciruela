@@ -97,3 +97,56 @@ alias and anchor.
 
    Master key is always allowed to upload and download contents. So if no
    ``upload-keys`` specified the master key is only way to upload files there.
+
+.. index:: pair: auto-clean; Directory Config
+.. describe:: auto-clean
+
+   (default ``false``) Enable cleanup of this directory. Every directory up
+   to ``num_levels-1`` is a separate directory to do cleanup according to
+   ``keep-*`` rules.
+
+.. index:: pair: keep-list-file; Directory Config
+.. describe:: keep-list-file
+
+    (optional) Read the file for a list of subdirs to keep in this directory.
+    It's needed to keep external system(s) in sync with expections.
+
+    The file is a directory name per line. If `num-levels` > 1, then the
+    path of a directory (``dir1/dir``) per line should be specified.
+    Intermediate directories are ignored in this case (empty intermediate
+    directories are cleaned when empty).
+
+    Currently, we use the file to skip cleanup of the subdirectories. But we
+    will also download the images in the list if new record appears.
+
+    Only used when `auto-clean` is enabled.
+
+.. index:: pair: keep-min-directories; Directory Config
+.. describe:: keep-min-directories
+
+    (default ``2``) Minimum number of recent subdirectories to keep for this
+    directory.
+
+    Only used when `auto-clean` is enabled.
+
+.. index:: pair: keep-max-directories; Directory Config
+.. describe:: keep-max-directories
+
+    (default ``100``) Maximum number of recent subdirectories to keep for this
+    directory.
+
+    Only used when `auto-clean` is enabled.
+
+.. index:: pair: keep-recent; Directory Config
+.. describe:: keep-recent
+
+    (default ``2 days``) Keep directories uploaded within this number of
+    days. Recent directories can be cleaned if there are more than
+    ``keep-max-directories`` of them. And older directories are left only if
+    there are less than ``keep-min-directories`` ones which are more recent
+    than ``keep-recent`` setting.
+
+    Note: we track recency of the directory not by upload timestamp on this
+    specific machine, but by timestamp used in signature which is created
+    when upload was first initiated into a cluster.
+
