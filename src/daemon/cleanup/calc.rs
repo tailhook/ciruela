@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use std::path::PathBuf;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use ciruela::database::signatures::State;
 
@@ -12,6 +13,7 @@ pub struct Image {
     pub target_state: State,
     // TODO(tailhook) real state may be different from target state:
     // * directory has never downloaded
+    // * currently downloading
     // * it was delete by external process (user)
     // * it was broken
     // * it didn't pass verification
@@ -21,6 +23,13 @@ pub struct Image {
 pub struct Sorted {
     pub used: Vec<Image>,
     pub unused: Vec<Image>,
+}
+
+fn biggest_timestamp(img: &Image) -> SystemTime {
+    img.target_state.signatures.iter()
+    .map(|x| x.timestamp)
+    .min()
+    .unwrap_or(UNIX_EPOCH)
 }
 
 pub fn sort_out(config: &Arc<Directory>, items: Vec<Image>,
@@ -35,7 +44,23 @@ pub fn sort_out(config: &Arc<Directory>, items: Vec<Image>,
         result.used.extend(items.into_iter());
         return result;
     }
-    unimplemented!();
+    let min_time = SystemTime::now() - *config.keep_recent;
+    for img in items.into_iter() {
+        if biggest_timestamp(&img) >= min_time {
+            result.used.push(img);
+        } else {
+            result.unused.push(img);
+        }
+    }
+    if result.used.len() > config.keep_max_directories {
+        result.used.sort_by(|a, b| {
+            biggest_timestamp(b).cmp(&biggest_timestamp(a))
+        });
+        for img in result.used.drain(config.keep_max_directories..) {
+            result.unused.push(img);
+        }
+    }
+    return result;
 }
 
 impl PartialEq for Image {
@@ -48,12 +73,15 @@ impl PartialEq for Image {
 mod test {
     use std::path::PathBuf;
     use std::sync::Arc;
+    use std::time::SystemTime;
     use humantime::parse_duration;
     use quire::De;
     use rand::{thread_rng, Rng};
     use config::Directory;
-    use super::{sort_out, Image, State, Sorted};
+    use super::{sort_out, Image, Sorted};
     use ciruela::ImageId;
+    use ciruela::proto::Signature;
+    use ciruela::database::signatures::{State, SignatureEntry};
 
     fn cfg(min: usize, max: usize, rec: &str) -> Arc<Directory> {
         Arc::new(Directory {
@@ -76,6 +104,12 @@ mod test {
         return ImageId::from(arr);
     }
 
+    pub fn sig() -> Signature {
+        let mut arr = [0u8; 64];
+        thread_rng().fill_bytes(&mut arr[..]);
+        return Signature::SshEd25519(arr);
+    }
+
 
     fn fake_state() -> State {
         State {
@@ -84,6 +118,17 @@ mod test {
         }
     }
 
+    fn state_at(from_now: &str) -> State {
+        let time = SystemTime::now() -
+            *De::from(parse_duration(from_now).unwrap());
+        State {
+            image: id(),
+            signatures: vec![SignatureEntry {
+                timestamp: time,
+                signature: sig(),
+            }],
+        }
+    }
     #[test]
     fn test_zero() {
         assert_eq!(sort_out(&cfg(1, 2, "1 day"), vec![], vec![]),
@@ -112,4 +157,91 @@ mod test {
             });
     }
 
+    #[test]
+    fn test_recent() {
+        assert_eq!(sort_out(&cfg(1, 100, "1 day"), vec![
+            Image {
+                path: PathBuf::from("t1"),
+                target_state: state_at("1 hour"),
+            },
+            Image {
+                path: PathBuf::from("t2"),
+                target_state: state_at("1 week"),
+            },
+            Image {
+                path: PathBuf::from("t3"),
+                target_state: state_at("1 sec"),
+            },
+        ], vec![]),
+            Sorted {
+                used: vec![
+                    Image {
+                        path: PathBuf::from("t1"),
+                        target_state: fake_state(),
+                    },
+                    Image {
+                        path: PathBuf::from("t3"),
+                        target_state: fake_state(),
+                    },
+                ],
+                unused: vec![
+                    Image {
+                        path: PathBuf::from("t2"),
+                        target_state: fake_state(),
+                    },
+                ],
+            });
+    }
+
+    #[test]
+    fn test_more_than_max() {
+        assert_eq!(sort_out(&cfg(1, 2, "1 day"), vec![
+            Image {
+                path: PathBuf::from("t1"),
+                target_state: state_at("1 week"),
+            },
+            Image {
+                path: PathBuf::from("t2"),
+                target_state: state_at("1 hour"),
+            },
+            Image {
+                path: PathBuf::from("t3"),
+                target_state: state_at("30 min"),
+            },
+            Image {
+                path: PathBuf::from("t4"),
+                target_state: state_at("2 min"),
+            },
+            Image {
+                path: PathBuf::from("t5"),
+                target_state: state_at("1 year"),
+            },
+        ], vec![]),
+            Sorted {
+                used: vec![
+                    Image {
+                        path: PathBuf::from("t4"),
+                        target_state: fake_state(),
+                    },
+                    Image {
+                        path: PathBuf::from("t3"),
+                        target_state: fake_state(),
+                    },
+                ],
+                unused: vec![
+                    Image {
+                        path: PathBuf::from("t1"),
+                        target_state: fake_state(),
+                    },
+                    Image {
+                        path: PathBuf::from("t5"),
+                        target_state: fake_state(),
+                    },
+                    Image {
+                        path: PathBuf::from("t2"),
+                        target_state: fake_state(),
+                    },
+                ],
+            });
+    }
 }
