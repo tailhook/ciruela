@@ -1,5 +1,6 @@
-use std::sync::Arc;
+use std::collections::HashSet;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use ciruela::database::signatures::State;
@@ -33,23 +34,25 @@ fn biggest_timestamp(img: &Image) -> SystemTime {
 }
 
 pub fn sort_out(config: &Arc<Directory>, items: Vec<Image>,
-                keep_list: Vec<PathBuf>)
+                keep_list: &Vec<PathBuf>)
     -> Sorted
 {
     let mut result = Sorted {
         used: Vec::new(),
         unused: Vec::new(),
     };
+    let keep_list: HashSet<_> = keep_list.iter().collect();
     if items.len() <= config.keep_min_directories {
         result.used.extend(items.into_iter());
         return result;
     }
+    let mut candidates = vec![];
     let min_time = SystemTime::now() - *config.keep_recent;
     for img in items.into_iter() {
         if biggest_timestamp(&img) >= min_time {
             result.used.push(img);
         } else {
-            result.unused.push(img);
+            candidates.push(img);
         }
     }
     if result.used.len() > config.keep_max_directories {
@@ -57,6 +60,13 @@ pub fn sort_out(config: &Arc<Directory>, items: Vec<Image>,
             biggest_timestamp(b).cmp(&biggest_timestamp(a))
         });
         for img in result.used.drain(config.keep_max_directories..) {
+            candidates.push(img);
+        }
+    }
+    for img in candidates.into_iter() {
+        if keep_list.contains(&img.path) {
+            result.used.push(img);
+        } else {
             result.unused.push(img);
         }
     }
@@ -131,7 +141,7 @@ mod test {
     }
     #[test]
     fn test_zero() {
-        assert_eq!(sort_out(&cfg(1, 2, "1 day"), vec![], vec![]),
+        assert_eq!(sort_out(&cfg(1, 2, "1 day"), vec![], &vec![]),
             Sorted {
                 used: vec![],
                 unused: vec![],
@@ -145,7 +155,7 @@ mod test {
                 path: PathBuf::from("t1"),
                 target_state: fake_state(),
             },
-        ], vec![]),
+        ], &vec![]),
             Sorted {
                 used: vec![
                     Image {
@@ -172,7 +182,7 @@ mod test {
                 path: PathBuf::from("t3"),
                 target_state: state_at("1 sec"),
             },
-        ], vec![]),
+        ], &vec![]),
             Sorted {
                 used: vec![
                     Image {
@@ -216,7 +226,7 @@ mod test {
                 path: PathBuf::from("t5"),
                 target_state: state_at("1 year"),
             },
-        ], vec![]),
+        ], &vec![]),
             Sorted {
                 used: vec![
                     Image {
@@ -235,6 +245,58 @@ mod test {
                     },
                     Image {
                         path: PathBuf::from("t5"),
+                        target_state: fake_state(),
+                    },
+                    Image {
+                        path: PathBuf::from("t2"),
+                        target_state: fake_state(),
+                    },
+                ],
+            });
+    }
+
+    #[test]
+    fn test_keep_list() {
+        assert_eq!(sort_out(&cfg(1, 2, "1 day"), vec![
+            Image {
+                path: PathBuf::from("t1"),
+                target_state: state_at("1 week"),
+            },
+            Image {
+                path: PathBuf::from("t2"),
+                target_state: state_at("1 hour"),
+            },
+            Image {
+                path: PathBuf::from("t3"),
+                target_state: state_at("30 min"),
+            },
+            Image {
+                path: PathBuf::from("t4"),
+                target_state: state_at("2 min"),
+            },
+            Image {
+                path: PathBuf::from("t5"),
+                target_state: state_at("1 year"),
+            },
+        ], &vec![PathBuf::from("t5")]),
+            Sorted {
+                used: vec![
+                    Image {
+                        path: PathBuf::from("t4"),
+                        target_state: fake_state(),
+                    },
+                    Image {
+                        path: PathBuf::from("t3"),
+                        target_state: fake_state(),
+                    },
+                    Image {
+                        path: PathBuf::from("t5"),
+                        target_state: fake_state(),
+                    },
+                ],
+                unused: vec![
+                    Image {
+                        path: PathBuf::from("t1"),
                         target_state: fake_state(),
                     },
                     Image {
