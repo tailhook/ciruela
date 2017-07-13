@@ -24,6 +24,7 @@ extern crate tokio_core;
 #[macro_use] extern crate quick_error;
 
 #[cfg(test)] extern crate humantime;
+#[cfg(test)] extern crate rand;
 
 use std::env;
 use std::error::Error;

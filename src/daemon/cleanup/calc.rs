@@ -48,10 +48,12 @@ impl PartialEq for Image {
 mod test {
     use std::path::PathBuf;
     use std::sync::Arc;
-    use config::Directory;
-    use super::{sort_out, Image, State, Sorted};
     use humantime::parse_duration;
     use quire::De;
+    use rand::{thread_rng, Rng};
+    use config::Directory;
+    use super::{sort_out, Image, State, Sorted};
+    use ciruela::ImageId;
 
     fn cfg(min: usize, max: usize, rec: &str) -> Arc<Directory> {
         Arc::new(Directory {
@@ -68,11 +70,44 @@ mod test {
         })
     }
 
+    pub fn id() -> ImageId {
+        let mut arr = vec![0u8; 32];
+        thread_rng().fill_bytes(&mut arr[..]);
+        return ImageId::from(arr);
+    }
+
+
+    fn fake_state() -> State {
+        State {
+            image: id(),
+            signatures: Vec::new(),
+        }
+    }
+
     #[test]
     fn test_zero() {
         assert_eq!(sort_out(&cfg(1, 2, "1 day"), vec![], vec![]),
             Sorted {
                 used: vec![],
+                unused: vec![],
+            });
+    }
+
+    #[test]
+    fn test_few() {
+        assert_eq!(sort_out(&cfg(1, 2, "1 day"), vec![
+            Image {
+                path: PathBuf::from("t1"),
+                target_state: fake_state(),
+            },
+        ], vec![]),
+            Sorted {
+                used: vec![
+                    Image {
+                        path: PathBuf::from("t1"),
+                        target_state: fake_state(),
+                    }
+                ],
                 unused: vec![],
             });
     }
