@@ -43,6 +43,9 @@ tk-listen = "0.1.0"
 lazy_static = "0.2.8"
 matches = "0.1.6"
 
+[dev-dependencies]
+humantime = "1.0.0"
+
 [[bin]]
 name = "ciruela-server"
 path = "src/daemon/main.rs"

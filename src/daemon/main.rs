@@ -23,6 +23,8 @@ extern crate tokio_core;
 #[macro_use] extern crate matches;
 #[macro_use] extern crate quick_error;
 
+#[cfg(test)] extern crate humantime;
+
 use std::env;
 use std::error::Error;
 use std::net::{IpAddr, ToSocketAddrs};
@@ -32,15 +34,16 @@ use std::sync::Arc;
 
 use argparse::{ArgumentParser, Parse, Store};
 
-mod http;
+mod cleanup;
 mod config;
-mod websocket;
-mod metadata;
+mod dir_config;
 mod disk;
+mod http;
+mod index;
+mod metadata;
 mod remote;
 mod tracking;
-mod dir_config;
-mod index;
+mod websocket;
 
 fn init_logging() {
     let format = |record: &log::LogRecord| {

@@ -66,8 +66,6 @@ pub fn start(params: AppendDir, meta: &Meta)
             drop(f);
             dir.rename_meta(&tmpname, &state_file)?;
             meta.tracking.fetch_dir(&params.image, cfg);
-            // TODO(tailhook) send message to image tracking subsystem
-            // to start image syncing
             Ok(AppendDirAck {
                 accepted: true,
             })
