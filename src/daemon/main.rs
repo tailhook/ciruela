@@ -131,7 +131,7 @@ fn main() {
     };
 
     let meta = match
-        metadata::Meta::new(metadata_threads, &config, &disk, &tracking)
+        metadata::Meta::new(metadata_threads, &config, &tracking)
     {
         Ok(meta) => meta,
         Err(e) => {

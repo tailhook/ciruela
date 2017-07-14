@@ -27,13 +27,12 @@ pub struct Meta {
     cpu_pool: CpuPool,
     config: Arc<Config>,
     base_dir: Arc<Dir>,
-    disk: Disk,
     tracking: Tracking,
 }
 
 impl Meta {
     pub fn new(num_threads: usize, config: &Arc<Config>,
-        disk: &Disk, tracking: &Tracking)
+        tracking: &Tracking)
         -> Result<Meta, io::Error>
     {
         let dir = Dir::open(&config.db_dir)?;
@@ -42,7 +41,6 @@ impl Meta {
             cpu_pool: CpuPool::new(num_threads),
             config: config.clone(),
             base_dir: Arc::new(dir),
-            disk: disk.clone(),
             tracking: tracking.clone(),
         })
     }
