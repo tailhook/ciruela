@@ -52,6 +52,7 @@ impl DirExt for Dir {
             Ok(dir) => Ok(dir),
             Err(e) => {
                 if e.kind() == io::ErrorKind::NotFound {
+                    // TODO(tailhook) fix race condition
                     self.create_meta_dir(&path)?;
                     self.meta_sub_dir(&path)
                 } else {

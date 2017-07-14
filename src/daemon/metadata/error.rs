@@ -30,6 +30,11 @@ quick_error! {
             display("can't open metadata file {:?}: {}", dir, e)
             cause(e)
         }
+        ListDir(dir: PathBuf, e: io::Error) {
+            description("can't list metadata dir")
+            display("can't list metadata dir {:?}: {}", dir, e)
+            cause(e)
+        }
         WriteMeta(dir: PathBuf, e: io::Error) {
             description("can't write metadata file")
             display("can't write metadata file {:?}: {}", dir, e)

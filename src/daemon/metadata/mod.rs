@@ -3,10 +3,12 @@ mod error;
 mod dir_ext;
 
 mod append_dir;
+mod first_scan;
 mod read_index;
 
 use std::io;
 use std::sync::Arc;
+use std::path::PathBuf;
 
 use openat::Dir;
 use futures_cpupool::{CpuPool, CpuFuture};
@@ -69,6 +71,12 @@ impl Meta {
                 }
             }
             res
+        })
+    }
+    pub fn scan_base_dirs(&self) -> CpuFuture<Vec<(PathBuf, usize)>, Error> {
+        let meta = self.clone();
+        self.cpu_pool.spawn_fn(move || {
+            first_scan::scan(&meta)
         })
     }
 }

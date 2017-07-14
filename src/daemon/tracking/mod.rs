@@ -1,5 +1,7 @@
+mod base_dir;
 mod fetch_dir;
 mod progress;
+mod first_scan;
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Weak, Mutex, MutexGuard};
@@ -20,6 +22,7 @@ use metadata::Meta;
 use remote::Remote;
 
 pub use self::progress::Downloading;
+pub use self::base_dir::BaseDir;
 
 
 pub type Block = Arc<Vec<u8>>;
@@ -34,6 +37,8 @@ pub struct State {
     block_futures: HashMap<Hash, BlockFuture>,
 
     in_progress: HashSet<Arc<Downloading>>,
+
+    base_dirs: HashSet<Arc<BaseDir>>,
 }
 
 #[derive(Clone)]
@@ -68,6 +73,7 @@ impl Tracking {
                 images: HashMap::new(),
                 block_futures: HashMap::new(),
                 in_progress: HashSet::new(),
+                base_dirs: HashSet::new(),
             })),
             chan: tx,
         };
@@ -113,6 +119,7 @@ pub fn start(init: TrackingInit, meta: &Meta, remote: &Remote, disk: &Disk)
         state: tracking.state.clone(),
         remote: remote.clone(),
     };
+    first_scan::spawn_scan(&sys);
     tk_easyloop::spawn(chan
         .for_each(move |command| {
             use self::Command::*;
