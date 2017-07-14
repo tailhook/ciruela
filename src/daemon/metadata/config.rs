@@ -27,8 +27,7 @@ pub fn find_config_dir<'x>(cfg: &'x Arc<Config>, path: &'x Path)
                     // all these unwraps are guaranteed by path
                     // and config checking (num_levels > 0) and check_path())
                     parent: suffix.parent().unwrap(),
-                    image_name: from_utf8(
-                        suffix.file_name().unwrap().as_bytes()).unwrap(),
+                    image_name: suffix.file_name().unwrap().to_str().unwrap(),
                     config: config,
                 });
             }

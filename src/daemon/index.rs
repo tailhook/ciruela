@@ -18,13 +18,28 @@ pub struct IndexData {
     pub hash_type: HashType,
     pub block_size: u64,
     pub entries: Vec<Entry>,
+    pub bytes_total: u64,
+    pub blocks_total: u64,
 }
-
 
 impl Deref for Index {
     type Target = IndexData;
     fn deref(&self) -> &IndexData {
         &self.0
+    }
+}
+
+fn bytes(e: &Entry) -> u64 {
+    match *e {
+        Entry::File { size, ..} => size,
+        _ => 0,
+    }
+}
+
+fn blocks(e: &Entry, block_size: u64) -> u64 {
+    match *e {
+        Entry::File { size, ..} => (size + block_size-1) / block_size,
+        _ => 0,
     }
 }
 
@@ -42,6 +57,12 @@ impl Index {
             id: id.clone(),
             hash_type: header.get_hash_type(),
             block_size: header.get_block_size(),
+            bytes_total: items.iter()
+                .map(bytes)
+                .sum(),
+            blocks_total: items.iter()
+                .map(|x| blocks(x, header.get_block_size()))
+                .sum(),
             entries: items,
         })))
     }

@@ -14,25 +14,19 @@ use config::Directory;
 use disk::Image;
 use index::Index;
 use metadata::Error;
-use tracking::{Subsystem, Block};
+use tracking::{Subsystem, Block, Downloading};
 
 
-pub struct FetchDir {
-    pub virtual_path: PathBuf,
-    pub image_id: ImageId,
-    pub base_dir: PathBuf,
-    pub parent: PathBuf,
-    pub image_name: String,
-    pub config: Arc<Directory>,
-}
-
-pub fn start(sys: &Subsystem, cmd: FetchDir) {
-    let sys1 = sys.clone();
+pub fn start(sys: &Subsystem, cmd: Downloading) {
+    let cmd = Arc::new(cmd);
     let mut state = &mut *sys.state();
+    state.in_progress.insert(cmd.clone());
     let cached = state.images.get(&cmd.image_id)
         .and_then(|x| x.upgrade()).map(Index);
-    let cmd = Arc::new(cmd);
+
+    let sys1 = sys.clone();
     let cmd2 = cmd.clone();
+
     if let Some(index) = cached {
         info!("Image {:?} is already cached", cmd.image_id);
         return;
@@ -96,6 +90,7 @@ pub fn start(sys: &Subsystem, cmd: FetchDir) {
                 Ok(index) => {
                     sys1.state().images
                         .insert(cmd.image_id.clone(), index.weak());
+                    cmd.index_fetched(&*index);
                     // TODO(tailhook) sys1.meta.store_index()
                     Either::A(sys1.disk.start_image(
                         cmd.config.directory.clone(),
@@ -121,7 +116,7 @@ pub fn start(sys: &Subsystem, cmd: FetchDir) {
         }));
 }
 
-fn fetch_blocks(sys: Subsystem, image: Image, cmd: Arc<FetchDir>)
+fn fetch_blocks(sys: Subsystem, image: Image, cmd: Arc<Downloading>)
 {
     use dir_signature::v1::Entry::*;
 
@@ -131,6 +126,7 @@ fn fetch_blocks(sys: Subsystem, image: Image, cmd: Arc<FetchDir>)
     let sys = sys.clone();
     let sys2 = sys.clone();
     let sys3 = sys.clone();
+    let cmd1 = cmd.clone();
     // TODO(tailhook) implement cancellation and throttling
     // TODO(tailhook) maybe global BufferUnordered rather then per-image
     spawn(iter(
@@ -161,6 +157,7 @@ fn fetch_blocks(sys: Subsystem, image: Image, cmd: Arc<FetchDir>)
             let sys = sys.clone();
             let sys1 = sys.clone();
             let sys2 = sys.clone();
+            let cmd1 = cmd1.clone();
             let image = image.clone();
             let mut state = sys.state();
             let fut = state.block_futures.get(&hash).cloned();
@@ -195,6 +192,10 @@ fn fetch_blocks(sys: Subsystem, image: Image, cmd: Arc<FetchDir>)
             fut
             .and_then(move |block| {
                 sys1.disk.write_block(image, path, offset, block.clone())
+                .map(move |r| {
+                    cmd1.report_block(&*block);
+                    r
+                })
                 .map_err(|e| {
                     error!("Error writing block: {}", e);
                     unimplemented!();

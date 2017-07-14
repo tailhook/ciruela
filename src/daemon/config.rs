@@ -36,11 +36,11 @@ fn directory_validator<'x>() -> Structure<'x> {
     .member("num_levels", Numeric::new().min(1).max(16))
     .member("upload_keys", Sequence::new(Scalar::new()))
     .member("download_keys", Sequence::new(Scalar::new()))
-    .member("auto-clean", Scalar::new().default(false))
-    .member("keep-list-file", Scalar::new().optional())
-    .member("keep-min-directories", Numeric::new().min(1).default(2))
-    .member("keep-max-directories", Numeric::new().min(1).default(100))
-    .member("keep-recent", Scalar::new().default("2 days"))
+    .member("auto_clean", Scalar::new().default(false))
+    .member("keep_list_file", Scalar::new().optional())
+    .member("keep_min_directories", Numeric::new().min(1).default(2))
+    .member("keep_max_directories", Numeric::new().min(1).default(100))
+    .member("keep_recent", Scalar::new().default("2 days"))
 }
 
 pub fn read_dirs(path: &Path)

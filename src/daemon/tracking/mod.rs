@@ -1,7 +1,9 @@
 mod fetch_dir;
+mod progress;
 
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Weak, Mutex, MutexGuard};
-use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, AtomicUsize};
 
 use futures::{Stream};
 use futures::future::Shared;
@@ -9,12 +11,15 @@ use futures::sync::mpsc::{unbounded, UnboundedSender, UnboundedReceiver};
 use futures::sync::oneshot::{Receiver};
 use tk_easyloop;
 
+use ciruela::{ImageId, Hash};
+use config::Directory;
+use dir_config::DirConfig;
+use disk::Disk;
 use index::{Index, IndexData};
 use metadata::Meta;
 use remote::Remote;
-use disk::Disk;
-use ciruela::{ImageId, Hash};
-use dir_config::DirConfig;
+
+pub use self::progress::Downloading;
 
 
 pub type Block = Arc<Vec<u8>>;
@@ -27,6 +32,8 @@ pub struct State {
     images: HashMap<ImageId, Weak<IndexData>>,
 
     block_futures: HashMap<Hash, BlockFuture>,
+
+    in_progress: HashSet<Arc<Downloading>>,
 }
 
 #[derive(Clone)]
@@ -49,9 +56,8 @@ pub struct TrackingInit {
 }
 
 pub enum Command {
-    FetchDir(fetch_dir::FetchDir),
+    FetchDir(Downloading),
 }
-
 
 impl Tracking {
     pub fn new() -> (Tracking, TrackingInit) {
@@ -61,6 +67,7 @@ impl Tracking {
                 image_futures: HashMap::new(),
                 images: HashMap::new(),
                 block_futures: HashMap::new(),
+                in_progress: HashSet::new(),
             })),
             chan: tx,
         };
@@ -71,13 +78,18 @@ impl Tracking {
          })
     }
     pub fn fetch_dir(&self, image: &ImageId, cfg: DirConfig) {
-        self.send(Command::FetchDir(fetch_dir::FetchDir {
+        self.send(Command::FetchDir(Downloading {
             virtual_path: cfg.virtual_path.to_path_buf(),
             image_id: image.clone(),
             base_dir: cfg.base.to_path_buf(),
             parent: cfg.parent.to_path_buf(),
             image_name: cfg.image_name.to_string(),
             config: cfg.config.clone(),
+            index_fetched: AtomicBool::new(false),
+            bytes_fetched: AtomicUsize::new(0),
+            bytes_total: AtomicUsize::new(0),
+            blocks_fetched: AtomicUsize::new(0),
+            blocks_total: AtomicUsize::new(0),
         }));
     }
     fn send(&self, command: Command) {
