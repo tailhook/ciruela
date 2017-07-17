@@ -38,6 +38,7 @@ use argparse::{ArgumentParser, Parse, Store};
 mod cleanup;
 mod config;
 mod dir_config;
+mod dir_util;
 mod disk;
 mod http;
 mod index;

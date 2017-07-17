@@ -1,6 +1,7 @@
 mod config;
 mod error;
 mod dir_ext;
+mod dir;
 
 mod append_dir;
 mod first_scan;

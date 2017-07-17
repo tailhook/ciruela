@@ -20,6 +20,17 @@ quick_error! {
             display("expected path with {} components, but is {}",
                     required, has)
         }
+        OpenRoot(dir: PathBuf, e: io::Error) {
+            description("can't open root metadata dir")
+            display("can't open root metadata dir {:?}: {}", dir, e)
+            cause(e)
+        }
+        CreateDirRace(dir: PathBuf, e: io::Error) {
+            description("race condition when creating metadata dir")
+            display("race condition when creating metadata dir {:?}: {}",
+                    dir, e)
+            cause(e)
+        }
         OpenMeta(dir: PathBuf, e: io::Error) {
             description("can't open metadata dir")
             display("can't open metadata dir {:?}: {}", dir, e)
@@ -33,6 +44,11 @@ quick_error! {
         ListDir(dir: PathBuf, e: io::Error) {
             description("can't list metadata dir")
             display("can't list metadata dir {:?}: {}", dir, e)
+            cause(e)
+        }
+        CreateDir(dir: PathBuf, e: io::Error) {
+            description("can't create metadata dir")
+            display("can't create metadata dir {:?}: {}", dir, e)
             cause(e)
         }
         WriteMeta(dir: PathBuf, e: io::Error) {
