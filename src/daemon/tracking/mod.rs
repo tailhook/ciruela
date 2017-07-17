@@ -2,6 +2,7 @@ mod base_dir;
 mod fetch_dir;
 mod progress;
 mod first_scan;
+mod cleanup;
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Weak, Mutex, MutexGuard};
@@ -50,6 +51,7 @@ pub struct Tracking {
 #[derive(Clone)]
 pub struct Subsystem {
     state: Arc<Mutex<State>>,
+    cleanup: UnboundedSender<cleanup::Command>,
     meta: Meta,
     disk: Disk,
     remote: Remote,
@@ -107,19 +109,26 @@ impl Subsystem {
     fn state(&self) -> MutexGuard<State> {
         self.state.lock().expect("image tracking subsystem is not poisoned")
     }
+    fn start_cleanup(&self) {
+        self.cleanup.send(cleanup::Command::Reschedule)
+            .expect("can always send in cleanup channel");
+    }
 }
 
 pub fn start(init: TrackingInit, meta: &Meta, remote: &Remote, disk: &Disk)
     -> Result<(), String> // actually void
 {
+    let (ctx, crx) = unbounded();
     let TrackingInit { chan, tracking } = init;
     let sys = Subsystem {
         meta: meta.clone(),
         disk: disk.clone(),
         state: tracking.state.clone(),
         remote: remote.clone(),
+        cleanup: ctx,
     };
     first_scan::spawn_scan(&sys);
+    cleanup::spawn_loop(crx, &sys);
     tk_easyloop::spawn(chan
         .for_each(move |command| {
             use self::Command::*;

@@ -40,6 +40,7 @@ pub fn spawn_scan(sys: &Subsystem) {
             info!("Initial scan complete. Base dirs: {}, having {} states. \
                 And {} downloads in progress.",
                 state.base_dirs.len(), sum, ndown);
+            sys.start_cleanup();
             Ok(())
          })
          .map_err(|e| {

@@ -5,6 +5,7 @@ mod dir_ext;
 mod append_dir;
 mod first_scan;
 mod read_index;
+mod scan;
 
 use std::io;
 use std::sync::Arc;
@@ -15,10 +16,11 @@ use futures_cpupool::{CpuPool, CpuFuture};
 
 use ciruela::ImageId;
 use ciruela::proto::{AppendDir, AppendDirAck};
+use cleanup;
 use config::Config;
 use disk::Disk;
 use index::Index;
-use tracking::Tracking;
+use tracking::{Tracking, BaseDir};
 
 pub use self::error::Error;
 pub use self::config::find_config_dir;
@@ -77,6 +79,21 @@ impl Meta {
         let meta = self.clone();
         self.cpu_pool.spawn_fn(move || {
             first_scan::scan(&meta)
+        })
+    }
+    pub fn scan_dir(&self, dir: &Arc<BaseDir>)
+        -> CpuFuture<Vec<cleanup::Image>, Error>
+    {
+        let dir = dir.clone();
+        self.cpu_pool.spawn_fn(move || {
+            scan::all_states(&dir.virtual_path)
+            .map(move |ok| {
+                ok.into_iter()
+                .map(|(p, s)| cleanup::Image {
+                    path: p,
+                    target_state: s,
+                }).collect()
+            })
         })
     }
 }
