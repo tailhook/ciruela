@@ -179,3 +179,12 @@ impl<'a> Visitor<'a> for SignatureVisitor {
         }
     }
 }
+
+impl PartialEq for Signature {
+    fn eq(&self, other: &Signature) -> bool {
+        use self::Signature::*;
+        match (self, other) {
+            (&SshEd25519(ref x), &SshEd25519(ref y)) => &x[..] == &y[..],
+        }
+    }
+}

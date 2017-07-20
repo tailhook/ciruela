@@ -5,9 +5,11 @@ use std::sync::Arc;
 use futures_cpupool::{CpuPool, CpuFuture};
 use openat::Dir;
 
+use ciruela::VPath;
 use config::Config;
 use disk::commit::commit_image;
-use disk::dir::{ensure_path, ensure_subdir, recover_path, DirBorrow};
+use disk::dir::{ensure_virtual_parent, ensure_path};
+use disk::dir::{ensure_subdir, recover_path, DirBorrow};
 use disk::{Init, Error};
 use index::Index;
 use metadata::Meta;
@@ -21,9 +23,8 @@ pub struct Disk {
 }
 
 pub struct Image {
-    pub virtual_path: PathBuf,
+    pub virtual_path: VPath,
     pub parent: Dir,
-    pub image_name: String,
     pub temporary_name: String,
     pub temporary: Dir,
     pub index: Index,
@@ -41,23 +42,21 @@ impl Disk {
         }))
     }
     pub fn start_image(&self, base_dir: PathBuf,
-        parent: PathBuf, image_name: String,
-        index: Index, virtual_path: PathBuf)
+        index: Index, virtual_path: VPath)
         -> CpuFuture<Image, Error>
     {
         self.pool.spawn_fn(move || {
             let dir = Dir::open(&base_dir)
                 .map_err(|e| Error::OpenBase(base_dir.to_path_buf(), e))?;
-            let dir = match ensure_path(&dir, parent)? {
+            let dir = match ensure_virtual_parent(&dir, &virtual_path)? {
                 DirBorrow::Borrow(_) => dir,
                 DirBorrow::Owned(dir) => dir,
             };
-            let tmp_name = format!(".tmp.{}", image_name);
+            let tmp_name = format!(".tmp.{}", virtual_path.final_name());
             let temp_dir = ensure_subdir(&dir, &tmp_name)?;
             Ok(Image {
                 virtual_path: virtual_path,
                 parent: dir,
-                image_name: image_name.to_string(),
                 temporary_name: tmp_name,
                 temporary: temp_dir,
                 index: index,

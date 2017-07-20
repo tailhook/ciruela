@@ -94,8 +94,6 @@ pub fn start(sys: &Subsystem, cmd: Downloading) {
                     // TODO(tailhook) sys1.meta.store_index()
                     Either::A(sys1.disk.start_image(
                         cmd.config.directory.clone(),
-                        cmd.parent.clone(),
-                        cmd.image_name.clone(),
                         index.clone(),
                         cmd.virtual_path.clone())
                     .map(move |img| {
@@ -104,7 +102,7 @@ pub fn start(sys: &Subsystem, cmd: Downloading) {
                     })
                     .map_err(move |e| {
                         error!("Can't start image {:?}: {}",
-                            cmd2.image_name, e);
+                            cmd2.virtual_path, e);
                     }))
                 }
                 Err(e) => {

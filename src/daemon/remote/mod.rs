@@ -3,7 +3,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use websocket::Connection;
-use ciruela::ImageId;
+use ciruela::{ImageId, VPath};
 use ciruela::proto::ReceivedImage;
 
 
@@ -39,7 +39,7 @@ impl Remote {
         }
         return None;
     }
-    pub fn notify_received_image(&self, ref id: ImageId, path: &Path) {
+    pub fn notify_received_image(&self, ref id: ImageId, path: &VPath) {
         for conn in self.inner().connections.iter() {
             if conn.has_image(id) {
                 conn.notification(ReceivedImage {
@@ -47,7 +47,7 @@ impl Remote {
                     // TODO(tailhook)
                     hostname: String::from("localhost"),
                     forwarded: false,
-                    path: path.to_path_buf(),
+                    path: path.clone(),
                 })
             }
         }

@@ -6,16 +6,13 @@ use std::sync::atomic::Ordering::Relaxed;
 use std::sync::atomic::{AtomicBool, AtomicUsize};
 
 use index::Index;
-use ciruela::ImageId;
+use ciruela::{ImageId, VPath};
 use config::Directory;
 use tracking::Block;
 
 pub struct Downloading {
-    pub virtual_path: PathBuf,
+    pub virtual_path: VPath,
     pub image_id: ImageId,
-    pub base_dir: PathBuf,
-    pub parent: PathBuf,
-    pub image_name: String,
     pub config: Arc<Directory>,
     pub index_fetched: AtomicBool,
     pub bytes_total: AtomicUsize,
@@ -26,6 +23,11 @@ pub struct Downloading {
 
 impl borrow::Borrow<Path> for Downloading {
     fn borrow(&self) -> &Path {
+        self.virtual_path.borrow()
+    }
+}
+impl borrow::Borrow<VPath> for Downloading {
+    fn borrow(&self) -> &VPath {
         &self.virtual_path
     }
 }

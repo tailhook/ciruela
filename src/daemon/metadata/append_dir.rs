@@ -1,86 +1,98 @@
-use std::io;
+use std::io::{self, BufReader, BufWriter};
+use std::fs::File;
 use std::str::from_utf8;
+use std::sync::Arc;
 use std::path::Path;
 use std::os::unix::ffi::OsStrExt;
+use std::collections::hash_map::Entry;
 
 use openat::Dir;
 use serde::Serialize;
+use serde_cbor::de::from_reader as read_cbor;
 use serde_cbor::ser::Serializer as Cbor;
+use serde_cbor::error::Error as CborError;
 
 use ciruela::proto::{AppendDir, AppendDirAck};
 use ciruela::database::signatures::{State, SignatureEntry};
-use metadata::{Meta, Error, find_config_dir};
-use dir_config::DirConfig;
-use metadata::dir_ext::{DirExt, recover};
+use metadata::{Meta, Error};
 
 
-pub fn check_path(path: &Path) -> Result<&Path, Error> {
-    use std::path::Component::Normal;
-    let result = path.strip_prefix("/").map_err(|_| Error::InvalidPath)?;
-    for cmp in result.components() {
-        if let Normal(component) = cmp {
-            if from_utf8(component.as_bytes()).is_ok() {
-                continue;
-            } else {
-                return Err(Error::InvalidPath);
-            }
+fn append_signatures(state: &mut State, new: Vec<SignatureEntry>) {
+    for sig in new.into_iter() {
+        if state.signatures.iter().find(|&x| *x == sig).is_none() {
+            state.signatures.push(sig);
         }
-        return Err(Error::InvalidPath);
     }
-    Ok(result)
 }
 
+fn read_state(f: File) -> Result<State, CborError> {
+    read_cbor(&mut BufReader::new(f))
+}
 
 pub fn start(params: AppendDir, meta: &Meta)
     -> Result<AppendDirAck, Error>
 {
-    // TODO(tailhook) assert on thread name
-    let path = check_path(&params.path)?;
+    let vpath = params.path;
+    let config = if let Some(cfg) = meta.config.dirs.get(vpath.key()) {
+        if vpath.level() != cfg.num_levels {
+            return Err(Error::LevelMismatch(vpath.level(), cfg.num_levels));
+        }
+        cfg
+    } else {
+        return Err(Error::PathNotFound(vpath));
+    };
+    let dir = meta.signatures()?.ensure_dir(vpath.parent())?;
 
-    let cfg = find_config_dir(&meta.config, path)?;
-    info!("Directory {:?} has base {:?} and dir {:?} and name {:?}",
-        params.path, cfg.base, cfg.parent, cfg.image_name);
-    let dir = open_base_path(meta, &cfg)?;
-    let state_file = format!("{}.state", cfg.image_name);
-    match dir.metadata(&state_file[..]) {
-        Ok(_) => {
-            // TODO(tailhook) check whether current directory is the same
-            // which should make request idempotent
-            Ok(AppendDirAck {
-                accepted: false,
-            })
+    let timestamp = params.timestamp;
+    let signatures = params.signatures.into_iter()
+        .map(|sig| SignatureEntry {
+            timestamp: timestamp,
+            signature: sig,
+        }).collect::<Vec<_>>();
+    let state_file = format!("{}.state", vpath.final_name());
+
+    let mut writing = meta.writing.lock().expect("writing is not poisoned");
+    let state = match writing.entry(vpath.clone()) {
+        Entry::Vacant(e) => {
+            let final_name = vpath.final_name();
+            if let Some(mut state) = dir.read_file(final_name, read_state)? {
+                if state.image == params.image {
+                    append_signatures(&mut state, signatures);
+                    let state = Arc::new(state);
+                    e.insert(state.clone());
+                    state
+                } else {
+                    return Ok(AppendDirAck {
+                        accepted: false,
+                    });
+                }
+            } else {
+                let state = Arc::new(State {
+                    image: params.image.clone(),
+                    signatures: signatures,
+                });
+                e.insert(state.clone());
+                state
+            }
         }
-        Err(ref e) if e.kind() == io::ErrorKind::NotFound => {
-            let timestamp = params.timestamp;
-            let state = State {
-                image: params.image.clone(),
-                signatures: params.signatures.into_iter()
-                    .map(|sig| SignatureEntry {
-                        timestamp: timestamp,
-                        signature: sig,
-                    }).collect(),
-            };
-            let tmpname = format!("{}.state.tmp", cfg.image_name);
-            let mut f = io::BufWriter::new(dir.create_meta_file(&tmpname)?);
-            state.serialize(&mut Cbor::new(&mut f))?;
-            drop(f);
-            dir.rename_meta(&tmpname, &state_file)?;
-            meta.tracking.fetch_dir(&params.image, cfg);
-            Ok(AppendDirAck {
-                accepted: true,
-            })
+        Entry::Occupied(mut e) => {
+            let old_state = e.get_mut();
+            if old_state.image == params.image {
+                if signatures != old_state.signatures {
+                    let nstate = Arc::make_mut(old_state);
+                    append_signatures(nstate, signatures);
+                }
+                old_state.clone()
+            } else {
+                return Ok(AppendDirAck {
+                    accepted: false,
+                });
+            }
         }
-        Err(e) => {
-            Err(Error::OpenMeta(recover(&dir, cfg.image_name), e))
-        }
-    }
+    };
+    dir.replace_file(&state_file, &*state)?;
+    meta.tracking.fetch_dir(&params.image, vpath, config);
+    Ok(AppendDirAck {
+        accepted: true,
+    })
 }
-
-pub fn open_base_path(meta: &Meta, cfg: &DirConfig) -> Result<Dir, Error> {
-    let mut dir = meta.base_dir.open_meta_dir(&cfg.base)?;
-    for cmp in cfg.parent.iter() {
-        dir = dir.open_meta_dir(&Path::new(cmp))?;
-    }
-    return Ok(dir);
-}
-

@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use openat::Dir;
 
+use ciruela::VPath;
 use disk::error::Error;
 
 pub enum DirBorrow<'a> {
@@ -64,6 +65,16 @@ pub fn ensure_path<P: AsRef<Path>>(dir: &Dir, path: P)
     };
     let mut dir = DirBorrow::Borrow(dir);
     for component in path.iter() {
+        dir = DirBorrow::Owned(ensure_subdir(&*dir, component)?);
+    }
+    Ok(dir)
+}
+
+pub fn ensure_virtual_parent<'x>(dir: &'x Dir, path: &VPath)
+    -> Result<DirBorrow<'x>, Error>
+{
+    let mut dir = DirBorrow::Borrow(dir);
+    for component in path.names().take(path.level()-1) {
         dir = DirBorrow::Owned(ensure_subdir(&*dir, component)?);
     }
     Ok(dir)

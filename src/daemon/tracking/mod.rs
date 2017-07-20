@@ -14,9 +14,8 @@ use futures::sync::mpsc::{unbounded, UnboundedSender, UnboundedReceiver};
 use futures::sync::oneshot::{Receiver};
 use tk_easyloop;
 
-use ciruela::{ImageId, Hash};
+use ciruela::{ImageId, Hash, VPath};
 use config::Directory;
-use dir_config::DirConfig;
 use disk::Disk;
 use index::{Index, IndexData};
 use metadata::Meta;
@@ -85,14 +84,13 @@ impl Tracking {
             tracking: handler,
          })
     }
-    pub fn fetch_dir(&self, image: &ImageId, cfg: DirConfig) {
+    pub fn fetch_dir(&self, image: &ImageId, vpath: VPath,
+                     config: &Arc<Directory>)
+    {
         self.send(Command::FetchDir(Downloading {
-            virtual_path: cfg.virtual_path.to_path_buf(),
+            virtual_path: vpath,
             image_id: image.clone(),
-            base_dir: cfg.base.to_path_buf(),
-            parent: cfg.parent.to_path_buf(),
-            image_name: cfg.image_name.to_string(),
-            config: cfg.config.clone(),
+            config: config.clone(),
             index_fetched: AtomicBool::new(false),
             bytes_fetched: AtomicUsize::new(0),
             bytes_total: AtomicUsize::new(0),

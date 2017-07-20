@@ -1,7 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::io::{self, Write, stdout, stderr};
 use std::net::SocketAddr;
-use std::path::PathBuf;
 use std::process::exit;
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
@@ -17,7 +16,7 @@ use tk_easyloop;
 mod options;
 
 use name;
-use ciruela::Hash;
+use ciruela::{Hash, VPath};
 use ciruela::time::to_ms;
 use ciruela::proto::{SigData, sign};
 use global_options::GlobalOptions;
@@ -182,7 +181,7 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                                     signatures: signatures
                                         .get(&turl.path[..]).unwrap()
                                         .clone(),
-                                    path: PathBuf::from(turl.path),
+                                    path: VPath::from(turl.path),
                                 })
                                 .map_err(|e| error!("Request error: {}", e))
                             })

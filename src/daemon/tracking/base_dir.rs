@@ -4,15 +4,25 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize};
 
+
+use ciruela::VPath;
+
+
 #[derive(Debug)]
 pub struct BaseDir {
-    pub virtual_path: PathBuf,
+    pub virtual_path: VPath,
     pub num_subdirs: AtomicUsize,
     pub num_downloading: AtomicUsize,
 }
 
 impl borrow::Borrow<Path> for BaseDir {
     fn borrow(&self) -> &Path {
+        self.virtual_path.borrow()
+    }
+}
+
+impl borrow::Borrow<VPath> for BaseDir {
+    fn borrow(&self) -> &VPath {
         &self.virtual_path
     }
 }

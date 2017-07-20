@@ -2,6 +2,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use futures::{Future, Stream};
+use futures::future::{Either, ok};
 use futures::sync::mpsc::{UnboundedReceiver};
 use tk_easyloop::{timeout, spawn};
 
@@ -16,10 +17,10 @@ pub enum Command {
 pub fn spawn_loop(rx: UnboundedReceiver<Command>, sys: &Subsystem) {
     let sys = sys.clone();
     spawn(rx
-        .filter_map(move |x| {
+        .map(move |x| {
             match x {
                 Command::Base(ref dir) => {
-                    Some(sys.meta.scan_dir(dir)
+                    Either::A(sys.meta.scan_dir(dir)
                         .and_then(|lst| {
                             // TODO(tailhook) do cleanup check
                             Ok(())
@@ -34,7 +35,7 @@ pub fn spawn_loop(rx: UnboundedReceiver<Command>, sys: &Subsystem) {
                     }
                     sys.cleanup.send(Command::Reschedule)
                         .expect("can always send in cleanup channel");
-                    None
+                    Either::B(ok(()))
                 }
             }
         })

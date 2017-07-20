@@ -1,6 +1,4 @@
-mod config;
 mod error;
-mod dir_ext;
 mod dir;
 
 mod append_dir;
@@ -8,45 +6,48 @@ mod first_scan;
 mod read_index;
 mod scan;
 
+use std::collections::HashMap;
 use std::io;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::path::PathBuf;
 
-use openat::Dir;
 use futures_cpupool::{CpuPool, CpuFuture};
 
-use ciruela::ImageId;
+use ciruela::database::signatures::State;
 use ciruela::proto::{AppendDir, AppendDirAck};
+use ciruela::{ImageId, VPath};
 use cleanup;
 use config::Config;
 use disk::Disk;
 use index::Index;
 use tracking::{Tracking, BaseDir};
 
+use self::dir::Dir;
 pub use self::error::Error;
-pub use self::config::find_config_dir;
 
 
 #[derive(Clone)]
 pub struct Meta {
     cpu_pool: CpuPool,
     config: Arc<Config>,
-    base_dir: Arc<Dir>,
+    writing: Arc<Mutex<HashMap<VPath, Arc<State>>>>,
+    base_dir: Dir,
     tracking: Tracking,
 }
 
 impl Meta {
     pub fn new(num_threads: usize, config: &Arc<Config>,
         tracking: &Tracking)
-        -> Result<Meta, io::Error>
+        -> Result<Meta, Error>
     {
-        let dir = Dir::open(&config.db_dir)?;
+        let dir = Dir::open_root(&config.db_dir)?;
         // TODO(tailhook) start rescanning the database for consistency
         Ok(Meta {
             cpu_pool: CpuPool::new(num_threads),
             config: config.clone(),
-            base_dir: Arc::new(dir),
+            base_dir: dir,
             tracking: tracking.clone(),
+            writing: Arc::new(Mutex::new(HashMap::new())),
         })
     }
     pub fn append_dir(&self, params: AppendDir)
@@ -76,25 +77,25 @@ impl Meta {
             res
         })
     }
-    pub fn scan_base_dirs(&self) -> CpuFuture<Vec<(PathBuf, usize)>, Error> {
+    pub fn scan_base_dirs(&self) -> CpuFuture<Vec<(VPath, usize)>, Error> {
         let meta = self.clone();
         self.cpu_pool.spawn_fn(move || {
             first_scan::scan(&meta)
         })
     }
     pub fn scan_dir(&self, dir: &Arc<BaseDir>)
-        -> CpuFuture<Vec<cleanup::Image>, Error>
+        -> CpuFuture<Vec<(VPath, State)>, Error>
     {
         let dir = dir.clone();
         self.cpu_pool.spawn_fn(move || {
             scan::all_states(&dir.virtual_path)
-            .map(move |ok| {
-                ok.into_iter()
-                .map(|(p, s)| cleanup::Image {
-                    path: p,
-                    target_state: s,
-                }).collect()
-            })
         })
+    }
+
+    fn signatures(&self) -> Result<Dir, Error> {
+        self.base_dir.ensure_dir("signatures")
+    }
+    fn indexes(&self) -> Result<Dir, Error> {
+        self.base_dir.ensure_dir("indexes")
     }
 }

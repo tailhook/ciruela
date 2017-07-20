@@ -18,13 +18,12 @@ pub fn spawn_scan(sys: &Subsystem) {
             for dw in &state.in_progress {
                 *downloading.entry(
                     dw.virtual_path.parent()
-                    .expect("virtual path always has parent")
                 ).or_insert(0) += 1;
             }
             let mut sum = 0;
             let mut ndown = 0;
             state.base_dirs.extend(items.into_iter().map(|(dir, num)| {
-                let cur_down = downloading.remove(dir.as_path()).unwrap_or(0);
+                let cur_down = downloading.remove(dir.as_ref()).unwrap_or(0);
                 sum += num;
                 ndown += cur_down;
                 Arc::new(BaseDir {

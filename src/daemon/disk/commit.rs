@@ -10,7 +10,7 @@ use dir_signature::v1::Entry::*;
 
 
 pub fn commit_image(image: Arc<Image>) -> Result<(), Error> {
-    debug!("Preparing commit {:?}", image.image_name);
+    debug!("Preparing commit {:?}", image.virtual_path);
     let start = Instant::now();
     // TODO(tailhook) maybe throttle
     let mut dir = None;
@@ -70,14 +70,13 @@ pub fn commit_image(image: Arc<Image>) -> Result<(), Error> {
         }
     }
     // TODO(tailhook) check extra files and directories
-    info!("{:?}: Checked in {}. Commiting {:?}",
+    info!("{:?}: Checked in {}. Commiting...",
         image.virtual_path,
-        (Instant::now() - start).as_secs(),
-        image.image_name);
+        (Instant::now() - start).as_secs());
 
-    image.parent.local_rename(&image.temporary_name, &image.image_name)
-        .map_err(|e| Error::Commit(
-            recover_path(&image.parent, &image.image_name), e))?;
+    let fname = image.virtual_path.final_name();
+    image.parent.local_rename(&image.temporary_name, fname)
+        .map_err(|e| Error::Commit(recover_path(&image.parent, fname), e))?;
 
     Ok(())
 }

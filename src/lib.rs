@@ -14,13 +14,16 @@ extern crate tokio_core;
 
 #[macro_use] extern crate log;
 #[macro_use] extern crate mopa;
+#[macro_use] extern crate matches;
 #[macro_use] extern crate quick_error;
 #[macro_use] extern crate serde_derive;
 
 mod id;
+mod virtual_path;
 pub mod proto;
 pub mod database;
 pub mod time;
 
 pub use id::ImageId;
 pub use proto::Hash;
+pub use virtual_path::VPath;

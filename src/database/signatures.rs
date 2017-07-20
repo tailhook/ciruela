@@ -7,13 +7,13 @@ use proto::Signature;
 use time::{to_ms, from_ms};
 
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct SignatureEntry {
     pub timestamp: SystemTime,
     pub signature: Signature,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct State {
     pub image: ImageId,
     pub signatures: Vec<SignatureEntry>,

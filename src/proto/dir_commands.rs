@@ -1,13 +1,12 @@
-use std::path::PathBuf;
 use std::time::SystemTime;
 
-use {ImageId};
+use {ImageId, VPath};
 use proto::{Signature, Request, Response};
 
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AppendDir {
-    pub path: PathBuf,
+    pub path: VPath,
     pub image: ImageId,
     #[serde(deserialize_with="::proto::serializers::read_timestamp")]
     #[serde(serialize_with="::proto::serializers::write_timestamp")]
@@ -17,7 +16,7 @@ pub struct AppendDir {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ReplaceDir {
-    pub path: PathBuf,
+    pub path: VPath,
     pub image: ImageId,
     pub old_image: Option<ImageId>,
     #[serde(deserialize_with="::proto::serializers::read_timestamp")]
