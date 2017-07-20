@@ -72,13 +72,13 @@ pub fn spawn_loop(rx: UnboundedReceiver<Command>, sys: &Subsystem) {
                             let u = find_unused(&sys1, &dir1, lst, keep_list);
                             iter(u.into_iter().map(Ok))
                             .for_each(move |img| {
+                                let vpath = dir1.virtual_path.join(
+                                        &img.path.file_name()
+                                        .expect("valid image path"));
+                                warn!("Removing {:?}", vpath);
                                 let cfg = dir2.config.clone();
                                 let sys = sys2.clone();
-                                sys.meta.remove_state_file(
-                                    dir1.virtual_path.join(
-                                        &img.path.file_name()
-                                        .expect("valid image path")),
-                                    time)
+                                sys.meta.remove_state_file(vpath, time)
                                 .map_err(boxerr)
                                 .and_then(move |()| {
                                     sys.disk.remove_image(&cfg, img.path)
