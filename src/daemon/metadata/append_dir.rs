@@ -45,7 +45,7 @@ pub fn start(params: AppendDir, meta: &Meta)
         }).collect::<Vec<_>>();
     let state_file = format!("{}.state", vpath.final_name());
 
-    let mut writing = meta.writing.lock().expect("writing is not poisoned");
+    let mut writing = meta.writing();
     let state = match writing.entry(vpath.clone()) {
         Entry::Vacant(e) => {
             let final_name = vpath.final_name();

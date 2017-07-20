@@ -4,7 +4,6 @@ use serde_cbor;
 use serde_cbor::error::Error as CborError;
 
 use ciruela::VPath;
-use disk;
 
 
 quick_error! {
@@ -22,6 +21,10 @@ quick_error! {
             description("file was vanished while scanning")
             display("file {:?} was vanished while scanning", path)
         }
+        CleanupCanceled(path: VPath) {
+            description("cleanup canceled because dir was updated")
+            display("cleanup of {:?} canceled because dir was updated", path)
+        }
         LevelMismatch(has: usize, required: usize) {
             description("invalid directory level in upload path")
             display("expected path with {} components, but is {}",
@@ -38,7 +41,7 @@ quick_error! {
                     dir, e)
             cause(e)
         }
-        OpenMeta(dir: PathBuf, e: io::Error) {
+        Open(dir: PathBuf, e: io::Error) {
             description("can't open metadata dir")
             display("can't open metadata dir {:?}: {}", dir, e)
             cause(e)
@@ -71,6 +74,11 @@ quick_error! {
         WriteMeta(dir: PathBuf, e: io::Error) {
             description("can't write metadata file")
             display("can't write metadata file {:?}: {}", dir, e)
+            cause(e)
+        }
+        Remove(path: PathBuf, e: io::Error) {
+            description("can't remove metadata file")
+            display("can't remove metadata file {:?}: {}", path, e)
             cause(e)
         }
         SerializeError(e: serde_cbor::Error) {

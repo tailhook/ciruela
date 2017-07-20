@@ -39,6 +39,13 @@ impl VPath {
         self.0.file_name().and_then(|x| x.to_str())
         .expect("valid virtual path")
     }
+    pub fn join<P: AsRef<Path>>(&self, path: P) -> VPath {
+        use std::path::Component::Normal;
+        let path = path.as_ref();
+        assert!(path != Path::new(""));
+        assert!(path.components().all(|x| matches!(x, Normal(_))));
+        VPath(self.0.join(path))
+    }
 }
 
 impl Borrow<Path> for VPath {

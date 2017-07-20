@@ -7,10 +7,12 @@ mod read_index;
 mod scan;
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use futures_cpupool::{CpuPool, CpuFuture};
 
+use openat::Metadata;
 use ciruela::database::signatures::State;
 use ciruela::proto::{AppendDir, AppendDirAck};
 use ciruela::{ImageId, VPath};
@@ -29,6 +31,11 @@ pub struct Meta {
     writing: Arc<Mutex<HashMap<VPath, Arc<State>>>>,
     base_dir: Dir,
     tracking: Tracking,
+}
+
+fn is_fresher(meta: &Metadata, time: SystemTime) -> bool {
+    let dur = time.duration_since(UNIX_EPOCH).expect("time is okay");
+    return meta.stat().st_mtime as u64 > dur.as_secs() - 1;
 }
 
 impl Meta {
@@ -52,6 +59,33 @@ impl Meta {
         let meta = self.clone();
         self.cpu_pool.spawn_fn(move || {
             append_dir::start(params, &meta)
+        })
+    }
+    fn writing(&self) -> MutexGuard<HashMap<VPath, Arc<State>>> {
+        self.writing.lock().expect("writing is not poisoned")
+    }
+    pub fn remove_state_file(&self, path: VPath, at: SystemTime)
+        -> CpuFuture<(), Error>
+    {
+        // TODO(tailhook) maybe check that meta hasn't changed
+        let meta = self.clone();
+        self.cpu_pool.spawn_fn(move || {
+            // need to lock "writing" to avoid race conditions
+            let writing = meta.writing();
+            if writing.contains_key(&path) {
+                return Err(Error::CleanupCanceled(path));
+            }
+            let parent = meta.signatures()?.open_path(path.parent())?;
+            let state = format!("{}.state", path.final_name());
+            if let Some(meta) = parent.file_meta(&state)? {
+                if is_fresher(&meta, at) {
+                    return Err(Error::CleanupCanceled(path));
+                }
+            } else {
+                return Err(Error::FileWasVanished(parent.path(state)));
+            }
+            parent.remove_file(&state)?;
+            Ok(())
         })
     }
     pub fn read_index(&self, index: &ImageId)
@@ -88,7 +122,6 @@ impl Meta {
             scan::all_states(&dir.virtual_path, &meta)
         })
     }
-
     fn signatures(&self) -> Result<Dir, Error> {
         self.base_dir.ensure_dir("signatures")
     }

@@ -1,9 +1,10 @@
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 use std::path::PathBuf;
 
 use futures::{Future, Stream};
 use futures::future::{Either, ok};
+use futures::stream::iter;
 use futures::sync::mpsc::{UnboundedReceiver};
 use tk_easyloop::{timeout, spawn};
 
@@ -19,6 +20,7 @@ pub enum Command {
 
 fn find_unused(sys: &Subsystem, dir: &Arc<BaseDir>,
     all: Vec<(String, State)>, keep_list: Vec<PathBuf>)
+    -> Vec<Image>
 {
     let images = all.into_iter().map(|(name, state)| {
         Image {
@@ -31,12 +33,17 @@ fn find_unused(sys: &Subsystem, dir: &Arc<BaseDir>,
     info!("sorted out {:?}, used {}, unused {}, keep_list: {}. {}",
         dir.virtual_path,
         sorted.used.len(), sorted.unused.len(), keep_list.len(),
-        if sys.dry_cleanup() {
-            "Dry run... Will issue a cleanup in 10 minutes after startup."
+        if sorted.unused.len() > 0 {
+            if sys.dry_cleanup() {
+                "Dry run... \
+                 Will issue a cleanup in 10 minutes after startup."
+            } else {
+                "Cleaning..."
+            }
         } else {
-            "Cleaning..."
+            "Nothing to do."
         });
-
+    sorted.unused
 }
 
 fn boxerr<E: ::std::error::Error + Send + 'static>(e: E)
@@ -52,15 +59,33 @@ pub fn spawn_loop(rx: UnboundedReceiver<Command>, sys: &Subsystem) {
             match x {
                 Command::Base(ref dir) => {
                     let dir1 = dir.clone();
+                    let dir2 = dir.clone();
                     let sys1 = sys.clone();
+                    let sys2 = sys.clone();
+                    let time = SystemTime::now();
                     Either::A(
                         sys.meta.scan_dir(dir).map_err(boxerr)
                         .join(sys.disk.read_keep_list(&dir.config)
                               .map_err(boxerr))
                         .and_then(move |(lst, keep_list)| {
-                            find_unused(&sys1, &dir1, lst, keep_list);
-                            // TODO(tailhook) do cleanup check
-                            Ok(())
+                            let u = find_unused(&sys1, &dir1, lst, keep_list);
+                            iter(u.into_iter().map(Ok))
+                            .for_each(move |img| {
+                                sys2.meta.remove_state_file(
+                                    dir1.virtual_path.join(img.path), time)
+                                .map_err(boxerr)
+                                // TODO(tailhook) clean the image itself
+                            })
+                        })
+                        .then(move |result| {
+                            match result {
+                                Ok(()) => Ok(()),
+                                Err(e) => {
+                                    error!("cleanup error for {:?}: {}",
+                                        dir2, e);
+                                    Ok(())
+                                }
+                            }
                         }))
                 }
                 Command::Reschedule => {
@@ -81,6 +106,6 @@ pub fn spawn_loop(rx: UnboundedReceiver<Command>, sys: &Subsystem) {
         })
         .for_each(|f|
             f.and_then(|()| timeout(Duration::new(10, 0))
-                            .map_err(|e| unreachable!()))
+                            .map_err(|_| unreachable!()))
              .map_err(|_| unimplemented!())));
 }

@@ -7,13 +7,21 @@ use std::sync::Arc;
 use ciruela::VPath;
 use dir_util::recover_path;
 use metadata::Error;
-use openat::{self, Entry, SimpleType};
+use openat::{self, Entry, SimpleType, Metadata};
 use serde::ser::{Serialize};
 use serde_cbor::ser::Serializer as Cbor;
 
 
 #[derive(Clone)]
 pub struct Dir(Arc<openat::Dir>);
+
+
+fn check_component<'x>(cmp: Component<'x>) -> Result<&'x OsStr, Error> {
+    match cmp {
+        Component::Normal(x) => Ok(x),
+        _ => Err(Error::InvalidPath),
+    }
+}
 
 impl Dir {
     pub fn open_root(path: &Path) -> Result<Dir, Error> {
@@ -42,12 +50,12 @@ impl Dir {
                 Err(ref e) if e.kind() == io::ErrorKind::AlreadyExists
                 => {
                     self.0.sub_dir(name)
-                    .map_err(|e| Error::OpenMeta(self.path(name), e))
+                    .map_err(|e| Error::Open(self.path(name), e))
                     .map(|x| Dir(Arc::new(x)))
                 }
                 Err(e) => Err(Error::CreateDir(self.path(name), e)),
             },
-            Err(e) => Err(Error::OpenMeta(self.path(name), e)),
+            Err(e) => Err(Error::Open(self.path(name), e)),
         }
     }
     pub fn ensure_dir<P: AsRef<Path>>(&self, path: P) -> Result<Dir, Error> {
@@ -56,23 +64,32 @@ impl Dir {
     fn _ensure_dir(&self, path: &Path) -> Result<Dir, Error> {
         let mut dir = self.clone();
         for cmp in path.components() {
-            match cmp {
-                Component::Normal(x) => {
-                    dir = dir.create_component(x)?;
-                }
-                _ => {
-                    return Err(Error::InvalidPath);
-                }
-            };
+            dir = dir.create_component(check_component(cmp)?)?;
         }
         Ok(dir)
     }
     pub fn open_vpath(&self, path: &VPath) -> Result<Dir, Error> {
         let mut dir = self.0.sub_dir(path.key())
-            .map_err(|e| Error::OpenMeta(self.path(path.key()), e))?;
+            .map_err(|e| Error::Open(self.path(path.key()), e))?;
         for cmp in path.names() {
             dir = dir.sub_dir(cmp)
-                .map_err(|e| Error::OpenMeta(recover_path(&dir, cmp), e))?;
+                .map_err(|e| Error::Open(recover_path(&dir, cmp), e))?;
+        }
+        Ok(Dir(Arc::new(dir)))
+    }
+    pub fn open_path(&self, path: &Path) -> Result<Dir, Error> {
+        let mut piter = path.components();
+        let mut dir = if let Some(c) = piter.next() {
+            let val = check_component(c)?;
+            self.0.sub_dir(val)
+                .map_err(|e| Error::Open(self.path(val), e))?
+        } else {
+            return Ok(self.clone())
+        };
+        for cmp in piter {
+            let val = check_component(cmp)?;
+            dir = dir.sub_dir(val)
+                .map_err(|e| Error::Open(recover_path(&dir, val), e))?;
         }
         Ok(Dir(Arc::new(dir)))
     }
@@ -85,18 +102,23 @@ impl Dir {
             Err(ref e) if e.kind() == io::ErrorKind::NotFound => {
                 Ok(None)
             }
-            Err(e) => Err(Error::OpenMeta(self.path(name), e)),
+            Err(e) => Err(Error::Open(self.path(name), e)),
         }
     }
-    /* dead code for now
     pub fn file_meta(&self, name: &str) -> Result<Option<Metadata>, Error> {
         match self.0.metadata(name) {
             Ok(m) => Ok(Some(m)),
             Err(ref e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
-            Err(e) => Err(Error::ReadMeta(self.path(name), e)),
+            Err(e) => Err(Error::Read(self.path(name), e)),
         }
     }
-    */
+    pub fn remove_file(&self, name: &str) -> Result<(), Error> {
+        match self.0.remove_file(name) {
+            Ok(()) => Ok(()),
+            Err(ref e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
+            Err(e) => Err(Error::Remove(self.path(name), e)),
+        }
+    }
     pub fn replace_file<V>(&self, name: &str, v: V) -> Result<(), Error>
         where V: Serialize
     {

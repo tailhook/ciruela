@@ -44,7 +44,7 @@ pub fn spawn_scan(sys: &Subsystem) {
                 state.base_dirs.len(), sum, ndown);
             sys.start_cleanup();
             let sys = sys.clone();
-            spawn(timeout(Duration::new(600, 0))
+            spawn(timeout(Duration::new(5, 0))
                 .map(move |()| sys.undry_cleanup())
                 .map_err(|_| unreachable!()));
             Ok(())
