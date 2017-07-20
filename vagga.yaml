@@ -8,6 +8,7 @@ commands:
   cargo: !Command
     description: Run arbitrary cargo command
     container: ubuntu
+    symlink-name: cargo
     run: [cargo]
 
   test: !Command
