@@ -1,6 +1,5 @@
 use std::io::Cursor;
 use std::sync::Arc;
-use std::path::PathBuf;
 
 use futures::{Future, Stream};
 use futures::future::{ok, Either};
@@ -9,8 +8,7 @@ use futures::sync::oneshot::channel;
 use quick_error::ResultExt;
 use tk_easyloop::spawn;
 
-use ciruela::{ImageId, Hash};
-use config::Directory;
+use ciruela::{Hash};
 use disk::Image;
 use index::Index;
 use metadata::Error;

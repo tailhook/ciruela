@@ -1,4 +1,5 @@
-use std::io::{self, Seek, SeekFrom, Write};
+use std::fs::File;
+use std::io::{self, Seek, SeekFrom, Write, BufReader, BufRead};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -6,7 +7,7 @@ use futures_cpupool::{CpuPool, CpuFuture};
 use openat::Dir;
 
 use ciruela::VPath;
-use config::Config;
+use config::{Config, Directory};
 use disk::commit::commit_image;
 use disk::dir::{ensure_virtual_parent, ensure_path};
 use disk::dir::{ensure_subdir, recover_path, DirBorrow};
@@ -87,6 +88,39 @@ impl Disk {
             commit_image(image)
         })
     }
+    pub fn read_keep_list(&self, dir: &Arc<Directory>)
+        -> CpuFuture<Vec<PathBuf>, Error>
+    {
+        let dir = dir.clone();
+        self.pool.spawn_fn(move || {
+            if let Some(ref fpath) = dir.keep_list_file {
+                File::open(fpath)
+                .map(|f| BufReader::new(f))
+                .and_then(|f| {
+                    let mut result = Vec::new();
+                    for line in f.lines() {
+                        let line = line?;
+                        let line = line.trim();
+                        if line.starts_with('#') {
+                            continue;
+                        }
+                        let line = line.trim_left_matches('/');
+                        let p = PathBuf::from(line);
+                        if p.iter().count() == dir.num_levels {
+                            result.push(p);
+                        } else {
+                            warn!("invalid path {:?} in keep list {:?}",
+                                p, fpath);
+                        }
+                    }
+                    Ok(result)
+                })
+                .map_err(|e| Error::ReadKeepList(fpath.to_path_buf(), e))
+            } else {
+                Ok(Vec::new())
+            }
+        })
+    }
 }
 
 fn write_block(dir: &Dir, filename: &Path, offset: u64, block: Block)
@@ -98,7 +132,7 @@ fn write_block(dir: &Dir, filename: &Path, offset: u64, block: Block)
     Ok(())
 }
 
-pub fn start(init: Init, metadata: &Meta) -> Result<(), Error> {
+pub fn start(_: Init, _: &Meta) -> Result<(), Error> {
    Ok(())
 }
 

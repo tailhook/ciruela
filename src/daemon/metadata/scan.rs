@@ -1,15 +1,25 @@
-use std::path::{Path, PathBuf};
+use std::io::BufReader;
 
-use metadata::Error;
+use metadata::{Meta, Error};
 
 use ciruela::VPath;
 use ciruela::database::signatures::State;
+use serde_cbor::de::from_reader as read_cbor;
 
 
-pub fn all_states(dir: &VPath)
-    -> Result<Vec<(VPath, State)>, Error>
+pub fn all_states(path: &VPath, meta: &Meta)
+    -> Result<Vec<(String, State)>, Error>
 {
-    let res = Vec::new();
-    println!("Scanning {:?}", dir);
+    let mut res = Vec::new();
+    let dir = meta.signatures()?.open_vpath(path)?;
+    for name in dir.list_files(".state")? {
+        let state = dir.read_file(&name, |f| {
+            read_cbor(&mut BufReader::new(f))
+        })?;
+        match state {
+            Some(state) => res.push((name, state)),
+            None => return Err(Error::FileWasVanished(dir.path(&name))),
+        }
+    }
     Ok(res)
 }

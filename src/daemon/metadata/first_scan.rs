@@ -1,7 +1,4 @@
-use std::io;
 use std::path::{PathBuf, Path};
-
-use openat::{SimpleType};
 
 use ciruela::VPath;
 use metadata::dir::Dir;

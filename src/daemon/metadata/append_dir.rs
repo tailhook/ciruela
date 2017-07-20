@@ -1,15 +1,9 @@
-use std::io::{self, BufReader, BufWriter};
+use std::io::{BufReader};
 use std::fs::File;
-use std::str::from_utf8;
 use std::sync::Arc;
-use std::path::Path;
-use std::os::unix::ffi::OsStrExt;
 use std::collections::hash_map::Entry;
 
-use openat::Dir;
-use serde::Serialize;
 use serde_cbor::de::from_reader as read_cbor;
-use serde_cbor::ser::Serializer as Cbor;
 use serde_cbor::error::Error as CborError;
 
 use ciruela::proto::{AppendDir, AppendDirAck};

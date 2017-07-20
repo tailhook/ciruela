@@ -21,6 +21,12 @@ impl VPath {
         self.0.strip_prefix("/").ok().and_then(|x| x.parent())
         .expect("valid virtual path")
     }
+    pub fn suffix(&self) -> &Path {
+        let mut names = self.0.iter();
+        names.next().expect("valid virtual path");  // skip slash
+        names.next().expect("valid virtual path");  // skip key
+        names.as_path()
+    }
     pub fn names(&self) -> Iter {
         debug_assert!(self.level() > 0);
         let mut names = self.0.iter();

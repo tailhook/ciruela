@@ -1,10 +1,10 @@
 use std::io;
 use std::path::{PathBuf};
 use serde_cbor;
-use dir_signature::v1::{ParseError as IndexError};
 use serde_cbor::error::Error as CborError;
 
 use ciruela::VPath;
+use disk;
 
 
 quick_error! {
@@ -17,6 +17,10 @@ quick_error! {
         PathNotFound(path: VPath) {
             description("path not found")
             display("destination path for {:?} is not found", path)
+        }
+        FileWasVanished(path: PathBuf) {
+            description("file was vanished while scanning")
+            display("file {:?} was vanished while scanning", path)
         }
         LevelMismatch(has: usize, required: usize) {
             description("invalid directory level in upload path")
@@ -74,11 +78,6 @@ quick_error! {
             display("can't serialize metadata: {}", e)
             cause(e)
             from()
-        }
-        BadIndex(path: PathBuf, e: IndexError) {
-            description("error reading index")
-            display("error reading index: {}", e)
-            cause(e)
         }
         IndexNotFound {
             description("index not found")

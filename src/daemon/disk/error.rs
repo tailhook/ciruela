@@ -35,6 +35,11 @@ quick_error! {
             display("error reading {:?}: {}", path, e)
             cause(e)
         }
+        ReadKeepList(path: PathBuf, e: io::Error) {
+            description("error reading keep-list file")
+            display("error reading keep-list {:?}: {}", path, e)
+            cause(e)
+        }
         SetPermissions(path: PathBuf, e: io::Error) {
             description("error setting permissions")
             display("error setting permissions on {:?}: {}", path, e)

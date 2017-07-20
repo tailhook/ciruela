@@ -26,7 +26,7 @@ pub fn commit_image(image: Arc<Image>) -> Result<(), Error> {
                 debug_assert!(*dpath == path.parent().unwrap());
                 // ... and having filenames
                 let filename = path.file_name().expect("file has filename");
-                let file = dir.create_file(filename, 0o644)
+                let file = dir.new_file(filename, 0o644)
                     .map_err(|e| Error::WriteFile(
                         recover_path(dir, filename), e))?;
                 if exe {

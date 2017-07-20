@@ -148,7 +148,7 @@ fn main() {
     tk_easyloop::run_forever(|| -> Result<(), Box<Error>> {
         http::start(addr, &meta, &remote)?;
         disk::start(disk_init, &meta)?;
-        tracking::start(tracking_init, &meta, &remote, &disk)?;
+        tracking::start(tracking_init, config, &meta, &remote, &disk)?;
         Ok(())
     }).map_err(|e| {
         error!("Startup error: {}", e);

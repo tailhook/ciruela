@@ -24,10 +24,13 @@ pub fn spawn_scan(sys: &Subsystem) {
             let mut ndown = 0;
             state.base_dirs.extend(items.into_iter().map(|(dir, num)| {
                 let cur_down = downloading.remove(dir.as_ref()).unwrap_or(0);
+                let config = sys.config.dirs.get(dir.key())
+                    .expect("config does not vanish at runtime");
                 sum += num;
                 ndown += cur_down;
                 Arc::new(BaseDir {
                     virtual_path: dir,
+                    config: config.clone(),
                     num_subdirs: AtomicUsize::new(num),
                     num_downloading: AtomicUsize::new(cur_down),
                 })

@@ -1,16 +1,18 @@
 use std::borrow;
 use std::hash;
-use std::path::{Path, PathBuf};
+use std::path::{Path};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize};
 
 
 use ciruela::VPath;
+use config::Directory;
 
 
 #[derive(Debug)]
 pub struct BaseDir {
     pub virtual_path: VPath,
+    pub config: Arc<Directory>,
     pub num_subdirs: AtomicUsize,
     pub num_downloading: AtomicUsize,
 }

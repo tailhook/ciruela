@@ -15,7 +15,7 @@ use futures::sync::oneshot::{Receiver};
 use tk_easyloop;
 
 use ciruela::{ImageId, Hash, VPath};
-use config::Directory;
+use config::{Config, Directory};
 use disk::Disk;
 use index::{Index, IndexData};
 use metadata::Meta;
@@ -51,6 +51,7 @@ pub struct Tracking {
 pub struct Subsystem {
     state: Arc<Mutex<State>>,
     cleanup: UnboundedSender<cleanup::Command>,
+    config: Arc<Config>,
     meta: Meta,
     disk: Disk,
     remote: Remote,
@@ -113,12 +114,14 @@ impl Subsystem {
     }
 }
 
-pub fn start(init: TrackingInit, meta: &Meta, remote: &Remote, disk: &Disk)
+pub fn start(init: TrackingInit, config: Arc<Config>,
+    meta: &Meta, remote: &Remote, disk: &Disk)
     -> Result<(), String> // actually void
 {
     let (ctx, crx) = unbounded();
     let TrackingInit { chan, tracking } = init;
     let sys = Subsystem {
+        config: config.clone(),
         meta: meta.clone(),
         disk: disk.clone(),
         state: tracking.state.clone(),

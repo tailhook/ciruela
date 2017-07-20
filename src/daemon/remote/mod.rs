@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::path::Path;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use websocket::Connection;

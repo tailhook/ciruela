@@ -1,7 +1,6 @@
-use std::io::{self, BufReader};
+use std::io::{BufReader};
 
 use hex::ToHex;
-use std::fs::File;
 
 use ciruela::ImageId;
 use index::Index;

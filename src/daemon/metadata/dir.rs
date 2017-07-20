@@ -1,15 +1,14 @@
 use std::ffi::OsStr;
 use std::fs::File;
-use std::io::{self, BufReader, BufWriter};
+use std::io::{self, BufWriter};
 use std::path::{Path, PathBuf, Component};
 use std::sync::Arc;
 
+use ciruela::VPath;
 use dir_util::recover_path;
 use metadata::Error;
-use openat::{self, Metadata, Entry, SimpleType};
-use serde::de::{DeserializeOwned};
+use openat::{self, Entry, SimpleType};
 use serde::ser::{Serialize};
-use serde_cbor::de::from_reader as read_cbor;
 use serde_cbor::ser::Serializer as Cbor;
 
 
@@ -67,6 +66,15 @@ impl Dir {
             };
         }
         Ok(dir)
+    }
+    pub fn open_vpath(&self, path: &VPath) -> Result<Dir, Error> {
+        let mut dir = self.0.sub_dir(path.key())
+            .map_err(|e| Error::OpenMeta(self.path(path.key()), e))?;
+        for cmp in path.names() {
+            dir = dir.sub_dir(cmp)
+                .map_err(|e| Error::OpenMeta(recover_path(&dir, cmp), e))?;
+        }
+        Ok(Dir(Arc::new(dir)))
     }
     pub fn dir_if_exists(&self, name: &str)
         -> Result<Option<Dir>, Error>

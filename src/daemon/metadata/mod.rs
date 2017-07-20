@@ -7,18 +7,14 @@ mod read_index;
 mod scan;
 
 use std::collections::HashMap;
-use std::io;
 use std::sync::{Arc, Mutex};
-use std::path::PathBuf;
 
 use futures_cpupool::{CpuPool, CpuFuture};
 
 use ciruela::database::signatures::State;
 use ciruela::proto::{AppendDir, AppendDirAck};
 use ciruela::{ImageId, VPath};
-use cleanup;
 use config::Config;
-use disk::Disk;
 use index::Index;
 use tracking::{Tracking, BaseDir};
 
@@ -84,11 +80,12 @@ impl Meta {
         })
     }
     pub fn scan_dir(&self, dir: &Arc<BaseDir>)
-        -> CpuFuture<Vec<(VPath, State)>, Error>
+        -> CpuFuture<Vec<(String, State)>, Error>
     {
         let dir = dir.clone();
+        let meta = self.clone();
         self.cpu_pool.spawn_fn(move || {
-            scan::all_states(&dir.virtual_path)
+            scan::all_states(&dir.virtual_path, &meta)
         })
     }
 
