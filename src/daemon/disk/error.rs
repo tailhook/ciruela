@@ -63,5 +63,9 @@ quick_error! {
             description("error commiting dir")
             display("error commiting dir {:?}", path)
         }
+        Delete(path: PathBuf, e: io::Error) {
+            description("error removing dir")
+            display("error removing dir {:?}", path)
+        }
     }
 }

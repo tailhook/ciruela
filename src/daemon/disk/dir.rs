@@ -2,7 +2,7 @@ use std::io;
 use std::ops;
 use std::path::{Path, PathBuf};
 
-use openat::Dir;
+use openat::{Dir, SimpleType, AsPath, Entry};
 
 use ciruela::VPath;
 use disk::error::Error;
@@ -99,6 +99,52 @@ pub fn ensure_virtual_parent<'x>(dir: &'x Dir, path: &VPath)
     Ok(dir)
 }
 
-pub fn remove_dir_recursive(dir: &Dir, name: &str) -> Result<(), Error> {
-    unimplemented!();
+pub fn remove_entry(dir: &Dir, inp: &Entry)
+    -> Result<(), Error>
+{
+    let me_err = &|e| {
+        Error::Delete(recover_path(dir, inp.file_name()), e)
+    };
+    let me = dir.sub_dir(inp).map_err(me_err)?;
+    for entry in me.list_dir(".").map_err(me_err)? {
+        let entry = entry.map_err(me_err)?;
+        // TODO(tailhook) fix absent type in entry
+        match entry.simple_type().expect("fs is good") {
+            SimpleType::Dir => {
+                remove_entry(&me, &entry)?;
+            }
+            _ => {
+                dir.remove_file(&entry).map_err(|e| {
+                    Error::Delete(recover_path(&me, entry.file_name()), e)
+                })?;
+            }
+        }
+    }
+    dir.remove_dir(inp).map_err(me_err);
+    Ok(())
+}
+
+pub fn remove_dir_recursive(dir: &Dir, name: &str)
+    -> Result<(), Error>
+{
+    let me_err = &|e| {
+        Error::Delete(recover_path(dir, name), e)
+    };
+    let me = dir.sub_dir(name).map_err(me_err)?;
+    for entry in me.list_dir(".").map_err(me_err)? {
+        let entry = entry.map_err(me_err)?;
+        // TODO(tailhook) fix absent type in entry
+        match entry.simple_type().expect("fs is good") {
+            SimpleType::Dir => {
+                remove_entry(&me, &entry)?;
+            }
+            _ => {
+                dir.remove_file(&entry).map_err(|e| {
+                    Error::Delete(recover_path(&me, entry.file_name()), e)
+                })?;
+            }
+        }
+    }
+    dir.remove_dir(name).map_err(me_err);
+    Ok(())
 }
