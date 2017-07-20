@@ -30,6 +30,11 @@ quick_error! {
             display("error writing {:?}: {}", path, e)
             cause(e)
         }
+        RenameDir(path: PathBuf, e: io::Error) {
+            description("error renaming dir")
+            display("error renaming dir {:?}: {}", path, e)
+            cause(e)
+        }
         ReadFile(path: PathBuf, e: io::Error) {
             description("error reading file")
             display("error reading {:?}: {}", path, e)

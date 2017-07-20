@@ -9,8 +9,9 @@ use openat::Dir;
 use ciruela::VPath;
 use config::{Config, Directory};
 use disk::commit::commit_image;
-use disk::dir::{ensure_virtual_parent, ensure_path};
+use disk::dir::{ensure_virtual_parent, ensure_path, open_path};
 use disk::dir::{ensure_subdir, recover_path, DirBorrow};
+use disk::dir::{remove_dir_recursive};
 use disk::{Init, Error};
 use index::Index;
 use metadata::Meta;
@@ -62,6 +63,27 @@ impl Disk {
                 temporary: temp_dir,
                 index: index,
             })
+        })
+    }
+    pub fn remove_image(&self, config: &Arc<Directory>, path: PathBuf)
+        -> CpuFuture<(), Error>
+    {
+        let cfg = config.clone();
+        self.pool.spawn_fn(move || {
+            let dir = Dir::open(&cfg.directory)
+                .map_err(|e| Error::OpenBase(cfg.directory.clone(), e))?;
+            let dir = open_path(&dir, path.parent().expect("valid parent"))?;
+            let filename = path.file_name().and_then(|x| x.to_str())
+                .expect("valid path");
+            let tmp_name = format!(".tmp.old.{}", filename);
+            // TODO(tailhook) technically race conditions are possible
+            // if more that one thread does the work
+            remove_dir_recursive(&dir, &tmp_name)?;
+            dir.local_rename(filename, &tmp_name)
+                .map_err(|e| Error::RenameDir(
+                    recover_path(&dir, filename), e))?;
+            remove_dir_recursive(&dir, &tmp_name)?;
+            Ok(())
         })
     }
     pub fn write_block(&self, image: Arc<Image>,
@@ -135,4 +157,3 @@ fn write_block(dir: &Dir, filename: &Path, offset: u64, block: Block)
 pub fn start(_: Init, _: &Meta) -> Result<(), Error> {
    Ok(())
 }
-

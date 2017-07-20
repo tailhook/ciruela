@@ -60,6 +60,7 @@ pub fn spawn_loop(rx: UnboundedReceiver<Command>, sys: &Subsystem) {
                 Command::Base(ref dir) => {
                     let dir1 = dir.clone();
                     let dir2 = dir.clone();
+                    let dir3 = dir.clone();
                     let sys1 = sys.clone();
                     let sys2 = sys.clone();
                     let time = SystemTime::now();
@@ -71,9 +72,18 @@ pub fn spawn_loop(rx: UnboundedReceiver<Command>, sys: &Subsystem) {
                             let u = find_unused(&sys1, &dir1, lst, keep_list);
                             iter(u.into_iter().map(Ok))
                             .for_each(move |img| {
-                                sys2.meta.remove_state_file(
-                                    dir1.virtual_path.join(img.path), time)
+                                let cfg = dir2.config.clone();
+                                let sys = sys2.clone();
+                                sys.meta.remove_state_file(
+                                    dir1.virtual_path.join(
+                                        &img.path.file_name()
+                                        .expect("valid image path")),
+                                    time)
                                 .map_err(boxerr)
+                                .and_then(move |()| {
+                                    sys.disk.remove_image(&cfg, img.path)
+                                    .map_err(boxerr)
+                                })
                                 // TODO(tailhook) clean the image itself
                             })
                         })
@@ -82,7 +92,7 @@ pub fn spawn_loop(rx: UnboundedReceiver<Command>, sys: &Subsystem) {
                                 Ok(()) => Ok(()),
                                 Err(e) => {
                                     error!("cleanup error for {:?}: {}",
-                                        dir2, e);
+                                        dir3, e);
                                     Ok(())
                                 }
                             }

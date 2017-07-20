@@ -65,7 +65,26 @@ pub fn ensure_path<P: AsRef<Path>>(dir: &Dir, path: P)
     };
     let mut dir = DirBorrow::Borrow(dir);
     for component in path.iter() {
+        // TODO(tailhook) check component validity
         dir = DirBorrow::Owned(ensure_subdir(&*dir, component)?);
+    }
+    Ok(dir)
+}
+
+pub fn open_path<P: AsRef<Path>>(dir: &Dir, path: P)
+    -> Result<DirBorrow, Error>
+{
+    let path = path.as_ref();
+    let path = if path.is_absolute() {
+        path.strip_prefix("/").unwrap()
+    } else {
+        path
+    };
+    let mut dir = DirBorrow::Borrow(dir);
+    for component in path.iter() {
+        // TODO(tailhook) check component validity
+        dir = DirBorrow::Owned(dir.sub_dir(component)
+            .map_err(|e| Error::OpenDir(recover_path(&*dir, component), e))?);
     }
     Ok(dir)
 }
@@ -78,4 +97,8 @@ pub fn ensure_virtual_parent<'x>(dir: &'x Dir, path: &VPath)
         dir = DirBorrow::Owned(ensure_subdir(&*dir, component)?);
     }
     Ok(dir)
+}
+
+pub fn remove_dir_recursive(dir: &Dir, name: &str) -> Result<(), Error> {
+    unimplemented!();
 }
