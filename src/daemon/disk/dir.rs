@@ -2,7 +2,7 @@ use std::io;
 use std::ops;
 use std::path::{Path, PathBuf};
 
-use openat::{Dir, SimpleType, AsPath, Entry};
+use openat::{Dir, SimpleType, Entry};
 
 use ciruela::VPath;
 use disk::error::Error;
@@ -120,7 +120,7 @@ pub fn remove_entry(dir: &Dir, inp: &Entry)
             }
         }
     }
-    dir.remove_dir(inp).map_err(me_err);
+    dir.remove_dir(inp).map_err(me_err)?;
     Ok(())
 }
 
@@ -145,6 +145,6 @@ pub fn remove_dir_recursive(dir: &Dir, name: &str)
             }
         }
     }
-    dir.remove_dir(name).map_err(me_err);
+    dir.remove_dir(name).map_err(me_err)?;
     Ok(())
 }
