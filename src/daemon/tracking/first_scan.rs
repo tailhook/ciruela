@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::path::Path;
+use std::time::Duration;
 use std::sync::atomic::{AtomicUsize};
 
 use futures::Future;
-use tk_easyloop::spawn;
+use tk_easyloop::{spawn, timeout};
 
 use tracking::{Subsystem, BaseDir};
 
@@ -43,6 +43,10 @@ pub fn spawn_scan(sys: &Subsystem) {
                 And {} downloads in progress.",
                 state.base_dirs.len(), sum, ndown);
             sys.start_cleanup();
+            let sys = sys.clone();
+            spawn(timeout(Duration::new(600, 0))
+                .map(move |()| sys.undry_cleanup())
+                .map_err(|_| unreachable!()));
             Ok(())
          })
          .map_err(|e| {

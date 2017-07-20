@@ -7,9 +7,7 @@ use futures::future::{Either, ok};
 use futures::sync::mpsc::{UnboundedReceiver};
 use tk_easyloop::{timeout, spawn};
 
-use ciruela::VPath;
 use cleanup::{Image, sort_out};
-use config::Directory;
 use tracking::{Subsystem, BaseDir};
 use ciruela::database::signatures::State;
 
@@ -30,10 +28,15 @@ fn find_unused(sys: &Subsystem, dir: &Arc<BaseDir>,
     }).collect();
     // TODO(tailhook) read keep list
     let sorted = sort_out(&dir.config, images, &keep_list);
-    info!("sorted out {:?}, used {}, unused {} (keep_list: {})",
+    info!("sorted out {:?}, used {}, unused {}, keep_list: {}. {}",
         dir.virtual_path,
         sorted.used.len(), sorted.unused.len(), keep_list.len(),
-        );
+        if sys.dry_cleanup() {
+            "Dry run... Will issue a cleanup in 10 minutes after startup."
+        } else {
+            "Cleaning..."
+        });
+
 }
 
 fn boxerr<E: ::std::error::Error + Send + 'static>(e: E)

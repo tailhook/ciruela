@@ -6,7 +6,7 @@ mod cleanup;
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Weak, Mutex, MutexGuard};
-use std::sync::atomic::{AtomicBool, AtomicUsize};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use futures::{Stream};
 use futures::future::Shared;
@@ -48,13 +48,17 @@ pub struct Tracking {
 }
 
 #[derive(Clone)]
-pub struct Subsystem {
+pub struct Subsystem(Arc<Data>);
+
+// Subsystem data, only here for Deref trait
+pub struct Data {
     state: Arc<Mutex<State>>,
     cleanup: UnboundedSender<cleanup::Command>,
     config: Arc<Config>,
     meta: Meta,
     disk: Disk,
     remote: Remote,
+    dry_cleanup: AtomicBool,
 }
 
 pub struct TrackingInit {
@@ -104,6 +108,13 @@ impl Tracking {
     }
 }
 
+impl ::std::ops::Deref for Subsystem {
+    type Target = Data;
+    fn deref(&self) -> &Data {
+        &self.0
+    }
+}
+
 impl Subsystem {
     fn state(&self) -> MutexGuard<State> {
         self.state.lock().expect("image tracking subsystem is not poisoned")
@@ -111,6 +122,12 @@ impl Subsystem {
     fn start_cleanup(&self) {
         self.cleanup.send(cleanup::Command::Reschedule)
             .expect("can always send in cleanup channel");
+    }
+    fn undry_cleanup(&self) {
+        self.0.dry_cleanup.store(false, Ordering::Relaxed);
+    }
+    fn dry_cleanup(&self) -> bool {
+        self.0.dry_cleanup.load(Ordering::Relaxed)
     }
 }
 
@@ -120,14 +137,15 @@ pub fn start(init: TrackingInit, config: Arc<Config>,
 {
     let (ctx, crx) = unbounded();
     let TrackingInit { chan, tracking } = init;
-    let sys = Subsystem {
+    let sys = Subsystem(Arc::new(Data {
         config: config.clone(),
         meta: meta.clone(),
         disk: disk.clone(),
         state: tracking.state.clone(),
         remote: remote.clone(),
         cleanup: ctx,
-    };
+        dry_cleanup: AtomicBool::new(true),  // start with no cleanup
+    }));
     first_scan::spawn_scan(&sys);
     cleanup::spawn_loop(crx, &sys);
     tk_easyloop::spawn(chan
