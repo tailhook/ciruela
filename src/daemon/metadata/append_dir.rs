@@ -50,8 +50,7 @@ pub fn start(params: AppendDir, meta: &Meta)
     let mut writing = meta.writing();
     let state = match writing.entry(vpath.clone()) {
         Entry::Vacant(e) => {
-            let final_name = vpath.final_name();
-            if let Some(mut state) = dir.read_file(final_name, read_state)? {
+            if let Some(mut state) = dir.read_file(&state_file, read_state)? {
                 if state.image == params.image {
                     append_signatures(&mut state, signatures);
                     let state = Arc::new(state);
