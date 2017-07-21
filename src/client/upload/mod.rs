@@ -26,6 +26,7 @@ use ciruela::proto::{Listener};
 use ciruela::proto::message::Notification;
 
 struct Progress {
+    started: SystemTime,
     hosts_done: Vec<String>,
     hosts_needed: HashSet<SocketAddr>,
     done: Option<Sender<()>>,
@@ -44,17 +45,18 @@ impl Listener for Tracker {
                 if !img.forwarded {
                     pro.hosts_needed.remove(&self.0);
                 }
-                eprintln!("Needed {:?}, {}", pro.hosts_needed, self.0);
                 if pro.hosts_needed.len() == 0 {
-                    eprintln!("Fetched from {}",
-                        pro.hosts_done.join(", "));
-                    eprintln!("Fetched from all required. {} total.",
-                        pro.hosts_done.len());
+                    info!("Fetched from {}", pro.hosts_done.join(", "));
+                    eprintln!("Fetched from all required. {} total. \
+                        Done in {} seconds.",
+                        pro.hosts_done.len(),
+                        SystemTime::now().duration_since(pro.started)
+                            .unwrap().as_secs());
                     pro.done.take().map(|chan| {
                         chan.send(()).expect("sending done");
                     });
                 } else {
-                    eprintln!("Fetched from {}\r",
+                    eprint!("Fetched from {}\r",
                         pro.hosts_done.join(", "));
                 }
             }
@@ -127,6 +129,7 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
     let (done_tx, done_rx) = channel();
     let done_rx = done_rx.shared();
     let progress = Arc::new(Mutex::new(Progress {
+        started: SystemTime::now(),
         hosts_done: Vec::new(),
         hosts_needed: HashSet::new(),
         done: Some(done_tx),
