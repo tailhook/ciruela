@@ -53,10 +53,10 @@ quick_error! {
             display("can't open metadata file {:?}: {}", dir, e)
             cause(e)
         }
-        Encode(dir: PathBuf, e: CborError) {
+        Encode(dir: PathBuf, e: Box<::std::error::Error + Send>) {
             description("can't encode metadata file")
             display("can't encode metadata file {:?}: {}", dir, e)
-            cause(e)
+            cause(&**e)
         }
         Decode(dir: PathBuf, e: Box<::std::error::Error + Send>) {
             description("can't decode metadata file")

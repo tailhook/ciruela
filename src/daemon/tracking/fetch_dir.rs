@@ -64,7 +64,9 @@ pub fn start(sys: &Subsystem, cmd: Downloading) {
                 match result {
                     Ok(index) => {
                         info!("Index {:?} is read from store", index.id);
-                        unimplemented!();
+                        tx.send(index)
+                            .map_err(|_| debug!("Useless index read")).ok();
+                        Either::A(ok(()))
                     }
                     Err(e) => {
                         if matches!(e, Error::IndexNotFound) {
@@ -79,21 +81,33 @@ pub fn start(sys: &Subsystem, cmd: Downloading) {
                             &cmd.image_id);
                         if let Some(conn) = conn_opt {
                             // TODO(tailhook) also set timeout?
-                            conn.fetch_index(&cmd.image_id)
-                            .and_then(move |response| {
-                                Index::parse(&cmd.image_id,
-                                    Cursor::new(response.data))
-                                .context(&cmd.image_id)
-                                .map_err(|e| e.into())
-                            })
-                            .map(|idx| {
-                                tx.send(idx)
-                                .map_err(|_| debug!("Useless index fetch"))
-                                .ok();
-                            })
-                            // TODO(tailhook) check another connection on error
-                            .map_err(|e| error!("Error fetching index: {}", e))
-                            .map_err(|()| unimplemented!())
+                            let image_id = cmd.image_id.clone();
+                            let sys1 = sys.clone();
+                            Either::B(conn.fetch_index(&cmd.image_id)
+                                .and_then(move |response| {
+                                    Index::parse(&cmd.image_id,
+                                        Cursor::new(&response.data))
+                                    .context(&cmd.image_id)
+                                    .map_err(|e| e.into())
+                                    .map(move |idx| {
+                                        sys1.meta.store_index(&idx.id,
+                                            response.data);
+                                        idx
+                                    })
+                                })
+                                .map(move |idx| {
+                                    sys.state().images
+                                        .insert(image_id, idx.weak());
+                                    tx.send(idx)
+                                    .map_err(|_| debug!("Useless index fetch"))
+                                    .ok();
+                                })
+                                // TODO(tailhook) check another connection
+                                .map_err(|e| {
+                                    error!("Error fetching index: {}", e)
+                                })
+                                .map_err(|()| unimplemented!())
+                            )
                         } else {
                             unimplemented!();
                         }
@@ -108,10 +122,7 @@ pub fn start(sys: &Subsystem, cmd: Downloading) {
             sys2.state().image_futures.remove(&cmd1.image_id);
         })
         .and_then(move |index| {
-            sys1.state().images
-                .insert(cmd.image_id.clone(), index.weak());
             cmd.index_fetched(&*index);
-            // TODO(tailhook) sys1.meta.store_index()
             sys1.disk.start_image(
                 cmd.config.directory.clone(),
                 index.clone(),

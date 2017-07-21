@@ -119,8 +119,9 @@ impl Dir {
             Err(e) => Err(Error::Remove(self.path(name), e)),
         }
     }
-    pub fn replace_file<V>(&self, name: &str, v: V) -> Result<(), Error>
-        where V: Serialize
+    pub fn replace_file<E, F>(&self, name: &str, f: F) -> Result<(), Error>
+        where F: FnOnce(File) -> Result<(), E>,
+              E: ::std::error::Error + Send + 'static,
     {
         let tmpname = format!(".tmp.{}", name);
         let file = match self.0.write_file(&tmpname, 0o644) {
@@ -129,8 +130,10 @@ impl Dir {
                 return Err(Error::WriteMeta(self.path(name), e));
             }
         };
-        v.serialize(&mut Cbor::new(BufWriter::new(file)))
-            .map_err(|e| Error::Encode(self.path(name), e))?;
+        f(file)
+            .map_err(|e| Error::Encode(
+                self.path(name),
+                Box::new(e) as Box<::std::error::Error + Send>))?;
         // Note: we rely on in-process metadata locking for files so don't
         // check when replacing
         self.0.local_rename(&tmpname, name)

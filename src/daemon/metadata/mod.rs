@@ -4,6 +4,7 @@ mod dir;
 mod append_dir;
 mod first_scan;
 mod read_index;
+mod store_index;
 mod scan;
 
 use std::collections::HashMap;
@@ -116,6 +117,15 @@ impl Meta {
             }
             res
         })
+    }
+    pub fn store_index(&self, id: &ImageId, data: Vec<u8>)
+    {
+        let meta = self.clone();
+        let id = id.clone();
+        self.cpu_pool.spawn_fn(move || -> Result<(), ()> {
+            store_index::write(&id, data, &meta);
+            Ok(())
+        }).forget();
     }
     pub fn scan_base_dirs(&self) -> CpuFuture<Vec<(VPath, usize)>, Error> {
         let meta = self.clone();

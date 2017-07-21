@@ -1,10 +1,12 @@
-use std::io::{BufReader};
+use std::io::{BufReader, BufWriter};
 use std::fs::File;
 use std::sync::Arc;
 use std::collections::hash_map::Entry;
 
+use serde::Serialize;
 use serde_cbor::de::from_reader as read_cbor;
 use serde_cbor::error::Error as CborError;
+use serde_cbor::ser::Serializer as Cbor;
 
 use ciruela::proto::{AppendDir, AppendDirAck};
 use ciruela::database::signatures::{State, SignatureEntry};
@@ -84,7 +86,9 @@ pub fn start(params: AppendDir, meta: &Meta)
             }
         }
     };
-    dir.replace_file(&state_file, &*state)?;
+    dir.replace_file(&state_file, |file| {
+        state.serialize(&mut Cbor::new(BufWriter::new(file)))
+    })?;
     meta.tracking.fetch_dir(&params.image, vpath, config);
     Ok(AppendDirAck {
         accepted: true,
