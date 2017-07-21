@@ -30,18 +30,20 @@ fn find_unused(sys: &Subsystem, dir: &Arc<BaseDir>,
     }).collect();
     // TODO(tailhook) read keep list
     let sorted = sort_out(&dir.config, images, &keep_list);
-    info!("Sorted out {:?}, used {}, unused {}, keep_list: {}. {}",
-        dir.path, sorted.used.len(), sorted.unused.len(), keep_list.len(),
-        if sorted.unused.len() > 0 {
+    if sorted.unused.len() > 0 {
+        info!("Sorted out {:?}, used {}, unused {}, keep_list: {}. {}",
+            dir.path, sorted.used.len(), sorted.unused.len(), keep_list.len(),
             if sys.dry_cleanup() {
                 "Dry run... \
                  Will issue a cleanup in 10 minutes after startup."
             } else {
                 "Cleaning..."
-            }
-        } else {
-            "Nothing to do."
-        });
+            });
+    } else {
+        debug!("Sorted out {:?}, used {}, unused {}, keep_list: {}. {}",
+            dir.path, sorted.used.len(), sorted.unused.len(), keep_list.len(),
+            "Nothing to do.");
+    }
     sorted.unused
 }
 
