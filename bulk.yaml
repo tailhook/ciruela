@@ -75,11 +75,11 @@ versions:
   block-end: ^\[.*\]
   regex: ^version\s*=\s*"(\S+)"
 
-- file: docs/conf.py
+- file: doc/conf.py
   regex: ^version\s*=\s*'(\S+)'
   partial-version: ^\d+\.\d+
 
-- file: docs/conf.py
+- file: doc/conf.py
   regex: ^release\s*=\s*'(\S+)'
 
   # for more automation we also update the lockfile
