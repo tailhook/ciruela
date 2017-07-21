@@ -111,7 +111,7 @@ pub fn ensure_virtual_parent<'x>(dir: &'x Dir, path: &VPath)
     Ok(dir)
 }
 
-pub fn remove_entry(dir: &Dir, inp: &Entry)
+fn remove_by_entry(dir: &Dir, inp: &Entry)
     -> Result<(), Error>
 {
     let me_err = &|e| {
@@ -132,7 +132,7 @@ pub fn remove_entry(dir: &Dir, inp: &Entry)
         // TODO(tailhook) fix absent type in entry
         match entry.simple_type().expect("fs is good") {
             SimpleType::Dir => {
-                remove_entry(&me, &entry)?;
+                remove_by_entry(&me, &entry)?;
             }
             _ => {
                 skip_not_found(me.remove_file(&entry)).map_err(|e| {
@@ -148,6 +148,18 @@ pub fn remove_entry(dir: &Dir, inp: &Entry)
 pub fn remove_dir_recursive(dir: &Dir, name: &str)
     -> Result<(), Error>
 {
+    let tmp_name = format!(".tmp.old.{}", name);
+    remove_by_str(&dir, &tmp_name)?;
+    match dir.local_rename(name, &tmp_name) {
+        Ok(()) => {},
+        Err(ref e) if e.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(e) => return Err(Error::RenameDir(recover_path(&dir, name), e)),
+    }
+    remove_by_str(&dir, &tmp_name)?;
+    Ok(())
+}
+
+fn remove_by_str(dir: &Dir, name: &str) -> Result<(), Error> {
     let me_err = &|e| {
         Error::Delete(recover_path(dir, name), e)
     };
@@ -166,7 +178,7 @@ pub fn remove_dir_recursive(dir: &Dir, name: &str)
         // TODO(tailhook) fix absent type in entry
         match entry.simple_type().expect("fs is good") {
             SimpleType::Dir => {
-                remove_entry(&me, &entry)?;
+                remove_by_entry(&me, &entry)?;
             }
             _ => {
                 skip_not_found(me.remove_file(&entry)).map_err(|e| {

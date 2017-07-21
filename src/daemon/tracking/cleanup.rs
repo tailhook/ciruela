@@ -24,15 +24,14 @@ fn find_unused(sys: &Subsystem, dir: &Arc<BaseDir>,
 {
     let images = all.into_iter().map(|(name, state)| {
         Image {
-            path: dir.virtual_path.suffix().join(name),
+            path: dir.path.suffix().join(name),
             target_state: state,
         }
     }).collect();
     // TODO(tailhook) read keep list
     let sorted = sort_out(&dir.config, images, &keep_list);
     info!("Sorted out {:?}, used {}, unused {}, keep_list: {}. {}",
-        dir.virtual_path,
-        sorted.used.len(), sorted.unused.len(), keep_list.len(),
+        dir.path, sorted.used.len(), sorted.unused.len(), keep_list.len(),
         if sorted.unused.len() > 0 {
             if sys.dry_cleanup() {
                 "Dry run... \
@@ -72,7 +71,7 @@ pub fn spawn_loop(rx: UnboundedReceiver<Command>, sys: &Subsystem) {
                             let u = find_unused(&sys1, &dir1, lst, keep_list);
                             iter(u.into_iter().map(Ok))
                             .for_each(move |img| {
-                                let vpath = dir1.virtual_path.join(
+                                let vpath = dir1.path.join(
                                         &img.path.file_name()
                                         .expect("valid image path"));
                                 warn!("Removing {:?}", vpath);
@@ -101,7 +100,7 @@ pub fn spawn_loop(rx: UnboundedReceiver<Command>, sys: &Subsystem) {
                 Command::Reschedule => {
                     let state = sys.state();
                     debug!("Rescheduling {} base dirs", state.base_dirs.len());
-                    for dir in &state.base_dirs {
+                    for dir in state.base_dirs.values() {
                         if dir.config.auto_clean {
                             sys.cleanup.send(Command::Base(dir.clone()))
                                 .expect("can always send in cleanup channel");

@@ -28,12 +28,8 @@ pub fn spawn_scan(sys: &Subsystem) {
                     .expect("config does not vanish at runtime");
                 sum += num;
                 ndown += cur_down;
-                Arc::new(BaseDir {
-                    virtual_path: dir,
-                    config: config.clone(),
-                    num_subdirs: AtomicUsize::new(num),
-                    num_downloading: AtomicUsize::new(cur_down),
-                })
+                (dir.clone(),
+                 Arc::new(BaseDir::restore(dir, config, num, cur_down)))
             }));
             if downloading.len() > 0 {
                 error!("Downloadinging in non-existing base dirs {:?}",

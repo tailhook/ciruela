@@ -35,7 +35,7 @@ pub fn start(params: AppendDir, meta: &Meta)
     } else {
         return Err(Error::PathNotFound(vpath));
     };
-    let dir = meta.signatures()?.ensure_dir(vpath.parent())?;
+    let dir = meta.signatures()?.ensure_dir(vpath.parent_rel())?;
 
     let timestamp = params.timestamp;
     let signatures = params.signatures.into_iter()

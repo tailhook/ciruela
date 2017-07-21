@@ -2,7 +2,7 @@ use std::borrow;
 use std::hash;
 use std::path::{Path};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 
 use ciruela::VPath;
@@ -11,34 +11,35 @@ use config::Directory;
 
 #[derive(Debug)]
 pub struct BaseDir {
-    pub virtual_path: VPath,
+    pub path: VPath,
     pub config: Arc<Directory>,
-    pub num_subdirs: AtomicUsize,
-    pub num_downloading: AtomicUsize,
+    num_subdirs: AtomicUsize,
+    num_downloading: AtomicUsize,
 }
 
-impl borrow::Borrow<Path> for BaseDir {
-    fn borrow(&self) -> &Path {
-        self.virtual_path.borrow()
+impl BaseDir {
+    pub fn new(path: VPath, config: &Arc<Directory>) -> BaseDir {
+        BaseDir {
+            path: path,
+            config: config.clone(),
+            num_subdirs: AtomicUsize::new(0),
+            num_downloading: AtomicUsize::new(0),
+        }
+    }
+    pub fn restore(path: VPath, config: &Arc<Directory>,
+                   num_subdirs: usize, num_downloading: usize)
+        -> BaseDir
+    {
+        BaseDir {
+            path: path,
+            config: config.clone(),
+            num_subdirs: AtomicUsize::new(num_subdirs),
+            num_downloading: AtomicUsize::new(num_downloading),
+        }
+    }
+    // Assumes that new dir is downloading immediately
+    pub fn new_subdir(&self) {
+        self.num_subdirs.fetch_add(1, Ordering::Relaxed);
+        self.num_downloading.fetch_add(1, Ordering::Relaxed);
     }
 }
-
-impl borrow::Borrow<VPath> for BaseDir {
-    fn borrow(&self) -> &VPath {
-        &self.virtual_path
-    }
-}
-
-impl hash::Hash for BaseDir {
-    fn hash<H: hash::Hasher>(&self, state: &mut H) {
-        self.virtual_path.hash(state)
-    }
-}
-
-impl PartialEq for BaseDir {
-    fn eq(&self, other: &BaseDir) -> bool {
-        self.virtual_path.eq(&other.virtual_path)
-    }
-}
-
-impl Eq for BaseDir {}

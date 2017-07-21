@@ -75,14 +75,7 @@ impl Disk {
             let dir = open_path(&dir, path.parent().expect("valid parent"))?;
             let filename = path.file_name().and_then(|x| x.to_str())
                 .expect("valid path");
-            let tmp_name = format!(".tmp.old.{}", filename);
-            // TODO(tailhook) technically race conditions are possible
-            // if more that one thread does the work
-            remove_dir_recursive(&dir, &tmp_name)?;
-            dir.local_rename(filename, &tmp_name)
-                .map_err(|e| Error::RenameDir(
-                    recover_path(&dir, filename), e))?;
-            remove_dir_recursive(&dir, &tmp_name)?;
+            remove_dir_recursive(&dir, filename)?;
             Ok(())
         })
     }

@@ -61,6 +61,16 @@ impl Meta {
             append_dir::start(params, &meta)
         })
     }
+    pub fn dir_committed(&self, path: &VPath) {
+        let meta = self.clone();
+        let path: VPath = path.clone();
+        self.cpu_pool.spawn_fn(move || -> Result<(), ()> {
+            // need to offload to disk thread because we hold ``writing`` lock
+            // in disk thread too
+            meta.writing().remove(&path);
+            Ok(())
+        }).forget();
+    }
     fn writing(&self) -> MutexGuard<HashMap<VPath, Arc<State>>> {
         self.writing.lock().expect("writing is not poisoned")
     }
@@ -75,7 +85,7 @@ impl Meta {
             if writing.contains_key(&path) {
                 return Err(Error::CleanupCanceled(path));
             }
-            let parent = meta.signatures()?.open_path(path.parent())?;
+            let parent = meta.signatures()?.open_path(path.parent_rel())?;
             let state = format!("{}.state", path.final_name());
             if let Some(meta) = parent.file_meta(&state)? {
                 if is_fresher(&meta, at) {
@@ -118,9 +128,7 @@ impl Meta {
     {
         let dir = dir.clone();
         let meta = self.clone();
-        self.cpu_pool.spawn_fn(move || {
-            scan::all_states(&dir.virtual_path, &meta)
-        })
+        self.cpu_pool.spawn_fn(move || scan::all_states(&dir.path, &meta))
     }
     fn signatures(&self) -> Result<Dir, Error> {
         self.base_dir.ensure_dir("signatures")

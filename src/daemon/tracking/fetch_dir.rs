@@ -8,17 +8,23 @@ use futures::sync::oneshot::channel;
 use quick_error::ResultExt;
 use tk_easyloop::spawn;
 
-use ciruela::{Hash};
+use ciruela::Hash;
 use disk::Image;
 use index::Index;
 use metadata::Error;
-use tracking::{Subsystem, Block, Downloading};
+use tracking::{Subsystem, Block, Downloading, BaseDir};
 
 
 pub fn start(sys: &Subsystem, cmd: Downloading) {
     let cmd = Arc::new(cmd);
     let mut state = &mut *sys.state();
     state.in_progress.insert(cmd.clone());
+    state.base_dirs.entry(cmd.virtual_path.parent())
+        .or_insert_with(|| {
+            Arc::new(BaseDir::new(cmd.virtual_path.parent(), &cmd.config))
+        })
+        .new_subdir();
+
     let cached = state.images.get(&cmd.image_id)
         .and_then(|x| x.upgrade()).map(Index);
 
@@ -213,7 +219,8 @@ fn fetch_blocks(sys: Subsystem, image: Image, cmd: Arc<Downloading>)
             sys2.disk.commit_image(image2)
         })
         .map(move |()| {
-            sys3.remote.notify_received_image(image_id, &cmd.virtual_path)
+            sys3.meta.dir_committed(&cmd.virtual_path);
+            sys3.remote.notify_received_image(image_id, &cmd.virtual_path);
         })
         .map_err(|e| {
             error!("Error commiting image: {}", e);

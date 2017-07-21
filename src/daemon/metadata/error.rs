@@ -22,8 +22,10 @@ quick_error! {
             display("file {:?} was vanished while scanning", path)
         }
         CleanupCanceled(path: VPath) {
-            description("cleanup canceled because dir was updated")
-            display("cleanup of {:?} canceled because dir was updated", path)
+            description("cleanup canceled because dir was updated \
+                or is currently being written to")
+            display("cleanup of {:?} canceled because dir was updated \
+                or is currently being written to", path)
         }
         LevelMismatch(has: usize, required: usize) {
             description("invalid directory level in upload path")

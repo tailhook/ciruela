@@ -16,10 +16,14 @@ impl VPath {
         // don't count key and initial slash
         self.0.iter().count() - 2
     }
-    pub fn parent(&self) -> &Path {
+    pub fn parent_rel(&self) -> &Path {
         debug_assert!(self.level() > 0);
         self.0.strip_prefix("/").ok().and_then(|x| x.parent())
         .expect("valid virtual path")
+    }
+    pub fn parent(&self) -> VPath {
+        debug_assert!(self.level() > 0);
+        VPath(self.0.parent().expect("valid virtual path").to_path_buf())
     }
     pub fn suffix(&self) -> &Path {
         let mut names = self.0.iter();
