@@ -15,9 +15,6 @@ cache:
 before_cache:
 - rm -r $TRAVIS_BUILD_DIR/target/debug
 
-install:
-- 'if [[ -z "$NO_MUSL" ]]; then rustup target add x86_64-unknown-linux-musl; fi'
-
 script:
 - cargo build $CARGO_ARGS
 - cargo test $CARGO_ARGS
@@ -42,6 +39,7 @@ jobs:
 
     before_deploy: |
       mkdir -p dist
+      rustup target add x86_64-unknown-linux-musl
       cargo build --target=x86_64-unknown-linux-musl --release
       fakeroot sh -ecx '
         install -D target/x86_64-unknown-linux-musl/release/ciruela-server pkg/usr/bin/ciruela-server
