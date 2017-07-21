@@ -4,3 +4,5 @@
 /ciruela-example.key.pub
 /example-configs/master.key
 /tmp
+/dist
+/pkg

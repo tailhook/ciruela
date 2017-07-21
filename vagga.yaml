@@ -2,33 +2,33 @@ commands:
 
   make: !Command
     description: Build the library and executables
-    container: ubuntu
+    container: xenial
     run: [cargo, build]
 
   cargo: !Command
     description: Run arbitrary cargo command
-    container: ubuntu
+    container: xenial
     symlink-name: cargo
     run: [cargo]
 
   test: !Command
     description: Run tests
-    container: ubuntu
+    container: xenial
     run: [cargo, test]
 
   server: !Command
     description: Run the server
-    container: ubuntu
+    container: xenial
     run: [cargo, run, --bin, ciruela-server, "--"]
 
   client: !Command
     description: Run the client
-    container: ubuntu
+    container: xenial
     run: [cargo, run, --bin, ciruela, "--"]
 
   example-server: !Command
     description: Run the server
-    container: ubuntu
+    container: xenial
     prerequisites: [make]
     environ: &exenv
       RUST_LOG: debug,tokio_core=warn
@@ -39,7 +39,7 @@ commands:
 
   example-upload: !Command
     description: Run the upload command with example key
-    container: ubuntu
+    container: xenial
     prerequisites: [make]
     environ: *exenv
     run:
@@ -56,24 +56,91 @@ commands:
       --------------------------------------------------------
       Documentation is built under doc/_build/html/index.html
 
+  _bulk: !Command
+    description: Run any bulk command
+    container: xenial
+    run: [bulk]
+
+  _package-trusty: !Command
+    container: trusty
+    run: &package |
+      set -e
+      version=$(git describe --dirty)
+      codename=$(lsb_release --codename --short)
+      rm -rf pkg
+      rm -rf target/release/ciruela*
+      bulk with-version "${version}" cargo install --root=/work/pkg --path=.
+      bulk pack --package-version="${version}+${codename}1"
+
+  _package-precise: !Command
+    container: precise
+    run: *package
+
+  _package-xenial: !Command
+    container: xenial
+    run: *package
+
+  packages: !Command
+    container: xenial
+    description: Build packages and repostories (mostly for CI)
+    prerequisites: [_package-trusty, _package-precise, _package-xenial]
+    accepts_arguments: true
+    run: |
+      bulk repo-add --config bulk.yaml --repository-base dist/repos \
+        dist/ciruela-[0-9]*.deb "$@"
+
 containers:
 
-  ubuntu:
+  xenial:
     setup:
     - !Ubuntu xenial
-    - !Install [ca-certificates, git, build-essential]
-
-    - !TarInstall
+    - &pkgs !Install
+      - ca-certificates
+      - git
+      - build-essential
+      - git  # to build package
+      - lsb-release  # to build package
+      - vim  # to edit release notes
+    - &rust !TarInstall
       url: "https://static.rust-lang.org/dist/rust-1.19.0-x86_64-unknown-linux-gnu.tar.gz"
       script: "./install.sh --prefix=/usr \
                 --components=rustc,rust-std-x86_64-unknown-linux-gnu,cargo"
     - !Sh cargo install --root=/usr cargo-outdated
+    - &bulk !Tar
+      url: "https://github.com/tailhook/bulk/releases/download/v0.4.9/bulk-v0.4.9.tar.gz"
+      sha256: 23471a9986274bb4b7098c03e2eb7e1204171869b72c45385fcee1c64db2d111
+      path: /
+    - !EnsureDir /cargo
 
-    environ:
-      HOME: /work/target
+    environ: &environ
+      CARGO_HOME: /cargo
       RUST_BACKTRACE: 1
+    volumes: &volumes
+      /cargo: !Persistent cargo
+
+  trusty:
+    setup:
+    - !Ubuntu trusty
+    - *pkgs
+    - *rust
+    - *bulk
+    - !EnsureDir /cargo
+    environ: *environ
+    volumes: *volumes
+
+  precise:
+    setup:
+    - !Ubuntu precise
+    - *pkgs
+    - *rust
+    - *bulk
+    - !EnsureDir /cargo
+    environ: *environ
+    volumes: *volumes
 
   doc:
     setup:
     - !Alpine v3.6
     - !Install [alpine-base, py-sphinx, py-requests, make]
+
+
