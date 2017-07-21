@@ -1,3 +1,4 @@
+use std::cmp::min;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -69,6 +70,15 @@ pub fn sort_out(config: &Arc<Directory>, items: Vec<Image>,
         } else {
             result.unused.push(img);
         }
+    }
+    if result.used.len() < config.keep_min_directories {
+        result.unused.sort_by(|a, b| {
+            biggest_timestamp(a).cmp(&biggest_timestamp(b))
+        });
+        let unused = result.unused.len();
+        let needs = config.keep_min_directories - result.used.len();
+        result.used.extend(
+            result.unused.drain(unused - min(unused, needs)..));
     }
     return result;
 }
@@ -191,6 +201,42 @@ mod test {
                     },
                     Image {
                         path: PathBuf::from("t3"),
+                        target_state: fake_state(),
+                    },
+                ],
+                unused: vec![
+                    Image {
+                        path: PathBuf::from("t2"),
+                        target_state: fake_state(),
+                    },
+                ],
+            });
+    }
+
+    #[test]
+    fn test_few_recent() {
+        assert_eq!(sort_out(&cfg(2, 100, "1 min"), vec![
+            Image {
+                path: PathBuf::from("t1"),
+                target_state: state_at("1 hour"),
+            },
+            Image {
+                path: PathBuf::from("t2"),
+                target_state: state_at("1 week"),
+            },
+            Image {
+                path: PathBuf::from("t3"),
+                target_state: state_at("1 sec"),
+            },
+        ], &vec![]),
+            Sorted {
+                used: vec![
+                    Image {
+                        path: PathBuf::from("t3"),
+                        target_state: fake_state(),
+                    },
+                    Image {
+                        path: PathBuf::from("t1"),
                         target_state: fake_state(),
                     },
                 ],
