@@ -4,7 +4,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 pub fn to_ms(tm: SystemTime) -> u64 {
     let ts = tm.duration_since(UNIX_EPOCH)
         .expect("timestamp is always after unix epoch");
-    return ts.as_secs() + (ts.subsec_nanos() / 1000000) as u64;
+    return ts.as_secs()*1000 + (ts.subsec_nanos() / 1000000) as u64;
 }
 
 pub fn time_ms() -> u64 {
