@@ -61,11 +61,11 @@ quick_error! {
         }
         Commit(path: PathBuf, e: io::Error) {
             description("error commiting dir")
-            display("error commiting dir {:?}", path)
+            display("error commiting dir {:?}: {}", path, e)
         }
         Delete(path: PathBuf, e: io::Error) {
             description("error removing dir")
-            display("error removing dir {:?}", path)
+            display("error removing dir {:?}: {}", path, e)
         }
     }
 }

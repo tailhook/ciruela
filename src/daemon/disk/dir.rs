@@ -12,6 +12,18 @@ pub enum DirBorrow<'a> {
     Borrow(&'a Dir),
 }
 
+fn skip_not_found<T: Default>(res: Result<T, io::Error>)
+    -> Result<T, io::Error>
+{
+    match res {
+        Ok(x) => Ok(x),
+        Err(ref e) if e.kind() == io::ErrorKind::NotFound => {
+            Ok(Default::default())
+        }
+        Err(e) => Err(e),
+    }
+}
+
 pub fn ensure_subdir<P: AsRef<Path>>(dir: &Dir, name: P)
     -> Result<Dir, Error>
 {
@@ -105,8 +117,17 @@ pub fn remove_entry(dir: &Dir, inp: &Entry)
     let me_err = &|e| {
         Error::Delete(recover_path(dir, inp.file_name()), e)
     };
-    let me = dir.sub_dir(inp).map_err(me_err)?;
-    for entry in me.list_dir(".").map_err(me_err)? {
+    let me = match dir.sub_dir(inp) {
+        Ok(x) => x,
+        Err(ref e) if e.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(e) => return Err(me_err(e)),
+    };
+    let dir_iter = match me.list_dir(".") {
+        Ok(x) => x,
+        Err(ref e) if e.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(e) => return Err(me_err(e)),
+    };
+    for entry in dir_iter {
         let entry = entry.map_err(me_err)?;
         // TODO(tailhook) fix absent type in entry
         match entry.simple_type().expect("fs is good") {
@@ -114,13 +135,13 @@ pub fn remove_entry(dir: &Dir, inp: &Entry)
                 remove_entry(&me, &entry)?;
             }
             _ => {
-                dir.remove_file(&entry).map_err(|e| {
+                skip_not_found(me.remove_file(&entry)).map_err(|e| {
                     Error::Delete(recover_path(&me, entry.file_name()), e)
                 })?;
             }
         }
     }
-    dir.remove_dir(inp).map_err(me_err)?;
+    skip_not_found(dir.remove_dir(inp)).map_err(me_err)?;
     Ok(())
 }
 
@@ -130,8 +151,17 @@ pub fn remove_dir_recursive(dir: &Dir, name: &str)
     let me_err = &|e| {
         Error::Delete(recover_path(dir, name), e)
     };
-    let me = dir.sub_dir(name).map_err(me_err)?;
-    for entry in me.list_dir(".").map_err(me_err)? {
+    let me = match dir.sub_dir(name) {
+        Ok(x) => x,
+        Err(ref e) if e.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(e) => return Err(me_err(e)),
+    };
+    let dir_iter = match me.list_dir(".") {
+        Ok(x) => x,
+        Err(ref e) if e.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(e) => return Err(me_err(e)),
+    };
+    for entry in dir_iter {
         let entry = entry.map_err(me_err)?;
         // TODO(tailhook) fix absent type in entry
         match entry.simple_type().expect("fs is good") {
@@ -139,12 +169,12 @@ pub fn remove_dir_recursive(dir: &Dir, name: &str)
                 remove_entry(&me, &entry)?;
             }
             _ => {
-                dir.remove_file(&entry).map_err(|e| {
+                skip_not_found(me.remove_file(&entry)).map_err(|e| {
                     Error::Delete(recover_path(&me, entry.file_name()), e)
                 })?;
             }
         }
     }
-    dir.remove_dir(name).map_err(me_err)?;
+    skip_not_found(dir.remove_dir(name)).map_err(me_err)?;
     Ok(())
 }

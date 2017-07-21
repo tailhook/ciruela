@@ -30,7 +30,7 @@ fn find_unused(sys: &Subsystem, dir: &Arc<BaseDir>,
     }).collect();
     // TODO(tailhook) read keep list
     let sorted = sort_out(&dir.config, images, &keep_list);
-    info!("sorted out {:?}, used {}, unused {}, keep_list: {}. {}",
+    info!("Sorted out {:?}, used {}, unused {}, keep_list: {}. {}",
         dir.virtual_path,
         sorted.used.len(), sorted.unused.len(), keep_list.len(),
         if sorted.unused.len() > 0 {
@@ -102,8 +102,10 @@ pub fn spawn_loop(rx: UnboundedReceiver<Command>, sys: &Subsystem) {
                     let state = sys.state();
                     debug!("Rescheduling {} base dirs", state.base_dirs.len());
                     for dir in &state.base_dirs {
-                        sys.cleanup.send(Command::Base(dir.clone()))
-                            .expect("can always send in cleanup channel");
+                        if dir.config.auto_clean {
+                            sys.cleanup.send(Command::Base(dir.clone()))
+                                .expect("can always send in cleanup channel");
+                        }
                     }
                     sys.cleanup.send(Command::Reschedule)
                         .expect("can always send in cleanup channel");

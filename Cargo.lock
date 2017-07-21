@@ -16,7 +16,7 @@ dependencies = [
  "matches 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "mopa 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "ns-std-threaded 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "openat 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "openat 0.1.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "quick-error 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "quire 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.3.15 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -184,7 +184,7 @@ dependencies = [
  "itertools 0.5.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "num_cpus 1.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "openat 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "openat 0.1.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "quick-error 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "regex 0.1.80 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-serialize 0.3.24 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -476,7 +476,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "openat"
-version = "0.1.8"
+version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "libc 0.2.26 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -962,7 +962,7 @@ dependencies = [
 "checksum num-traits 0.1.40 (registry+https://github.com/rust-lang/crates.io-index)" = "99843c856d68d8b4313b03a17e33c4bb42ae8f6610ea81b28abe076ac721b9b0"
 "checksum num_cpus 1.6.2 (registry+https://github.com/rust-lang/crates.io-index)" = "aec53c34f2d0247c5ca5d32cca1478762f301740468ee9ee6dcb7a0dd7a0c584"
 "checksum odds 0.2.25 (registry+https://github.com/rust-lang/crates.io-index)" = "c3df9b730298cea3a1c3faa90b7e2f9df3a9c400d0936d6015e6165734eefcba"
-"checksum openat 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)" = "7233fb7fcdd607a0d9b58332a4b8db07a8b5da33066c231ed7addb8939dc7ea8"
+"checksum openat 0.1.9 (registry+https://github.com/rust-lang/crates.io-index)" = "974d0b37715cc63c65f35a2989486340da8e9eeeff54a5775d12162c02f3f91f"
 "checksum percent-encoding 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "de154f638187706bde41d9b4738748933d64e6b37bdbffc0b47a97d16a6ae356"
 "checksum quick-error 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "3c36987d4978eb1be2e422b1e0423a557923a5c3e7e6f31d5699e9aafaefa469"
 "checksum quire 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)" = "7d4565e5a8929f805844de74a6c4a72c73ddba1036f602e5e36b7faa3b32c3fe"
