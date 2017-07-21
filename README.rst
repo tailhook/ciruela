@@ -2,6 +2,8 @@
 Ciruela
 =======
 
+:status: Alpha
+
 
 A peer-to-peer synchronization software for servers in datacenters.
 
