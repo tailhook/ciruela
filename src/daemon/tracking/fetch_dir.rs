@@ -29,10 +29,24 @@ pub fn start(sys: &Subsystem, cmd: Downloading) {
         .and_then(|x| x.upgrade()).map(Index);
 
     let sys1 = sys.clone();
+    let sys2 = sys.clone();
+    let cmd1 = cmd.clone();
     let cmd2 = cmd.clone();
 
     if let Some(index) = cached {
         info!("Image {:?} is already cached", cmd.image_id);
+        spawn(sys1.disk.start_image(
+                cmd.config.directory.clone(),
+                index.clone(),
+                cmd.virtual_path.clone())
+            .map(move |img| {
+                debug!("Created dir");
+                fetch_blocks(sys1, img, cmd);
+            })
+            .map_err(move |e| {
+                error!("Can't start image {:?}: {}",
+                    cmd2.virtual_path, e);
+            }));
         return;
     }
     let old_future = state.image_futures.get(&cmd.image_id).map(Clone::clone);
@@ -89,32 +103,27 @@ pub fn start(sys: &Subsystem, cmd: Downloading) {
         future
     };
     spawn(future
-        .then(move |result| {
-            match result {
-                Ok(index) => {
-                    sys1.state().images
-                        .insert(cmd.image_id.clone(), index.weak());
-                    cmd.index_fetched(&*index);
-                    // TODO(tailhook) sys1.meta.store_index()
-                    Either::A(sys1.disk.start_image(
-                        cmd.config.directory.clone(),
-                        index.clone(),
-                        cmd.virtual_path.clone())
-                    .map(move |img| {
-                        debug!("Created dir");
-                        fetch_blocks(sys1, img, cmd);
-                    })
-                    .map_err(move |e| {
-                        error!("Can't start image {:?}: {}",
-                            cmd2.virtual_path, e);
-                    }))
-                }
-                Err(e) => {
-                    error!("Error getting image {:?}", e);
-                    sys1.state().image_futures.remove(&cmd.image_id);
-                    Either::B(ok(()))
-                }
-            }
+        .map_err(move |e| {
+            error!("Error getting image {:?}", e);
+            sys2.state().image_futures.remove(&cmd1.image_id);
+        })
+        .and_then(move |index| {
+            sys1.state().images
+                .insert(cmd.image_id.clone(), index.weak());
+            cmd.index_fetched(&*index);
+            // TODO(tailhook) sys1.meta.store_index()
+            sys1.disk.start_image(
+                cmd.config.directory.clone(),
+                index.clone(),
+                cmd.virtual_path.clone())
+            .map(move |img| {
+                debug!("Created dir");
+                fetch_blocks(sys1, img, cmd);
+            })
+            .map_err(move |e| {
+                error!("Can't start image {:?}: {}",
+                    cmd2.virtual_path, e);
+            })
         }));
 }
 
