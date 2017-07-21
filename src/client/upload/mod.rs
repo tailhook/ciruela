@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::io::{self, Write, stdout, stderr};
+use std::io::{self, stdout, stderr};
 use std::net::SocketAddr;
 use std::process::exit;
 use std::sync::{Arc, Mutex};
@@ -44,19 +44,18 @@ impl Listener for Tracker {
                 if !img.forwarded {
                     pro.hosts_needed.remove(&self.0);
                 }
-                println!("needed {:?}, {}", pro.hosts_needed, self.0);
+                eprintln!("Needed {:?}, {}", pro.hosts_needed, self.0);
                 if pro.hosts_needed.len() == 0 {
-                    writeln!(&mut stderr(),
-                        "Fetched from {}", pro.hosts_done.join(", ")).ok();
-                    writeln!(&mut stderr(),
-                        "Fetched from all required. {} total.",
-                        pro.hosts_done.len()).ok();
+                    eprintln!("Fetched from {}",
+                        pro.hosts_done.join(", "));
+                    eprintln!("Fetched from all required. {} total.",
+                        pro.hosts_done.len());
                     pro.done.take().map(|chan| {
                         chan.send(()).expect("sending done");
                     });
                 } else {
-                    write!(&mut stderr(),
-                        "Fetched from {}\r", pro.hosts_done.join(", ")).ok();
+                    eprintln!("Fetched from {}\r",
+                        pro.hosts_done.join(", "));
                 }
             }
             _ => {}
