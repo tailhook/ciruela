@@ -47,7 +47,7 @@ impl Listener for Tracker {
                 }
                 if pro.hosts_needed.len() == 0 {
                     info!("Fetched from {}", pro.hosts_done.join(", "));
-                    eprintln!("Fetched from all required. {} total. \
+                    eprintln!("Fetched from all required hosts. {} total. \
                         Done in {} seconds.",
                         pro.hosts_done.len(),
                         SystemTime::now().duration_since(pro.started)
