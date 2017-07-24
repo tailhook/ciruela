@@ -1,6 +1,6 @@
 use std::ffi::OsStr;
 use std::fs::File;
-use std::io::{self, BufWriter};
+use std::io;
 use std::path::{Path, PathBuf, Component};
 use std::sync::Arc;
 
@@ -8,8 +8,6 @@ use ciruela::VPath;
 use dir_util::recover_path;
 use metadata::Error;
 use openat::{self, Entry, SimpleType, Metadata};
-use serde::ser::{Serialize};
-use serde_cbor::ser::Serializer as Cbor;
 
 
 #[derive(Clone)]

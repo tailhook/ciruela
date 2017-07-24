@@ -47,6 +47,16 @@ commands:
     - upload
     - --identity=ciruela-example.key
 
+  example-upload-with-env-key: !Command
+    description: Run the upload command with example key
+    container: xenial
+    prerequisites: [make]
+    accepts-arguments: true
+    environ: *exenv
+    run: |
+      export CIRUELA_KEY="$(cat ciruela-example.key)"
+      exec ./target/debug/ciruela upload "$@"
+
   doc: !Command
     description: Build documentation
     container: doc

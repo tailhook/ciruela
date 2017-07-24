@@ -1,7 +1,6 @@
 use std::io;
 use std::path::{PathBuf};
 use serde_cbor;
-use serde_cbor::error::Error as CborError;
 
 use ciruela::VPath;
 

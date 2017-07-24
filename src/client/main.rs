@@ -12,6 +12,7 @@ extern crate tk_easyloop;
 extern crate tokio_core;
 
 #[macro_use] extern crate log;
+#[macro_use] extern crate matches;
 
 mod global_options;
 mod name;

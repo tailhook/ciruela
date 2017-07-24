@@ -1,4 +1,4 @@
-use std::io::{BufReader, Write};
+use std::io::{Write};
 
 use hex::ToHex;
 
