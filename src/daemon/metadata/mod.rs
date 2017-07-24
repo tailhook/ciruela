@@ -123,7 +123,10 @@ impl Meta {
         let meta = self.clone();
         let id = id.clone();
         self.cpu_pool.spawn_fn(move || -> Result<(), ()> {
-            store_index::write(&id, data, &meta);
+            store_index::write(&id, data, &meta)
+                .map_err(|e| {
+                    error!("Can't store index {:?}: {}", id, e);
+                })?;
             Ok(())
         }).forget();
     }

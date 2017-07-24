@@ -3,7 +3,6 @@ use std::io::{BufReader, Write};
 use hex::ToHex;
 
 use ciruela::ImageId;
-use index::Index;
 use metadata::{Meta, Error};
 
 

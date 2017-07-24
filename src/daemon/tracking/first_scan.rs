@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
-use std::sync::atomic::{AtomicUsize};
 
 use futures::Future;
 use tk_easyloop::{spawn, timeout};
