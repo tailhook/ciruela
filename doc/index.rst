@@ -11,6 +11,7 @@ Ciruela
    :caption: User Guide:
 
    config/index
+   client/index
 
 .. toctree::
    :maxdepth: 2

@@ -120,6 +120,18 @@ impl UploadOptions {
                             error!("Can't read key file {:?}: {}", path, e);
                             2
                         })?;
+                    let path = home.join(".ssh/id_ciruela");
+                    keys_from_file(&path, true, &mut self.private_keys)
+                        .map_err(|e| {
+                            error!("Can't read key file {:?}: {}", path, e);
+                            2
+                        })?;
+                    let path = home.join(".ciruela/id_ed25519");
+                    keys_from_file(&path, true, &mut self.private_keys)
+                        .map_err(|e| {
+                            error!("Can't read key file {:?}: {}", path, e);
+                            2
+                        })?;
                 }
                 None => {
                     warn!("Cannot find home dir. \
