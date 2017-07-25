@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use futures_cpupool::{CpuPool, CpuFuture};
-use openat::Dir;
+use openat::{Dir, SimpleType};
 
 use ciruela::VPath;
 use config::{Config, Directory};
@@ -32,6 +32,17 @@ pub struct Image {
     pub index: Index,
 }
 
+fn check_exists(dir: &Dir, name: &str) -> Result<(), Error> {
+    match dir.metadata(name) {
+        Ok(ref m) if m.simple_type() == SimpleType::Dir => {
+            // TODO(tailhook) verify image is okay
+            Err(Error::AlreadyExists)
+        }
+        Ok(_) => Err(Error::ExistsNotADir(recover_path(&dir, name))),
+        Err(ref e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(Error::OpenDir(recover_path(&dir, name), e)),
+    }
+}
 
 impl Disk {
     pub fn new(num_threads: usize, config: &Arc<Config>)
@@ -54,6 +65,8 @@ impl Disk {
                 DirBorrow::Borrow(_) => dir,
                 DirBorrow::Owned(dir) => dir,
             };
+            check_exists(&dir, virtual_path.final_name())?;
+
             let tmp_name = format!(".tmp.{}", virtual_path.final_name());
             let temp_dir = ensure_subdir(&dir, &tmp_name)?;
             Ok(Image {

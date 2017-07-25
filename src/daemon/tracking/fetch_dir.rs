@@ -9,7 +9,7 @@ use quick_error::ResultExt;
 use tk_easyloop::spawn;
 
 use ciruela::Hash;
-use disk::Image;
+use disk::{self, Image};
 use index::Index;
 use metadata::Error;
 use tracking::{Subsystem, Block, Downloading, BaseDir};
@@ -39,13 +39,24 @@ pub fn start(sys: &Subsystem, cmd: Downloading) {
                 cmd.config.directory.clone(),
                 index.clone(),
                 cmd.virtual_path.clone())
-            .map(move |img| {
-                debug!("Created dir");
-                fetch_blocks(sys1, img, cmd);
-            })
-            .map_err(move |e| {
-                error!("Can't start image {:?}: {}",
-                    cmd2.virtual_path, e);
+            .then(move |res| -> Result<(), ()> {
+                match res {
+                    Ok(img) => {
+                        debug!("Created dir");
+                        fetch_blocks(sys1, img, cmd);
+                    }
+                    Err(disk::Error::AlreadyExists) => {
+                        sys1.meta.dir_committed(&cmd.virtual_path);
+                        sys1.remote.notify_received_image(index.id.clone(),
+                            &cmd2.virtual_path);
+                        info!("Image already exists");
+                    }
+                    Err(e) => {
+                        error!("Can't start image {:?}: {}",
+                            cmd2.virtual_path, e);
+                    }
+                }
+                Ok(())
             }));
         return;
     }
@@ -127,13 +138,24 @@ pub fn start(sys: &Subsystem, cmd: Downloading) {
                 cmd.config.directory.clone(),
                 index.clone(),
                 cmd.virtual_path.clone())
-            .map(move |img| {
-                debug!("Created dir");
-                fetch_blocks(sys1, img, cmd);
-            })
-            .map_err(move |e| {
-                error!("Can't start image {:?}: {}",
-                    cmd2.virtual_path, e);
+            .then(move |res| -> Result<(), ()> {
+                match res {
+                    Ok(img) => {
+                        debug!("Created dir");
+                        fetch_blocks(sys1, img, cmd);
+                    }
+                    Err(disk::Error::AlreadyExists) => {
+                        sys1.meta.dir_committed(&cmd.virtual_path);
+                        sys1.remote.notify_received_image(index.id.clone(),
+                            &cmd2.virtual_path);
+                        info!("Image already exists");
+                    }
+                    Err(e) => {
+                        error!("Can't start image {:?}: {}",
+                            cmd2.virtual_path, e);
+                    }
+                }
+                Ok(())
             })
         }));
 }

@@ -67,5 +67,12 @@ quick_error! {
             description("error removing dir")
             display("error removing dir {:?}: {}", path, e)
         }
+        AlreadyExists {
+            description("dir to write already exists")
+        }
+        ExistsNotADir(path: PathBuf) {
+            description("path already exists but not a directory")
+            display("path {:?} already exists but not a directory", path)
+        }
     }
 }
