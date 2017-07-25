@@ -22,7 +22,7 @@ mod upload;
 
 use std::env;
 use std::io::{Write, stderr};
-use argparse::{ArgumentParser, StoreOption, Collect};
+use argparse::{ArgumentParser, StoreOption, Collect, Print};
 use global_options::GlobalOptions;
 
 
@@ -46,6 +46,9 @@ fn main() {
             .add_argument("args", Collect, r#"
                 Arguments and options to the command
             "#);
+        ap.add_option(&["--version"],
+            Print(env!("CARGO_PKG_VERSION").to_string()),
+            "Show version");
         ap.stop_on_first_argument(true);
         ap.parse_args_or_exit();
     }

@@ -34,7 +34,7 @@ use std::path::PathBuf;
 use std::process::exit;
 use std::sync::Arc;
 
-use argparse::{ArgumentParser, Parse, Store};
+use argparse::{ArgumentParser, Parse, Store, Print};
 
 mod cleanup;
 mod config;
@@ -105,6 +105,9 @@ fn main() {
         ap.refer(&mut disk_threads)
             .add_option(&["--disk-threads"], Store,
                 "A threads for reading/writing disk data (default 8)");
+        ap.add_option(&["--version"],
+            Print(env!("CARGO_PKG_VERSION").to_string()),
+            "Show version");
         ap.parse_args_or_exit();
     }
     let addr = (ip, port).to_socket_addrs().unwrap().next().unwrap();
