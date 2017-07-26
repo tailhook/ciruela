@@ -51,14 +51,21 @@ pub struct ClientFuture {
 
 pub trait Listener {
     fn notification(&self, n: Notification);
+    fn closed(&self);
 }
 
-struct MyDispatcher<L> {
+struct MyDispatcher<L: Listener> {
     requests: Registry,
     channel: Sender,
     local_images: Arc<Mutex<HashMap<ImageId, Arc<ImageInfo>>>>,
     pool: CpuPool,
     listener: L,
+}
+
+impl<L: Listener> Drop for MyDispatcher<L> {
+    fn drop(&mut self) {
+        self.listener.closed();
+    }
 }
 
 impl<L: Listener> Dispatcher for MyDispatcher<L> {
@@ -135,7 +142,7 @@ impl<L: Listener> Dispatcher for MyDispatcher<L> {
     }
 }
 
-impl<L> RequestDispatcher for MyDispatcher<L> {
+impl<L: Listener> RequestDispatcher for MyDispatcher<L> {
     fn request_registry(&self) -> &Registry {
         &self.requests
     }

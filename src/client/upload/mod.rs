@@ -29,6 +29,7 @@ struct Progress {
     started: SystemTime,
     hosts_done: Vec<String>,
     hosts_needed: HashSet<SocketAddr>,
+    hosts_errored: HashSet<SocketAddr>,
     done: Option<Sender<()>>,
 }
 
@@ -63,6 +64,24 @@ impl Listener for Tracker {
             _ => {}
         }
     }
+    fn closed(&self) {
+        // TODO(tailhook) reconnect
+        let mut pro = self.1.lock().expect("progress is not poisoted");
+        if pro.done.is_some() {
+            error!("Connection to {} is closed", self.0);
+            pro.hosts_needed.remove(&self.0);
+            pro.hosts_errored.insert(self.0);
+            if pro.hosts_needed.len() == 0 {
+                pro.done.take().map(|chan| {
+                    chan.send(()).expect("sending errorneous done");
+                });
+            }
+        }
+    }
+}
+
+fn is_ok(pro: &Arc<Mutex<Progress>>) -> bool {
+    pro.lock().expect("progress is ok").hosts_errored.len() == 0
 }
 
 fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
@@ -132,6 +151,7 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
         started: SystemTime::now(),
         hosts_done: Vec::new(),
         hosts_needed: HashSet::new(),
+        hosts_errored: HashSet::new(),
         done: Some(done_tx),
     }));
 
@@ -190,7 +210,6 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                             .and_then(move |response| {
                                 info!("Response from {}: {:?}",
                                     addr, response);
-                                // TODO(tailhook) read notifications
                                 if !response.accepted {
                                     progress.lock().expect("progress is ok")
                                         .hosts_needed.remove(&addr);
@@ -198,10 +217,9 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                                         host, addr);
                                     Either::A(ok(false))
                                 } else {
-                                    // TODO(tailhook) not just timeout
                                     Either::B(done_rx.clone()
-                                        .then(|v| match v {
-                                            Ok(_) => Ok(true),
+                                        .then(move |v| match v {
+                                            Ok(_) => Ok(is_ok(&progress)),
                                             Err(_) => {
                                                 debug!("Connection closed \
                                                         before all \
