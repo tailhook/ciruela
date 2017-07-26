@@ -89,7 +89,7 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
 {
     let dir = opt.source_directory.clone().unwrap();
     let mut cfg = ScannerConfig::new();
-    cfg.hash(HashType::Blake2b_256);
+    cfg.hash(HashType::blake2b_256());
     cfg.add_dir(&dir, "/");
     cfg.print_progress();
 

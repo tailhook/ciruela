@@ -26,7 +26,7 @@ tk-bufstream = "0.3.0"
 tk-http = "0.3.0"
 ssh-keys = "0.1.0"
 rustc-serialize = "0.3.24"
-dir-signature = { rev="0c86f9e", git="https://github.com/tailhook/dir-signature" }
+dir-signature = "0.2.0"
 tk-easyloop = "0.1.1"
 abstract-ns = "0.3.4"
 ns-std-threaded = "0.2.0"
