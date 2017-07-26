@@ -21,6 +21,7 @@ struct NotificationTypeVisitor;
 
 pub enum Type {
     AppendDir,
+    ReplaceDir,
     GetIndex,
     GetBlock,
 }
@@ -32,6 +33,7 @@ pub enum NotificationType {
 
 const TYPES: &'static [&'static str] = &[
     "AppendDir",
+    "ReplaceDir",
     "GetIndex",
     "GetBlock",
     ];
@@ -43,12 +45,14 @@ const NOTIFICATION_TYPES: &'static [&'static str] = &[
 
 pub enum Request {
     AppendDir(dir_commands::AppendDir),
+    ReplaceDir(dir_commands::ReplaceDir),
     GetIndex(index_commands::GetIndex),
     GetBlock(block_commands::GetBlock),
 }
 
 pub enum Response {
     AppendDir(dir_commands::AppendDirAck),
+    ReplaceDir(dir_commands::ReplaceDirAck),
     GetIndex(index_commands::GetIndexResponse),
     GetBlock(block_commands::GetBlockResponse),
 }
@@ -78,6 +82,7 @@ impl<'a> Visitor<'a> for TypeVisitor {
     {
         match value {
             "AppendDir" => Ok(Type::AppendDir),
+            "ReplaceDir" => Ok(Type::ReplaceDir),
             "GetIndex" => Ok(Type::GetIndex),
             "GetBlock" => Ok(Type::GetBlock),
             _ => Err(Error::unknown_field(value, TYPES)),
@@ -161,6 +166,10 @@ impl<'a> Visitor<'a> for MessageVisitor {
                         Some(data) => Request::AppendDir(data),
                         None => return Err(Error::invalid_length(3, &self)),
                     },
+                    Type::ReplaceDir => match visitor.next_element()? {
+                        Some(data) => Request::ReplaceDir(data),
+                        None => return Err(Error::invalid_length(3, &self)),
+                    },
                     Type::GetIndex => match visitor.next_element()? {
                         Some(data) => Request::GetIndex(data),
                         None => return Err(Error::invalid_length(3, &self)),
@@ -184,6 +193,10 @@ impl<'a> Visitor<'a> for MessageVisitor {
                 let data = match typ {
                     Type::AppendDir => match visitor.next_element()? {
                         Some(data) => Response::AppendDir(data),
+                        None => return Err(Error::invalid_length(3, &self)),
+                    },
+                    Type::ReplaceDir => match visitor.next_element()? {
+                        Some(data) => Response::ReplaceDir(data),
                         None => return Err(Error::invalid_length(3, &self)),
                     },
                     Type::GetIndex => match visitor.next_element()? {

@@ -20,7 +20,7 @@ use ciruela::{Hash, VPath};
 use ciruela::time::to_ms;
 use ciruela::proto::{SigData, sign};
 use global_options::GlobalOptions;
-use ciruela::proto::{Client, AppendDir, ImageInfo, BlockPointer};
+use ciruela::proto::{Client, AppendDir, ReplaceDir, ImageInfo, BlockPointer};
 use ciruela::proto::RequestClient;
 use ciruela::proto::{Listener};
 use ciruela::proto::message::Notification;
@@ -73,7 +73,7 @@ impl Listener for Tracker {
             pro.hosts_errored.insert(self.0);
             if pro.hosts_needed.len() == 0 {
                 pro.done.take().map(|chan| {
-                    chan.send(()).expect("sending errorneous done");
+                    chan.send(()).ok();
                 });
             }
         }
@@ -154,6 +154,7 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
         hosts_errored: HashSet::new(),
         done: Some(done_tx),
     }));
+    let replace = opt.replace;
 
     tk_easyloop::run(|| {
         let resolver = name::resolver();
@@ -197,23 +198,46 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                             .and_then(move |mut cli| {
                                 info!("Connected to {}", addr);
                                 cli.register_index(&image_info);
-                                cli.request(AppendDir {
-                                    image: image_info.image_id.clone(),
-                                    timestamp: timestamp,
-                                    signatures: signatures
-                                        .get(&turl.path[..]).unwrap()
-                                        .clone(),
-                                    path: VPath::from(turl.path),
-                                })
-                                .map_err(|e| error!("Request error: {}", e))
+                                if replace {
+                                    Either::A(cli.request(ReplaceDir {
+                                        image: image_info.image_id.clone(),
+                                        timestamp: timestamp,
+                                        old_image: None,
+                                        signatures: signatures
+                                            .get(&turl.path[..]).unwrap()
+                                            .clone(),
+                                        path: VPath::from(turl.path),
+                                    })
+                                    .map(move |resp| {
+                                        info!("Response from {}: {:?}",
+                                            addr, resp);
+                                        resp.accepted
+                                    })
+                                    .map_err(|e|
+                                        error!("Request error: {}", e)))
+                                } else {
+                                    Either::B(cli.request(AppendDir {
+                                        image: image_info.image_id.clone(),
+                                        timestamp: timestamp,
+                                        signatures: signatures
+                                            .get(&turl.path[..]).unwrap()
+                                            .clone(),
+                                        path: VPath::from(turl.path),
+                                    })
+                                    .map(move |resp| {
+                                        info!("Response from {}: {:?}",
+                                            addr, resp);
+                                        resp.accepted
+                                    })
+                                    .map_err(|e|
+                                        error!("Request error: {}", e)))
+                                }
                             })
-                            .and_then(move |response| {
-                                info!("Response from {}: {:?}",
-                                    addr, response);
-                                if !response.accepted {
+                            .and_then(move |accepted| {
+                                if !accepted {
                                     progress.lock().expect("progress is ok")
                                         .hosts_needed.remove(&addr);
-                                    error!("AppendDir rejected by {} / {}",
+                                    error!("Upload rejected by {} / {}",
                                         host, addr);
                                     Either::A(ok(false))
                                 } else {

@@ -134,6 +134,21 @@ impl websocket::Dispatcher for Dispatcher {
                         Ok(())
                     }));
                 }
+                Ok(Message::Request(request_id, Request::ReplaceDir(ad))) => {
+                    let chan = self.connection.0.sender.clone();
+                    spawn(self.metadata.replace_dir(ad).then(move |res| {
+                        match res {
+                            Ok(value) => {
+                                chan.response(request_id, value);
+                            }
+                            Err(e) => {
+                                error!("ReplaceDir error: {}", e);
+                                chan.error_response(request_id, e);
+                            }
+                        };
+                        Ok(())
+                    }));
+                }
                 Ok(Message::Request(request_id, Request::GetIndex(gi))) => {
                     //let chan = self.connection.0.sender.clone();
                     unimplemented!();

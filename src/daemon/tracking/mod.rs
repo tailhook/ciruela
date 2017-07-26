@@ -89,10 +89,11 @@ impl Tracking {
             tracking: handler,
          })
     }
-    pub fn fetch_dir(&self, image: &ImageId, vpath: VPath,
+    pub fn fetch_dir(&self, image: &ImageId, vpath: VPath, replace: bool,
                      config: &Arc<Directory>)
     {
         self.send(Command::FetchDir(Downloading {
+            replacing: replace,
             virtual_path: vpath,
             image_id: image.clone(),
             config: config.clone(),

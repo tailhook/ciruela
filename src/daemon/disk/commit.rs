@@ -1,10 +1,12 @@
+use std::io;
+use std::os::unix::fs::PermissionsExt;
 use std::sync::Arc;
 use std::time::Instant;
-use std::os::unix::fs::PermissionsExt;
 
 use disk::dir::{ensure_path, recover_path};
 use disk::error::Error;
 use disk::public::Image;
+use disk::dir::remove_dir_recursive;
 
 use dir_signature::v1::Entry::*;
 
@@ -36,6 +38,7 @@ pub fn commit_image(image: Arc<Image>) -> Result<(), Error> {
                 }
             }
             File { ref path, exe, size, ref hashes } => {
+                debug_assert!(size != 0);
                 let &(ref dir, ref dpath) = dir.as_ref().unwrap();
                 // Assuming dir-signature can't yield records out of order..
                 debug_assert!(*dpath == path.parent().unwrap());
@@ -75,8 +78,32 @@ pub fn commit_image(image: Arc<Image>) -> Result<(), Error> {
         (Instant::now() - start).as_secs());
 
     let fname = image.virtual_path.final_name();
-    image.parent.local_rename(&image.temporary_name, fname)
-        .map_err(|e| Error::Commit(recover_path(&image.parent, fname), e))?;
+
+    // Note: we rely on `Metadata::writing` lock to avoid race conditions here
+    let exists = match image.parent.metadata(fname) {
+        Ok(_) => true,
+        Err(ref e) if e.kind() == io::ErrorKind::NotFound => {
+            false
+        }
+        Err(e) => {
+            return Err(Error::Commit(recover_path(&image.parent, fname), e));
+        }
+    };
+
+    if exists {
+        if !image.can_replace {
+            return Err(Error::Commit(recover_path(&image.parent, fname),
+                io::ErrorKind::AlreadyExists.into()));
+        }
+        image.parent.local_exchange(&image.temporary_name, fname)
+            .map_err(|e| Error::Commit(
+                recover_path(&image.parent, fname), e))?;
+        remove_dir_recursive(&image.parent, &image.temporary_name)?;
+    } else {
+        image.parent.local_rename(&image.temporary_name, fname)
+            .map_err(|e| Error::Commit(
+                recover_path(&image.parent, fname), e))?;
+    }
 
     Ok(())
 }

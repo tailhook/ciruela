@@ -38,7 +38,8 @@ pub fn start(sys: &Subsystem, cmd: Downloading) {
         spawn(sys1.disk.start_image(
                 cmd.config.directory.clone(),
                 index.clone(),
-                cmd.virtual_path.clone())
+                cmd.virtual_path.clone(),
+                cmd.replacing)
             .then(move |res| -> Result<(), ()> {
                 match res {
                     Ok(img) => {
@@ -49,7 +50,7 @@ pub fn start(sys: &Subsystem, cmd: Downloading) {
                         sys1.meta.dir_committed(&cmd.virtual_path);
                         sys1.remote.notify_received_image(index.id.clone(),
                             &cmd2.virtual_path);
-                        info!("Image already exists");
+                        info!("Image already exists {:?}", cmd);
                     }
                     Err(e) => {
                         error!("Can't start image {:?}: {}",
@@ -137,7 +138,8 @@ pub fn start(sys: &Subsystem, cmd: Downloading) {
             sys1.disk.start_image(
                 cmd.config.directory.clone(),
                 index.clone(),
-                cmd.virtual_path.clone())
+                cmd.virtual_path.clone(),
+                cmd.replacing)
             .then(move |res| -> Result<(), ()> {
                 match res {
                     Ok(img) => {

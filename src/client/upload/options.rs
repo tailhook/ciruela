@@ -4,7 +4,7 @@ use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
-use argparse::{ArgumentParser, ParseOption, Collect};
+use argparse::{ArgumentParser, ParseOption, Collect, StoreTrue};
 use ssh_keys::PrivateKey;
 use ssh_keys::openssh::parse_private_key;
 
@@ -21,6 +21,7 @@ pub struct UploadOptions {
     pub identities: Vec<String>,
     pub key_vars: Vec<String>,
     pub private_keys: Vec<PrivateKey>,
+    pub replace: bool,
 }
 
 fn keys_from_file(filename: &Path, allow_non_existent: bool,
@@ -72,12 +73,17 @@ impl UploadOptions {
             key_vars: Vec::new(),
             private_keys: Vec::new(),
             target_urls: Vec::new(),
+            replace: false,
         }
     }
     pub fn define<'x, 'y>(&'x mut self, ap: &'y mut ArgumentParser<'x>) {
         ap.refer(&mut self.source_directory)
             .add_option(&["-d", "--directory"], ParseOption, "
                 Directory to scan and upload
+            ");
+        ap.refer(&mut self.replace)
+            .add_option(&["--replace"], StoreTrue, "
+                Replace directory if not exists
             ");
         ap.refer(&mut self.target_urls)
             .add_argument("destination", Collect, "

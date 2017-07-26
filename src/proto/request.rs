@@ -13,7 +13,7 @@ use mopa;
 use {ImageId};
 use proto::{REQUEST, RESPONSE, NOTIFICATION};
 use proto::message;
-use proto::dir_commands::AppendDir;
+use proto::dir_commands::{AppendDir, ReplaceDir};
 use proto::index_commands::GetIndex;
 use proto::block_commands::GetBlock;
 
@@ -145,6 +145,7 @@ pub trait RequestDispatcher {
         use proto::message::Response as R;
         match response {
             R::AppendDir(x) => respond::<AppendDir, _>(request_id, x, self),
+            R::ReplaceDir(x) => respond::<ReplaceDir, _>(request_id, x, self),
             R::GetIndex(x) => respond::<GetIndex, _>(request_id, x, self),
             R::GetBlock(x) => respond::<GetBlock, _>(request_id, x, self),
         }

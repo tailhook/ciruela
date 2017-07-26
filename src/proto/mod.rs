@@ -21,7 +21,8 @@ pub use self::server::serialize_response;
 pub use self::signature::{Signature, SigData, sign};
 pub use self::stream_ext::StreamExt;
 
-pub use self::dir_commands::{AppendDir, AppendDirAck, ReplaceDir};
+pub use self::dir_commands::{AppendDir, AppendDirAck};
+pub use self::dir_commands::{ReplaceDir, ReplaceDirAck};
 pub use self::index_commands::{PublishImage, ReceivedImage};
 pub use self::index_commands::{GetIndex, GetIndexResponse};
 pub use self::block_commands::{GetBlock, GetBlockResponse};

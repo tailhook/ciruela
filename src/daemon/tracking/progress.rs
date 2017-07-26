@@ -10,8 +10,10 @@ use ciruela::{ImageId, VPath};
 use config::Directory;
 use tracking::Block;
 
+#[derive(Debug)]
 pub struct Downloading {
     pub virtual_path: VPath,
+    pub replacing: bool,
     pub image_id: ImageId,
     pub config: Arc<Directory>,
     pub index_fetched: AtomicBool,

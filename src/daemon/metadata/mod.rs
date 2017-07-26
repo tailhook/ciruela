@@ -1,7 +1,7 @@
 mod error;
 mod dir;
 
-mod append_dir;
+mod upload;
 mod first_scan;
 mod read_index;
 mod store_index;
@@ -16,6 +16,7 @@ use futures_cpupool::{CpuPool, CpuFuture};
 use openat::Metadata;
 use ciruela::database::signatures::State;
 use ciruela::proto::{AppendDir, AppendDirAck};
+use ciruela::proto::{ReplaceDir, ReplaceDirAck};
 use ciruela::{ImageId, VPath};
 use config::Config;
 use index::Index;
@@ -59,7 +60,15 @@ impl Meta {
     {
         let meta = self.clone();
         self.cpu_pool.spawn_fn(move || {
-            append_dir::start(params, &meta)
+            upload::start_append(params, &meta)
+        })
+    }
+    pub fn replace_dir(&self, params: ReplaceDir)
+        -> CpuFuture<ReplaceDirAck, Error>
+    {
+        let meta = self.clone();
+        self.cpu_pool.spawn_fn(move || {
+            upload::start_replace(params, &meta)
         })
     }
     pub fn dir_committed(&self, path: &VPath) {
@@ -68,7 +77,9 @@ impl Meta {
         self.cpu_pool.spawn_fn(move || -> Result<(), ()> {
             // need to offload to disk thread because we hold ``writing`` lock
             // in disk thread too
-            meta.writing().remove(&path);
+            if meta.writing().remove(&path).is_none() {
+                error!("Spurious ack of writing {:?}", path);
+            }
             Ok(())
         }).forget();
     }

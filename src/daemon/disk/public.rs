@@ -30,6 +30,7 @@ pub struct Image {
     pub temporary_name: String,
     pub temporary: Dir,
     pub index: Index,
+    pub can_replace: bool,
 }
 
 fn check_exists(dir: &Dir, name: &str) -> Result<(), Error> {
@@ -55,7 +56,7 @@ impl Disk {
         }))
     }
     pub fn start_image(&self, base_dir: PathBuf,
-        index: Index, virtual_path: VPath)
+        index: Index, virtual_path: VPath, can_replace: bool)
         -> CpuFuture<Image, Error>
     {
         self.pool.spawn_fn(move || {
@@ -65,9 +66,12 @@ impl Disk {
                 DirBorrow::Borrow(_) => dir,
                 DirBorrow::Owned(dir) => dir,
             };
-            check_exists(&dir, virtual_path.final_name())?;
+            if !can_replace {
+                check_exists(&dir, virtual_path.final_name())?;
+            }
 
             let tmp_name = format!(".tmp.{}", virtual_path.final_name());
+            remove_dir_recursive(&dir, &tmp_name)?;
             let temp_dir = ensure_subdir(&dir, &tmp_name)?;
             Ok(Image {
                 virtual_path: virtual_path,
@@ -75,6 +79,7 @@ impl Disk {
                 temporary_name: tmp_name,
                 temporary: temp_dir,
                 index: index,
+                can_replace: can_replace,
             })
         })
     }

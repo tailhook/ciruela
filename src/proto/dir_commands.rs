@@ -30,6 +30,11 @@ pub struct AppendDirAck {
     pub accepted: bool,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ReplaceDirAck {
+    pub accepted: bool,
+}
+
 
 impl Request for AppendDir {
     type Response = AppendDirAck;
@@ -41,5 +46,18 @@ impl Request for AppendDir {
 impl Response for AppendDirAck {
     fn type_name(&self) -> &'static str {
         return "AppendDir";
+    }
+}
+
+impl Request for ReplaceDir {
+    type Response = ReplaceDirAck;
+    fn type_name(&self) -> &'static str {
+        return "ReplaceDir";
+    }
+}
+
+impl Response for ReplaceDirAck {
+    fn type_name(&self) -> &'static str {
+        return "ReplaceDir";
     }
 }
