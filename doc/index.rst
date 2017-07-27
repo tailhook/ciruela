@@ -10,6 +10,7 @@ Ciruela
    :maxdepth: 2
    :caption: User Guide:
 
+   use-cases/index
    config/index
    client/index
 
