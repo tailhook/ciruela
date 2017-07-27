@@ -8,7 +8,7 @@ readme = "README.rst"
 keywords = ["p2p", "file", "sync", "synchronization"]
 homepage = "http://github.com/tailhook/ciruela"
 documentation = "http://docs.rs/ciruela/"
-version = "0.1.6"
+version = "0.1.7"
 authors = ["paul@colomiets.name"]
 
 [dependencies]
