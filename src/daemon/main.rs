@@ -18,6 +18,7 @@ extern crate tk_easyloop;
 extern crate tk_http;
 extern crate tk_listen;
 extern crate tokio_core;
+extern crate ssh_keys;
 
 #[macro_use] extern crate log;
 #[macro_use] extern crate lazy_static;
@@ -115,6 +116,7 @@ fn main() {
         Ok(configs) => {
             Arc::new(config::Config {
                 db_dir: db_dir,
+                config_dir: config_dir,
                 dirs: configs,
             })
         }

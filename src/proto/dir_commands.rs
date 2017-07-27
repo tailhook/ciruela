@@ -1,7 +1,8 @@
 use std::time::SystemTime;
 
 use {ImageId, VPath};
-use proto::{Signature, Request, Response};
+use proto::{Signature, SigData, Request, Response};
+use time::to_ms;
 
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -35,6 +36,25 @@ pub struct ReplaceDirAck {
     pub accepted: bool,
 }
 
+impl AppendDir {
+    pub fn sig_data(&self) -> SigData {
+        SigData {
+            path: self.path.as_ref().to_str().expect("path is string"),
+            image: self.image.as_ref(),
+            timestamp: to_ms(self.timestamp),
+        }
+    }
+}
+
+impl ReplaceDir {
+    pub fn sig_data(&self) -> SigData {
+        SigData {
+            path: self.path.as_ref().to_str().expect("path is string"),
+            image: self.image.as_ref(),
+            timestamp: to_ms(self.timestamp),
+        }
+    }
+}
 
 impl Request for AppendDir {
     type Response = AppendDirAck;

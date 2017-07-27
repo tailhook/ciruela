@@ -7,7 +7,7 @@ use serde::{Serialize, Serializer};
 use serde::{Deserialize, Deserializer};
 use serde::de::{Visitor, SeqAccess, Error};
 use serde_cbor::ser::Serializer as Cbor;
-use ssh_keys::PrivateKey;
+use ssh_keys::{PrivateKey, PublicKey};
 
 
 pub enum Signature {
@@ -55,6 +55,26 @@ pub fn sign(src: SigData, keys: &[PrivateKey]) -> Vec<Signature> {
     info!("Image {}[{}] signed with {} keys",
         src.path, src.image.to_hex(), res.len());
     return res;
+}
+
+pub fn verify(src: &SigData, signature: &Signature, keys: &[PublicKey])
+    -> bool
+{
+    let mut buf = Vec::with_capacity(100);
+    (src.path, Bytes(src.image), src.timestamp)
+        .serialize(&mut Cbor::new(&mut buf))
+        .expect("Can always serialize signature data");
+    keys.iter().any(|key| {
+        match (key, signature) {
+            (&PublicKey::Ed25519(ref key), &Signature::SshEd25519(ref sig))
+            => {
+                ed25519::verify(&buf[..], &key[..], &sig[..])
+            }
+            _ => {
+                false
+            }
+        }
+    })
 }
 
 impl Serialize for Signature {

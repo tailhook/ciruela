@@ -1,16 +1,19 @@
-use std::io::{BufReader, BufWriter};
-use std::fs::File;
-use std::sync::Arc;
 use std::collections::hash_map::Entry;
+use std::fs::File;
+use std::io::{BufReader, BufWriter};
+use std::sync::Arc;
 
 use serde::Serialize;
 use serde_cbor::de::from_reader as read_cbor;
 use serde_cbor::error::Error as CborError;
 use serde_cbor::ser::Serializer as Cbor;
 
+use ciruela::database::signatures::{State, SignatureEntry};
 use ciruela::proto::{AppendDir, AppendDirAck};
 use ciruela::proto::{ReplaceDir, ReplaceDirAck};
-use ciruela::database::signatures::{State, SignatureEntry};
+use ciruela::proto::{SigData, Signature, verify};
+use config::Directory;
+use metadata::keys::read_upload_keys;
 use metadata::{Meta, Error};
 
 
@@ -26,10 +29,22 @@ fn read_state(f: File) -> Result<State, CborError> {
     read_cbor(&mut BufReader::new(f))
 }
 
+fn check_keys(sigdata: &SigData, signatures: &Vec<Signature>,
+              config: &Arc<Directory>, meta: &Meta)
+    -> Result<bool, Error>
+{
+    let keys = read_upload_keys(config, meta)?;
+    // If at least one key is allowed we keep all signatures for the key
+    // some server needs them
+    debug!("Keys {:?} resulted into {} keys read",
+        config.upload_keys, keys.len());
+    Ok(signatures.iter().any(|sig| verify(sigdata, sig, &keys)))
+}
+
 pub fn start_append(params: AppendDir, meta: &Meta)
     -> Result<AppendDirAck, Error>
 {
-    let vpath = params.path;
+    let vpath = params.path.clone();
     let config = if let Some(cfg) = meta.config.dirs.get(vpath.key()) {
         if vpath.level() != cfg.num_levels {
             return Err(Error::LevelMismatch(vpath.level(), cfg.num_levels));
@@ -38,6 +53,15 @@ pub fn start_append(params: AppendDir, meta: &Meta)
     } else {
         return Err(Error::PathNotFound(vpath));
     };
+
+    if !check_keys(&params.sig_data(), &params.signatures, config, meta)? {
+        warn!("{:?} has no valid signatures. Upload-keys: {:?}",
+              params, config.upload_keys);
+        return Ok(AppendDirAck {
+            accepted: false,
+        });
+    }
+
     let dir = meta.signatures()?.ensure_dir(vpath.parent_rel())?;
 
     let timestamp = params.timestamp;
@@ -98,7 +122,7 @@ pub fn start_append(params: AppendDir, meta: &Meta)
 pub fn start_replace(params: ReplaceDir, meta: &Meta)
     -> Result<ReplaceDirAck, Error>
 {
-    let vpath = params.path;
+    let vpath = params.path.clone();
     let config = if let Some(cfg) = meta.config.dirs.get(vpath.key()) {
         if vpath.level() != cfg.num_levels {
             return Err(Error::LevelMismatch(vpath.level(), cfg.num_levels));
@@ -112,6 +136,13 @@ pub fn start_replace(params: ReplaceDir, meta: &Meta)
             accepted: false,
         });
     }
+
+    if !check_keys(&params.sig_data(), &params.signatures, config, meta)? {
+        return Ok(ReplaceDirAck {
+            accepted: false,
+        });
+    }
+
     let dir = meta.signatures()?.ensure_dir(vpath.parent_rel())?;
 
     let timestamp = params.timestamp;

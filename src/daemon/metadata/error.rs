@@ -88,6 +88,11 @@ quick_error! {
             cause(e)
             from()
         }
+        ReadKey(path: PathBuf, e: io::Error) {
+            description("error reading key")
+            display("error reading key at {:?}: {}", path, e)
+            cause(e)
+        }
         IndexNotFound {
             description("index not found")
         }

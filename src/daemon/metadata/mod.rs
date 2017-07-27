@@ -1,5 +1,6 @@
 mod error;
 mod dir;
+mod keys;
 
 mod upload;
 mod first_scan;
