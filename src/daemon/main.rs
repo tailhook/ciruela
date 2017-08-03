@@ -1,4 +1,5 @@
 #![recursion_limit="100"]
+extern crate abstract_ns;
 extern crate argparse;
 extern crate ciruela;
 extern crate crossbeam;
@@ -7,6 +8,7 @@ extern crate env_logger;
 extern crate futures;
 extern crate futures_cpupool;
 extern crate hex;
+extern crate ns_std_threaded;
 extern crate openat;
 extern crate quire;
 extern crate regex;
@@ -14,13 +16,13 @@ extern crate rustc_serialize;
 extern crate scan_dir;
 extern crate serde;
 extern crate serde_cbor;
+extern crate ssh_keys;
 extern crate time;
 extern crate tk_bufstream;
 extern crate tk_easyloop;
 extern crate tk_http;
 extern crate tk_listen;
 extern crate tokio_core;
-extern crate ssh_keys;
 
 #[macro_use] extern crate log;
 #[macro_use] extern crate lazy_static;
@@ -37,7 +39,11 @@ use std::path::PathBuf;
 use std::process::exit;
 use std::sync::Arc;
 
+use abstract_ns::RouterBuilder;
 use argparse::{ArgumentParser, Parse, Store, Print, StoreTrue};
+use futures_cpupool::CpuPool;
+use ns_std_threaded::ThreadedResolver;
+
 
 mod cleanup;
 mod config;
@@ -133,6 +139,10 @@ fn main() {
         }
     };
 
+    let mut router = RouterBuilder::new();
+    router.add_default(ThreadedResolver::new(CpuPool::new(1)));
+    let router = router.into_resolver();
+
     let (tracking, tracking_init) = tracking::Tracking::new();
 
     let (disk, disk_init) = match disk::Disk::new(disk_threads, &config) {
@@ -161,12 +171,11 @@ fn main() {
             Some(config.config_dir.join("peers.txt"))
         });
 
-
     tk_easyloop::run_forever(|| -> Result<(), Box<Error>> {
         http::start(addr, &meta, &remote)?;
         disk::start(disk_init, &meta)?;
         tracking::start(tracking_init, &config, &meta, &remote, &disk)?;
-        peers::start(peers_init, &config, &disk)?;
+        peers::start(peers_init, &config, &disk, &router)?;
         Ok(())
     }).map_err(|e| {
         error!("Startup error: {}", e);
