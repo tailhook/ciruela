@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use futures_cpupool::{CpuPool, CpuFuture};
 use openat::{Dir, SimpleType};
+use regex::Regex;
 
 use ciruela::VPath;
 use config::{Config, Directory};
@@ -152,6 +153,41 @@ impl Disk {
             } else {
                 Ok(Vec::new())
             }
+        })
+    }
+    pub fn read_peer_list(&self, path: &Path) -> CpuFuture<Vec<String>, ()> {
+        let path = path.to_path_buf();
+        self.pool.spawn_fn(move || {
+            let f = match File::open(&path) {
+                Ok(f) => f,
+                Err(e) => {
+                    warn!("Can't read peers {:?}: {}", path, e);
+                    return Ok(Vec::new());
+                }
+            };
+            let host_re = Regex::new(r#"^[a-zA-Z0-9\._-]+$"#)
+                .expect("regex compiles");
+            let mut result = Vec::new();
+            for line in BufReader::new(f).lines() {
+                let line = match line {
+                    Ok(line) => line,
+                    Err(e) => {
+                        warn!("Error reading peers {:?}: {}. \
+                            Already read {}.", path, e, result.len());
+                        return Ok(result);
+                    }
+                };
+                let line = line.trim();
+                if line.len() == 0 || line.starts_with('#') {
+                    continue;
+                }
+                if !host_re.is_match(line) {
+                    warn!("Invalid hostname: {:?}", line);
+                    continue;
+                }
+                result.push(line.to_string());
+            }
+            Ok(result)
         })
     }
 }

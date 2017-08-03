@@ -132,7 +132,7 @@ impl Subsystem {
     }
 }
 
-pub fn start(init: TrackingInit, config: Arc<Config>,
+pub fn start(init: TrackingInit, config: &Arc<Config>,
     meta: &Meta, remote: &Remote, disk: &Disk)
     -> Result<(), String> // actually void
 {

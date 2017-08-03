@@ -1,6 +1,7 @@
 #![recursion_limit="100"]
 extern crate argparse;
 extern crate ciruela;
+extern crate crossbeam;
 extern crate dir_signature;
 extern crate env_logger;
 extern crate futures;
@@ -45,6 +46,7 @@ mod disk;
 mod http;
 mod index;
 mod metadata;
+mod peers;
 mod remote;
 mod tracking;
 mod websocket;
@@ -130,12 +132,6 @@ fn main() {
             exit(1);
         }
     };
-    if !cantal {
-        let peers = config::read_peers(&config.config_dir.join("peers.txt"));
-        if peers.len() == 0 {
-            info!("No other peers specified, running in standalone mode");
-        }
-    }
 
     let (tracking, tracking_init) = tracking::Tracking::new();
 
@@ -160,11 +156,17 @@ fn main() {
 
     let remote = remote::Remote::new();
 
+    let (peers, peers_init) = peers::Peers::new(
+        if cantal { None } else {
+            Some(config.config_dir.join("peers.txt"))
+        });
+
 
     tk_easyloop::run_forever(|| -> Result<(), Box<Error>> {
         http::start(addr, &meta, &remote)?;
         disk::start(disk_init, &meta)?;
-        tracking::start(tracking_init, config, &meta, &remote, &disk)?;
+        tracking::start(tracking_init, &config, &meta, &remote, &disk)?;
+        peers::start(peers_init, &config, &disk)?;
         Ok(())
     }).map_err(|e| {
         error!("Startup error: {}", e);

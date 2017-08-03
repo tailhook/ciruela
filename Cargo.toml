@@ -43,6 +43,8 @@ tk-listen = "0.1.0"
 lazy_static = "0.2.8"
 matches = "0.1.6"
 regex = "0.2.2"
+crossbeam = "0.3.0"
+tk-cantal = "0.2.0"
 
 [dev-dependencies]
 humantime = "1.0.0"

@@ -1,11 +1,8 @@
 use std::collections::HashMap;
-use std::fs::File;
-use std::io::{BufReader, BufRead};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-use regex;
 use scan_dir::ScanDir;
 use quire::validate::{Directory as Dir, Structure, Numeric, Scalar, Sequence};
 use quire::{parse_config, Options, ErrorList, De};
@@ -66,37 +63,4 @@ pub fn read_dirs(path: &Path)
         }
         Ok::<_, ErrorList>(res)
     }).map_err(|e| e.to_string()).and_then(|v| v.map_err(|e| e.to_string()))
-}
-
-pub fn read_peers(path: &Path) -> Vec<String> {
-    let f = match File::open(path) {
-        Ok(f) => f,
-        Err(e) => {
-            warn!("Can't read peers {:?}: {}", path, e);
-            return Vec::new();
-        }
-    };
-    let host_re = regex::Regex::new(r#"^[a-zA-Z0-9\._-]+$"#)
-        .expect("regex compiles");
-    let mut result = Vec::new();
-    for line in BufReader::new(f).lines() {
-        let line = match line {
-            Ok(line) => line,
-            Err(e) => {
-                warn!("Error reading peers {:?}: {}. \
-                    Already read {}.", path, e, result.len());
-                return result;
-            }
-        };
-        let line = line.trim();
-        if line.len() == 0 || line.starts_with('#') {
-            continue;
-        }
-        if !host_re.is_match(line) {
-            warn!("Invalid hostname: {:?}", line);
-            continue;
-        }
-        result.push(line.to_string());
-    }
-    return result;
 }
