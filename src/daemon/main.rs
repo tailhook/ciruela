@@ -8,6 +8,7 @@ extern crate futures_cpupool;
 extern crate hex;
 extern crate openat;
 extern crate quire;
+extern crate regex;
 extern crate rustc_serialize;
 extern crate scan_dir;
 extern crate serde;
@@ -35,7 +36,7 @@ use std::path::PathBuf;
 use std::process::exit;
 use std::sync::Arc;
 
-use argparse::{ArgumentParser, Parse, Store, Print};
+use argparse::{ArgumentParser, Parse, Store, Print, StoreTrue};
 
 mod cleanup;
 mod config;
@@ -76,6 +77,7 @@ fn main() {
     let mut ip: IpAddr = "0.0.0.0".parse().unwrap();
     let mut metadata_threads: usize = 2;
     let mut disk_threads: usize = 8;
+    let mut cantal: bool = false;
     {
         let mut ap = ArgumentParser::new();
         ap.refer(&mut config_dir)
@@ -106,6 +108,9 @@ fn main() {
         ap.refer(&mut disk_threads)
             .add_option(&["--disk-threads"], Store,
                 "A threads for reading/writing disk data (default 8)");
+        ap.refer(&mut cantal)
+            .add_option(&["--cantal"], StoreTrue,
+                "Connect to cantal to fetch/update peer list");
         ap.add_option(&["--version"],
             Print(env!("CARGO_PKG_VERSION").to_string()),
             "Show version");
@@ -125,6 +130,12 @@ fn main() {
             exit(1);
         }
     };
+    if !cantal {
+        let peers = config::read_peers(&config.config_dir.join("peers.txt"));
+        if peers.len() == 0 {
+            info!("No other peers specified, running in standalone mode");
+        }
+    }
 
     let (tracking, tracking_init) = tracking::Tracking::new();
 

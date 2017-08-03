@@ -15,11 +15,17 @@ All configs are in base directory, by default it's ``/etc/ciruela``:
 * ``configs/*.yaml`` -- a list of configs for syncing images
 * ``overrides.yaml`` -- contains overrides of things in ``configs`` for this
   specific machine
+* ``peers.txt`` -- plain list of IP addresses and hostnames to distribute
+  files too, only used/needed if ``--cantal`` command-line option is not
+  specified.
 
 If ``master.key`` exists you can't edit ``keys`` and ``configs`` locally,
 they will be reset or deleted (because of checksum mismatch) on next service
 restart or earlier. You can edit overrides, however.
 
-Thigs in ``configs/*.yaml`` are all equal. You can keep everything in single
+Things in ``configs/*.yaml`` are all equal. You can keep everything in single
 file or have multiple ones at your convenience.
 
+.. note:: All configs are reloaded only on restart of the server. Restarting
+   should be seamless most of the time (currently we don't continue upload
+   in client when server disconnects, but we will be doing that too).
