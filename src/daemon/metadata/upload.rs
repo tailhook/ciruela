@@ -17,12 +17,17 @@ use metadata::keys::read_upload_keys;
 use metadata::{Meta, Error};
 
 
+fn sort_signatures(new: &mut Vec<SignatureEntry>) {
+    new.sort();
+}
+
 fn append_signatures(state: &mut State, new: Vec<SignatureEntry>) {
     for sig in new.into_iter() {
         if state.signatures.iter().find(|&x| *x == sig).is_none() {
             state.signatures.push(sig);
         }
     }
+    sort_signatures(&mut state.signatures);
 }
 
 fn read_state(f: File) -> Result<State, CborError> {
@@ -65,17 +70,19 @@ pub fn start_append(params: AppendDir, meta: &Meta)
     let dir = meta.signatures()?.ensure_dir(vpath.parent_rel())?;
 
     let timestamp = params.timestamp;
-    let signatures = params.signatures.into_iter()
+    let mut signatures = params.signatures.into_iter()
         .map(|sig| SignatureEntry {
             timestamp: timestamp,
             signature: sig,
         }).collect::<Vec<_>>();
+    sort_signatures(&mut signatures);
     let state_file = format!("{}.state", vpath.final_name());
 
     let mut writing = meta.writing();
     let state = match writing.entry(vpath.clone()) {
         Entry::Vacant(e) => {
-            if let Some(mut state) = dir.read_file(&state_file, read_state)? {
+            if let Some(mut state) = dir.read_file(&state_file, read_state)?
+            {
                 if state.image == params.image {
                     append_signatures(&mut state, signatures);
                     let state = Arc::new(state);
@@ -146,11 +153,12 @@ pub fn start_replace(params: ReplaceDir, meta: &Meta)
     let dir = meta.signatures()?.ensure_dir(vpath.parent_rel())?;
 
     let timestamp = params.timestamp;
-    let signatures = params.signatures.into_iter()
+    let mut signatures = params.signatures.into_iter()
         .map(|sig| SignatureEntry {
             timestamp: timestamp,
             signature: sig,
         }).collect::<Vec<_>>();
+    sort_signatures(&mut signatures);
     let state_file = format!("{}.state", vpath.final_name());
 
     let mut writing = meta.writing();

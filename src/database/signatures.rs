@@ -7,7 +7,7 @@ use proto::Signature;
 use time::{to_ms, from_ms};
 
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct SignatureEntry {
     pub timestamp: SystemTime,
     pub signature: Signature,

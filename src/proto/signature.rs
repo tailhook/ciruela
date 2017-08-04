@@ -1,4 +1,5 @@
 use std::fmt;
+use std::cmp::Ordering;
 
 use base64;
 use crypto::ed25519;
@@ -205,6 +206,23 @@ impl PartialEq for Signature {
         use self::Signature::*;
         match (self, other) {
             (&SshEd25519(ref x), &SshEd25519(ref y)) => &x[..] == &y[..],
+        }
+    }
+}
+
+impl Eq for Signature { }
+
+impl PartialOrd for Signature {
+    fn partial_cmp(&self, other: &Signature) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Signature {
+    fn cmp(&self, other: &Signature) -> Ordering {
+        use self::Signature::*;
+        match (self, other) {
+            (&SshEd25519(ref x), &SshEd25519(ref y)) => x[..].cmp(&y[..]),
         }
     }
 }
