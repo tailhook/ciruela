@@ -1,17 +1,23 @@
-use disk::Disk;
 use std::path::PathBuf;
+use std::sync::Arc;
+
+use disk::Disk;
 
 use abstract_ns::{Router, Resolver};
+use crossbeam::sync::ArcCell;
 use futures::{Future, Stream};
 use futures::stream::iter;
 use tk_easyloop::spawn;
 
 use peers::Peer;
 
-pub fn read_peers(peer_file: PathBuf, disk: &Disk,
+
+pub fn read_peers(cell: &Arc<ArcCell<Vec<Peer>>>,
+    peer_file: PathBuf, disk: &Disk,
     router: &Router, port: u16)
 {
     let router = router.clone();
+    let cell = cell.clone();
     spawn(disk.read_peer_list(&peer_file)
         .and_then(move |lst| {
             if lst.len() == 0 {
@@ -47,7 +53,9 @@ pub fn read_peers(peer_file: PathBuf, disk: &Disk,
                 .filter_map(|x| x)
                 .collect()
         })
-        .map(|lst| {
-            debug!("Host list {:#?}", lst);
+        .map(move |lst| {
+            debug!("Peer list {:?}",
+                lst.iter().map(|p| &p.name).collect::<Vec<_>>());
+            cell.set(Arc::new(lst));
         }));
 }
