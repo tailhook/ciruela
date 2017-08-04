@@ -9,6 +9,7 @@ use quire::{parse_config, Options, ErrorList, De};
 
 
 pub struct Config {
+    pub port: u16,
     pub db_dir: PathBuf,
     pub config_dir: PathBuf,
     pub dirs: HashMap<String, Arc<Directory>>,

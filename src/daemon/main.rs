@@ -19,6 +19,7 @@ extern crate serde_cbor;
 extern crate ssh_keys;
 extern crate time;
 extern crate tk_bufstream;
+extern crate tk_cantal;
 extern crate tk_easyloop;
 extern crate tk_http;
 extern crate tk_listen;
@@ -128,6 +129,7 @@ fn main() {
     let config = match config::read_dirs(&config_dir.join("configs")) {
         Ok(configs) => {
             Arc::new(config::Config {
+                port: port,
                 db_dir: db_dir,
                 config_dir: config_dir,
                 dirs: configs,
