@@ -1,8 +1,10 @@
 #![recursion_limit="100"]
 extern crate abstract_ns;
 extern crate argparse;
+extern crate blake2;
 extern crate ciruela;
 extern crate crossbeam;
+extern crate digest_writer;
 extern crate dir_signature;
 extern crate env_logger;
 extern crate futures;
@@ -29,6 +31,7 @@ extern crate tokio_core;
 #[macro_use] extern crate lazy_static;
 #[macro_use] extern crate matches;
 #[macro_use] extern crate quick_error;
+#[macro_use] extern crate serde_derive;
 
 #[cfg(test)] extern crate humantime;
 #[cfg(test)] extern crate rand;

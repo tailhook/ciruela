@@ -1,5 +1,6 @@
 mod file;
 mod cantal;
+mod config;
 
 use std::path::{PathBuf};
 use std::net::SocketAddr;
