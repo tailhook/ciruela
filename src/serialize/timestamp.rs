@@ -5,14 +5,14 @@ use serde::{Serializer, Deserializer, Deserialize};
 use time::{to_ms, from_ms};
 
 
-pub fn write_timestamp<S>(tm: &SystemTime, ser: S) -> Result<S::Ok, S::Error>
+pub fn serialize<S>(tm: &SystemTime, ser: S) -> Result<S::Ok, S::Error>
     where S: Serializer
 {
     ser.serialize_u64(to_ms(*tm))
 }
 
 
-pub fn read_timestamp<'a, D>(des: D) -> Result<SystemTime, D::Error>
+pub fn deserialize<'a, D>(des: D) -> Result<SystemTime, D::Error>
     where D: Deserializer<'a>
 {
     let ms = u64::deserialize(des)?;

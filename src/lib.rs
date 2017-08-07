@@ -23,6 +23,7 @@ mod virtual_path;
 pub mod proto;
 pub mod database;
 pub mod time;
+pub mod serialize;
 
 pub use id::ImageId;
 pub use proto::Hash;

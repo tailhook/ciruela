@@ -2,6 +2,7 @@ use std::time::SystemTime;
 
 use {ImageId, VPath};
 use proto::{Signature, SigData, Request, Response};
+use serialize::timestamp;
 use time::to_ms;
 
 
@@ -9,8 +10,7 @@ use time::to_ms;
 pub struct AppendDir {
     pub path: VPath,
     pub image: ImageId,
-    #[serde(deserialize_with="::proto::serializers::read_timestamp")]
-    #[serde(serialize_with="::proto::serializers::write_timestamp")]
+    #[serde(with="timestamp")]
     pub timestamp: SystemTime,
     pub signatures: Vec<Signature>,
 }
@@ -20,8 +20,7 @@ pub struct ReplaceDir {
     pub path: VPath,
     pub image: ImageId,
     pub old_image: Option<ImageId>,
-    #[serde(deserialize_with="::proto::serializers::read_timestamp")]
-    #[serde(serialize_with="::proto::serializers::write_timestamp")]
+    #[serde(with="timestamp")]
     pub timestamp: SystemTime,
     pub signatures: Vec<Signature>,
 }

@@ -1,7 +1,6 @@
 mod client;
 pub mod message;
 mod request;
-mod serializers;
 mod server;
 mod signature;
 mod stream_ext;
