@@ -1,6 +1,7 @@
 mod file;
 mod cantal;
 mod config;
+mod gossip;
 
 use std::path::{PathBuf};
 use std::net::SocketAddr;

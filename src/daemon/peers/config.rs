@@ -4,6 +4,7 @@ use std::time::Duration;
 use digest_writer;
 use blake2::{Blake2b, Digest};
 use serde_cbor::ser::to_writer;
+use typenum::U32;
 
 use ciruela::serialize;
 use config::Directory;
@@ -28,9 +29,9 @@ pub fn get_hash(cfg: &Arc<Directory>) -> [u8; 64] {
         keep_max_directories: cfg.keep_max_directories,
         keep_recent: *cfg.keep_recent,
     };
-    let mut dig = digest_writer::Writer::new(Blake2b::default());
+    let mut dig = digest_writer::Writer::new(Blake2b::<U32>::new());
     to_writer(&mut dig, &cfg)
         .expect("can always serialize/hash structure");
-    result[..].copy_from_slice(dig.into_inner().result().as_slice());
+    result[..].copy_from_slice(&dig.into_inner().result()[..]);
     return result;
 }

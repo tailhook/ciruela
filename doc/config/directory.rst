@@ -27,7 +27,7 @@ This is somewhat minimal config:
    upload-keys: &keys [user1, ci2]
    download-keys: *keys
 
-All propererties here are required except ``*-keys``. We may make more
+All properties above are required, except ``*-keys``. We may make more
 settings optional later, when more patterns appear. Note here we reuse same
 list of keys both for ``upload-keys`` and ``download-keys`` by using YAML
 alias and anchor.

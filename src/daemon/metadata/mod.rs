@@ -1,12 +1,12 @@
-mod error;
 mod dir;
-mod keys;
-
-mod upload;
+mod error;
 mod first_scan;
+mod keys;
 mod read_index;
-mod store_index;
 mod scan;
+mod store_index;
+mod upload;
+pub mod reconciliation;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard};

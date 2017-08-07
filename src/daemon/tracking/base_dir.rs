@@ -2,8 +2,11 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 
+use atomic::Atomic;
 use ciruela::VPath;
 use config::Directory;
+
+use metadata::reconciliation::Hash;
 
 
 #[derive(Debug)]

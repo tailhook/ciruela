@@ -39,6 +39,7 @@ pub struct State {
     in_progress: HashSet<Arc<Downloading>>,
 
     base_dirs: HashMap<VPath, Arc<BaseDir>>,
+    base_dir_list: Vec<Arc<BaseDir>>,
 }
 
 #[derive(Clone)]
@@ -80,6 +81,7 @@ impl Tracking {
                 block_futures: HashMap::new(),
                 in_progress: HashSet::new(),
                 base_dirs: HashMap::new(),
+                base_dir_list: Vec::new(),
             })),
             chan: tx,
         };

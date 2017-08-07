@@ -19,9 +19,13 @@ pub fn start(sys: &Subsystem, cmd: Downloading) {
     let cmd = Arc::new(cmd);
     let mut state = &mut *sys.state();
     state.in_progress.insert(cmd.clone());
+    let ref mut lst = state.base_dir_list;
     state.base_dirs.entry(cmd.virtual_path.parent())
         .or_insert_with(|| {
-            Arc::new(BaseDir::new(cmd.virtual_path.parent(), &cmd.config))
+            let new = Arc::new(
+                BaseDir::new(cmd.virtual_path.parent(), &cmd.config));
+            lst.push(new.clone());
+            new
         })
         .new_subdir();
 
