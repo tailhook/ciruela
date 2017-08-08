@@ -4,6 +4,7 @@ mod progress;
 mod first_scan;
 mod cleanup;
 
+use std::net::SocketAddr;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Weak, Mutex, MutexGuard};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -18,6 +19,7 @@ use ciruela::{ImageId, Hash, VPath};
 use config::{Config, Directory};
 use disk::Disk;
 use index::{Index, IndexData};
+use machine_id::MachineId;
 use metadata::Meta;
 use remote::Remote;
 
@@ -105,6 +107,14 @@ impl Tracking {
             blocks_fetched: AtomicUsize::new(0),
             blocks_total: AtomicUsize::new(0),
         }));
+    }
+    pub fn reconcile_dir(&self, path: VPath, hash: Hash,
+        peer_addr: SocketAddr, peer_id: MachineId)
+    {
+        unimplemented!();
+    }
+    pub fn pick_random_dir(&self) -> Option<(VPath, Hash)> {
+        unimplemented!();
     }
     fn send(&self, command: Command) {
         self.chan.send(command).expect("image tracking subsystem is alive")

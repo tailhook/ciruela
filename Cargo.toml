@@ -49,10 +49,10 @@ blake2 = "0.3.0"
 typenum = "1.5.1"
 digest-writer = "0.1.0"
 atomic = "0.3.4"
+rand = "0.3.16"
 
 [dev-dependencies]
 humantime = "1.0.0"
-rand = "0.3.15"
 
 [profile.release]
 debug = true

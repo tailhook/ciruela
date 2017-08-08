@@ -1,6 +1,7 @@
 use std::fmt;
 use std::fs::File;
 use std::io::{self, Read};
+use std::str::FromStr;
 
 use hex::{ToHex, FromHex};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -8,34 +9,42 @@ use serde::de::{Visitor, Error};
 
 
 #[derive(Hash, PartialEq, Eq, Clone)]
-pub struct MachineId([u8; 32]);
+pub struct MachineId([u8; 16]);
 
-
-pub fn machine_id() -> Result<MachineId, io::Error> {
-    let mut buf = String::with_capacity(33);
-    File::open("/etc/machine-id")
-    .and_then(|mut f| f.read_to_string(&mut buf))
-    .and_then(|bytes| if bytes != 32 && bytes != 33  {
-        return Err(io::Error::new(io::ErrorKind::Other,
-            "Wrong length of /etc/machine-id"));
-    } else {
-        let vec: Vec<u8> = FromHex::from_hex(&buf[..])
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-        let mut ar = [0u8; 32];
-        ar.copy_from_slice(&vec);
-        Ok(MachineId(ar))
-    })
-}
 
 struct IdVisitor;
 
 
 impl MachineId {
-    pub fn new(hash: &[u8]) -> MachineId {
-        assert_eq!(hash.len(), 32);
-        let mut val = [0u8; 32];
-        val.copy_from_slice(hash);
-        return MachineId(val);
+    pub fn read() -> Result<MachineId, io::Error> {
+        let mut buf = String::with_capacity(33);
+        File::open("/etc/machine-id")
+        .and_then(|mut f| f.read_to_string(&mut buf))
+        .and_then(|bytes| if bytes != 32 && bytes != 33  {
+            return Err(io::Error::new(io::ErrorKind::Other,
+                "Wrong length of /etc/machine-id"));
+        } else {
+            let vec: Vec<u8> = FromHex::from_hex(&buf[..])
+                .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+            let mut ar = [0u8; 16];
+            ar.copy_from_slice(&vec);
+            Ok(MachineId(ar))
+        })
+    }
+}
+
+impl FromStr for MachineId {
+    type Err = String;
+    fn from_str(hash: &str) -> Result<MachineId, String> {
+        if hash.len() != 32 {
+            return Err(String::from(
+                "MachineId must be exactly 32 hex chars"));
+        }
+        let vec: Vec<u8> = FromHex::from_hex(&hash[..])
+            .map_err(|e| format!("MachineId invalid: {}", e))?;
+        let mut val = [0u8; 16];
+        val.copy_from_slice(&vec);
+        Ok(MachineId(val))
     }
 }
 
@@ -60,8 +69,8 @@ impl<'a> Visitor<'a> for IdVisitor {
     fn visit_bytes<E>(self, value: &[u8]) -> Result<Self::Value, E>
         where E: Error
     {
-        if value.len() == 32 {
-            let mut array = [0u8; 32];
+        if value.len() == 16 {
+            let mut array = [0u8; 16];
             array.copy_from_slice(value);
             Ok(MachineId(array))
         } else {

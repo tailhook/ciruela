@@ -1,5 +1,7 @@
 use std::path::PathBuf;
+use std::net::SocketAddr;
 use std::sync::Arc;
+use std::collections::HashMap;
 
 use disk::Disk;
 
@@ -10,15 +12,17 @@ use futures::stream::iter;
 use tk_easyloop::spawn;
 
 use peers::Peer;
+use machine_id::MachineId;
 
 
-pub fn read_peers(cell: &Arc<ArcCell<Vec<Peer>>>,
+pub fn read_peers(cell: &Arc<ArcCell<HashMap<MachineId, Peer>>>,
     peer_file: PathBuf, disk: &Disk,
     router: &Router, port: u16)
+    -> Box<Future<Item=HashMap<SocketAddr, String>, Error=()>>
 {
     let router = router.clone();
     let cell = cell.clone();
-    spawn(disk.read_peer_list(&peer_file)
+    Box::new(disk.read_peer_list(&peer_file)
         .and_then(move |lst| {
             if lst.len() == 0 {
                 info!("No other peers specified, \
@@ -32,12 +36,7 @@ pub fn read_peers(cell: &Arc<ArcCell<Vec<Peer>>>,
                     .then(move |res| {
                     match res {
                         Ok(addr) => match addr.pick_one() {
-                            Some(addr) => Ok(Some(Peer {
-                                hostname: host.clone(),
-                                name: host.clone(),
-                                // TODO(tailhook) get rid of expect
-                                addr: addr,
-                            })),
+                            Some(addr) => Ok(Some((addr, host))),
                             None => {
                                 error!("No address for {:?}", host);
                                 Ok(None)
@@ -54,8 +53,7 @@ pub fn read_peers(cell: &Arc<ArcCell<Vec<Peer>>>,
                 .collect()
         })
         .map(move |lst| {
-            debug!("Peer list {:?}",
-                lst.iter().map(|p| &p.name).collect::<Vec<_>>());
-            cell.set(Arc::new(lst));
-        }));
+            debug!("Peer list {:?}", lst);
+            lst.into_iter().collect()
+        })) as Box<_>
 }

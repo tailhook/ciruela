@@ -14,6 +14,7 @@ extern crate hex;
 extern crate ns_std_threaded;
 extern crate openat;
 extern crate quire;
+extern crate rand;
 extern crate regex;
 extern crate rustc_serialize;
 extern crate scan_dir;
@@ -36,7 +37,6 @@ extern crate tokio_core;
 #[macro_use] extern crate serde_derive;
 
 #[cfg(test)] extern crate humantime;
-#[cfg(test)] extern crate rand;
 
 use std::env;
 use std::error::Error;
@@ -46,7 +46,7 @@ use std::process::exit;
 use std::sync::Arc;
 
 use abstract_ns::RouterBuilder;
-use argparse::{ArgumentParser, Parse, Store, Print, StoreTrue};
+use argparse::{ArgumentParser, Parse, Store, Print, StoreTrue, StoreOption};
 use futures_cpupool::CpuPool;
 use ns_std_threaded::ThreadedResolver;
 
@@ -92,6 +92,7 @@ fn main() {
     let mut ip: IpAddr = "0.0.0.0".parse().unwrap();
     let mut metadata_threads: usize = 2;
     let mut disk_threads: usize = 8;
+    let mut machine_id = None::<machine_id::MachineId>;
     let mut cantal: bool = false;
     {
         let mut ap = ArgumentParser::new();
@@ -126,6 +127,12 @@ fn main() {
         ap.refer(&mut cantal)
             .add_option(&["--cantal"], StoreTrue,
                 "Connect to cantal to fetch/update peer list");
+        ap.refer(&mut machine_id)
+            .add_option(&["--override-machine-id"], StoreOption, "
+                Overrides machine id. Do not use in production, put the
+                file `/etc/machine-id` instead. This should only be used
+                for tests which run multiple nodes in single filesystem
+                image");
         ap.add_option(&["--version"],
             Print(env!("CARGO_PKG_VERSION").to_string()),
             "Show version");
@@ -144,6 +151,18 @@ fn main() {
         Err(e) => {
             error!("Error reading configs: {}", e);
             exit(1);
+        }
+    };
+
+    let machine_id = if let Some(machine_id) = machine_id {
+        machine_id
+    } else {
+        match machine_id::MachineId::read() {
+            Ok(x) => x,
+            Err(e) => {
+                eprintln!("Error reading machine-id: {}", e);
+                exit(1);
+            }
         }
     };
 
@@ -175,6 +194,7 @@ fn main() {
     let remote = remote::Remote::new();
 
     let (peers, peers_init) = peers::Peers::new(
+        machine_id.clone(),
         if cantal { None } else {
             Some(config.config_dir.join("peers.txt"))
         });
@@ -183,7 +203,7 @@ fn main() {
         http::start(addr, &meta, &remote)?;
         disk::start(disk_init, &meta)?;
         tracking::start(tracking_init, &config, &meta, &remote, &disk)?;
-        peers::start(peers_init, &config, &disk, &router)?;
+        peers::start(peers_init, addr, &config, &disk, &router, &tracking)?;
         Ok(())
     }).map_err(|e| {
         error!("Startup error: {}", e);

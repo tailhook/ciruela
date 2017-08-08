@@ -56,7 +56,7 @@ fn service<S:Io>(req: Request, mut e: Encoder<S>)
 pub fn start(addr: SocketAddr, meta: &Meta, remote: &Remote)
     -> Result<(), io::Error>
 {
-    let listener = TcpListener::bind(&addr, &handle()).unwrap();
+    let listener = TcpListener::bind(&addr, &handle())?;
     let cfg = Config::new().done();
     let wcfg = WsConfig::new().done();
     let meta = meta.clone();

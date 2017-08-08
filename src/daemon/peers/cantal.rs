@@ -1,20 +1,24 @@
+use std::collections::HashMap;
 use std::time::{Duration};
 use std::net::SocketAddr;
 use std::sync::Arc;
 
 use crossbeam::sync::ArcCell;
 use futures::{Future, Stream};
+use machine_id::MachineId;
 use tk_cantal;
 use tk_easyloop::{spawn, interval, handle};
 
 use peers::Peer;
 
 
-pub fn spawn_fetcher(cell: &Arc<ArcCell<Vec<Peer>>>, port: u16) {
+pub fn spawn_fetcher(cell: &Arc<ArcCell<HashMap<MachineId, Peer>>>,
+    port: u16)
+{
     let conn = tk_cantal::connect_local(&handle());
     let cell = cell.clone();
     spawn(
-        interval(Duration::new(30, 0))
+        interval(Duration::new(5, 0))
         .map_err(|_| { unreachable!() })
         .for_each(move |_| {
             let cell = cell.clone();
@@ -24,20 +28,27 @@ pub fn spawn_fetcher(cell: &Arc<ArcCell<Vec<Peer>>>, port: u16) {
                     .filter_map(|p| {
                         let addr = p.primary_addr
                             .and_then(|a| a.parse::<SocketAddr>().ok());
-                        if let Some(addr) = addr {
-                            Some(Peer {
-                                addr: SocketAddr::new(addr.ip(), port),
-                                hostname: p.hostname,
-                                name: p.name,
-                            })
-                        } else {
-                            None
+                        let machine_id: Result<MachineId, _> = p.id.parse();
+                        match (addr, machine_id) {
+                            (Some(addr), Ok(machine_id)) => Some((
+                                machine_id.clone(),
+                                Peer {
+                                     id: machine_id,
+                                     addr: SocketAddr::new(addr.ip(), port),
+                                     hostname: p.hostname,
+                                     name: p.name,
+                                })),
+                            (_, Err(machine_id)) => {
+                                info!("Invalid machine id {:?}", p.id);
+                                None
+                            }
+                            _ => None,
                         }
                     })
-                    .collect::<Vec<_>>();
+                    .collect::<HashMap<_, _>>();
 
                 debug!("Peer list {:?}",
-                    peers.iter().map(|p| &p.name).collect::<Vec<_>>());
+                    peers.iter().map(|(_, p)| &p.name).collect::<Vec<_>>());
                 cell.set(Arc::new(peers));
                 Ok(())
             })
