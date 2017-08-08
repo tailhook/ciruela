@@ -19,10 +19,7 @@ Then, the easiest way to run tree nodes is to use vagga_
 Use client to upload some files (note the virtual IP used by vagga):
 
     ciruela upload -i ciruela-example.key -d dir/to/upload \
-        172.23.255.2:20001:/example \
-        172.23.255.2:20002:/example \
-        172.23.255.2:20003:/example \
+        172.23.255.2:/example --port 20001
 
-*(all three servers are shown here, just to show you how the ports are mapped
-pushing to just one of them is okay, as this is the core function of ciruela
-to sync files between hosts automatically)*
+Because of the limitation of our command-line we can only upload to a single
+node from the host system (``--port 20001`` or ``20002`` or ``20003``).

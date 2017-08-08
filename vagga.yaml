@@ -122,7 +122,7 @@ commands:
     description: Runs three ciruela servers to simulate cluster
     prerequisites: [make, _trio-dirs]
     children:
-      n0: !Command
+      n1: !Command
         container: xenial
         environ: *exenv
         network:
@@ -133,22 +133,22 @@ commands:
         - --config-base-dir=./example-configs3
         - --db-dir=./tmp/db3
         - --override-machine-id=77985419c732412ea38b94db00000001
-      n1: !Command
+      n2: !Command
         container: xenial
         environ: *exenv
         network:
-          ip: 172.23.0.1
+          ip: 172.23.0.2
           ports: {20002: 24783}
         run:
         - "./target/debug/ciruela-server"
         - --config-base-dir=./example-configs3
         - --db-dir=./tmp/db3
         - --override-machine-id=77985419c732412ea38b94db00000002
-      n2: !Command
+      n3: !Command
         container: xenial
         environ: *exenv
         network:
-          ip: 172.23.0.1
+          ip: 172.23.0.3
           ports: {20003: 24783}
         run:
         - "./target/debug/ciruela-server"
