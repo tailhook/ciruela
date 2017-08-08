@@ -26,10 +26,17 @@ commands:
     container: xenial
     run: [cargo, run, --bin, ciruela, "--"]
 
+  _example-server-dirs: !Command
+    description: Create dirs for example server
+    container: xenial
+    run: |
+      mkdir -p ./tmp/db
+      mkdir -p ./tmp/dest/dir1
+
   example-server: !Command
     description: Run the server
     container: xenial
-    prerequisites: [make]
+    prerequisites: [make, _example-server-dirs]
     environ: &exenv
       RUST_LOG: debug,tokio_core=warn
     run:
@@ -99,6 +106,55 @@ commands:
     run: |
       bulk repo-add --config bulk.yaml --repository-base dist/repos \
         dist/ciruela-[0-9]*.deb "$@"
+
+  _trio-dirs: !Command
+    description: Create dirs for example server
+    container: xenial
+    run: |
+      mkdir -p ./tmp/db1
+      mkdir -p ./tmp/dest1/dir1
+      mkdir -p ./tmp/db2
+      mkdir -p ./tmp/dest2/dir1
+      mkdir -p ./tmp/db3
+      mkdir -p ./tmp/dest3/dir1
+
+  trio: !Supervise
+    description: Runs three ciruela servers to simulate cluster
+    prerequisites: [make, _trio-dirs]
+    children:
+      n0: !Command
+        container: xenial
+        environ: *exenv
+        network:
+          ip: 172.23.0.1
+          ports: {20001: 24783}
+        run:
+        - "./target/debug/ciruela-server"
+        - --config-base-dir=./example-configs3
+        - --db-dir=./tmp/db3
+        - --override-machine-id=77985419c732412ea38b94db00000001
+      n1: !Command
+        container: xenial
+        environ: *exenv
+        network:
+          ip: 172.23.0.1
+          ports: {20002: 24783}
+        run:
+        - "./target/debug/ciruela-server"
+        - --config-base-dir=./example-configs3
+        - --db-dir=./tmp/db3
+        - --override-machine-id=77985419c732412ea38b94db00000002
+      n2: !Command
+        container: xenial
+        environ: *exenv
+        network:
+          ip: 172.23.0.1
+          ports: {20003: 24783}
+        run:
+        - "./target/debug/ciruela-server"
+        - --config-base-dir=./example-configs3
+        - --db-dir=./tmp/db3
+        - --override-machine-id=77985419c732412ea38b94db00000003
 
 containers:
 

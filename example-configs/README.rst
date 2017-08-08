@@ -17,6 +17,3 @@ Run the daemon:
 Use client to upload some files:
 
     ciruela upload -i ciruela-example.key -d dir/to/upload localhost:/example
-
-Note: because ciruela requires absolute paths to the dirs it manages, we
-write to ``/tmp/ciruela-example`` in example configs.

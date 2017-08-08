@@ -1,0 +1,7 @@
+directory: ./tmp/dest/dir1
+num-levels: 2
+append-only: true
+auto-clean: true
+keep-min-directories: 1
+keep-max-directories: 100
+keep-recent: 1 min

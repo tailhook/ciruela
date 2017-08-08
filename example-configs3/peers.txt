@@ -1,0 +1,4 @@
+# Thes hosts are mapped to internal vagga's ips
+n1.mglawica.org
+n2.mglawica.org
+n3.mglawica.org
