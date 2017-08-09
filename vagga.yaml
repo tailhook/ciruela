@@ -38,7 +38,7 @@ commands:
     container: xenial
     prerequisites: [make, _example-server-dirs]
     environ: &exenv
-      RUST_LOG: debug,tokio_core=warn
+      RUST_LOG: debug,tokio_core=warn,ciruela_server::peers::gossip=info
     run:
     - ./target/debug/ciruela-server
     - --config-base-dir=./example-configs
