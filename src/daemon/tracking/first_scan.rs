@@ -30,6 +30,7 @@ pub fn spawn_scan(sys: &Subsystem) {
                 (dir.clone(),
                  Arc::new(BaseDir::restore(dir, config, num, cur_down)))
             }));
+            state.base_dir_list.extend(state.base_dirs.values().cloned());
             if downloading.len() > 0 {
                 error!("Downloadinging in non-existing base dirs {:?}",
                     downloading);

@@ -58,7 +58,8 @@ struct Gossip {
 impl Gossip {
     fn poll_forever(&mut self) {
         self.read_messages();
-        if self.interval.poll().expect("interval never fails").is_ready() {
+        while self.interval.poll().expect("interval never fails").is_ready()
+        {
             self.send_gossips();
         }
     }
@@ -106,13 +107,18 @@ impl Gossip {
         }
     }
     fn send_gossips(&mut self) {
+        // Need to ping future peers to find out addresses
+        // We ping them until they respond, and are removed from future
+        for (addr, _) in &self.future_peers {
+            self.send_gossip(*addr);
+        }
         let lst = self.peers.get();
         let hosts = sample(&mut thread_rng(), lst.values(), PACKETS_AT_ONCE);
         for host in hosts {
             self.send_gossip(host.addr);
         }
     }
-    fn send_gossip(&mut self, addr: SocketAddr) {
+    fn send_gossip(&self, addr: SocketAddr) {
         let mut buf = [0u8; MAX_GOSSIP_PACKET];
         let packet_len = {
             let mut cur = io::Cursor::new(&mut buf[..]);
@@ -124,7 +130,7 @@ impl Gossip {
                 let pos = cur.position();
                 match to_writer(&mut cur, &(vpath, hash)) {
                     Ok(()) => {}
-                    Err(e) => {
+                    Err(_) => {
                         cur.set_position(pos);
                         break;
                     }
@@ -132,6 +138,7 @@ impl Gossip {
             }
             cur.position() as usize
         };
+        debug!("Sending ping to {} [{}]", addr, packet_len);
         self.socket.send_to(&buf[..packet_len], &addr)
             .map_err(|e| {
                 warn!("Error sending message to {:?}: {}", addr, e)
@@ -144,7 +151,7 @@ impl Future for Gossip {
     type Error = ();
     fn poll(&mut self) -> Result<Async<()>, ()> {
         self.poll_forever();
-        Ok(Async::Ready(()))
+        Ok(Async::NotReady)
     }
 }
 
