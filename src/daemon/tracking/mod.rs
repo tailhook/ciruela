@@ -21,6 +21,7 @@ use disk::Disk;
 use index::{Index, IndexData};
 use machine_id::MachineId;
 use metadata::Meta;
+use rand::{thread_rng, Rng};
 use remote::Remote;
 
 pub use self::progress::Downloading;
@@ -111,13 +112,23 @@ impl Tracking {
     pub fn reconcile_dir(&self, path: VPath, hash: Hash,
         peer_addr: SocketAddr, peer_id: MachineId)
     {
-        unimplemented!();
+        if self.state().base_dirs
+           .get(&path).map(|x| x.hash() != hash)
+           .unwrap_or(true)
+        {
+            unimplemented!();
+        }
     }
     pub fn pick_random_dir(&self) -> Option<(VPath, Hash)> {
-        unimplemented!();
+        let state = self.state();
+        thread_rng().choose(&state.base_dir_list)
+            .map(|d| (d.path.clone(), d.hash()))
     }
     fn send(&self, command: Command) {
         self.chan.send(command).expect("image tracking subsystem is alive")
+    }
+    fn state(&self) -> MutexGuard<State> {
+        self.state.lock().expect("image tracking subsystem is not poisoned")
     }
 }
 

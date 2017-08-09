@@ -2,10 +2,10 @@ use std::time::{Instant, SystemTime};
 use std::path::PathBuf;
 use std::collections::{BTreeMap, HashMap};
 
+use ciruela::Hash;
 use ciruela::database::signatures::State;
 
 
-pub type Hash = [u8; 64];
 pub type Name = String;
 
 /// Holds current hash, and cache of hashes that were before this one

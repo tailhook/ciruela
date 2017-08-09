@@ -67,7 +67,7 @@ pub fn start(me: PeersInit, addr: SocketAddr,
             }));
     } else {
         cantal::spawn_fetcher(&cell, config.port);
-        gossip::start(addr, cell, me.machine_id, tracking, HashMap::new());
+        gossip::start(addr, cell, me.machine_id, tracking, HashMap::new())?;
     }
     Ok(())
 }

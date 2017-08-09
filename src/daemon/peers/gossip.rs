@@ -10,6 +10,8 @@ use rand::{thread_rng, sample, Rng};
 use tk_easyloop::{handle, spawn, interval};
 use tokio_core::net::UdpSocket;
 use tokio_core::reactor::Interval;
+use serde::Deserialize;
+use serde_cbor::de::Deserializer;
 
 use machine_id::MachineId;
 use ciruela::VPath;
@@ -68,7 +70,9 @@ impl Gossip {
         loop {
             while let Ok((len, addr)) = self.socket.recv_from(&mut buf) {
                 let mut buf = io::Cursor::new(&buf[..len]);
-                let head: Head = match from_reader(&mut buf) {
+                let head: Head = match Deserialize::deserialize(
+                    &mut Deserializer::new(&mut buf))
+                {
                     Ok(x) => x,
                     Err(e) => {
                         info!("Bad gossip packet from {:?}: {}", addr, e);
@@ -85,7 +89,9 @@ impl Gossip {
                     });
                 }
                 while buf.position() < len as u64 {
-                    let pair = match from_reader(&mut buf) {
+                    let pair = match Deserialize::deserialize(&mut
+                        Deserializer::new(&mut buf))
+                    {
                         Ok(x) => x,
                         Err(e) => {
                             info!("Bad dir in gossip packet from {:?}: {}",
@@ -120,6 +126,7 @@ impl Gossip {
     }
     fn send_gossip(&self, addr: SocketAddr) {
         let mut buf = [0u8; MAX_GOSSIP_PACKET];
+        let mut num = 0;
         let packet_len = {
             let mut cur = io::Cursor::new(&mut buf[..]);
             to_writer(&mut cur, &Head {
@@ -135,10 +142,12 @@ impl Gossip {
                         break;
                     }
                 }
+                num += 1;
             }
             cur.position() as usize
         };
-        debug!("Sending ping to {} [{}]", addr, packet_len);
+        debug!("Sending ping to {} [{}/{}]", addr,
+            num, packet_len);
         self.socket.send_to(&buf[..packet_len], &addr)
             .map_err(|e| {
                 warn!("Error sending message to {:?}: {}", addr, e)

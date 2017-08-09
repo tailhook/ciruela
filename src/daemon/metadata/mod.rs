@@ -1,11 +1,11 @@
 mod dir;
 mod error;
-mod first_scan;
 mod keys;
+mod upload;
+mod first_scan;
 mod read_index;
 mod scan;
 mod store_index;
-mod upload;
 pub mod reconciliation;
 
 use std::collections::HashMap;
