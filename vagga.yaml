@@ -125,35 +125,38 @@ commands:
       n1: !Command
         container: xenial
         environ: *exenv
+        work-dir: tmp/dest1
         network:
           ip: 172.23.0.1
           ports: {20001: 24783}
         run:
-        - "./target/debug/ciruela-server"
-        - --config-base-dir=./example-configs3
-        - --db-dir=./tmp/db3
+        - "/work/target/debug/ciruela-server"
+        - --config-base-dir=/work/example-configs3
+        - --db-dir=/work/tmp/db1
         - --override-machine-id=77985419c732412ea38b94db00000001
       n2: !Command
         container: xenial
         environ: *exenv
+        work-dir: tmp/dest2
         network:
           ip: 172.23.0.2
           ports: {20002: 24783}
         run:
-        - "./target/debug/ciruela-server"
-        - --config-base-dir=./example-configs3
-        - --db-dir=./tmp/db3
+        - "/work/target/debug/ciruela-server"
+        - --config-base-dir=/work/example-configs3
+        - --db-dir=/work/tmp/db2
         - --override-machine-id=77985419c732412ea38b94db00000002
       n3: !Command
         container: xenial
         environ: *exenv
+        work-dir: tmp/dest3
         network:
           ip: 172.23.0.3
           ports: {20003: 24783}
         run:
-        - "./target/debug/ciruela-server"
-        - --config-base-dir=./example-configs3
-        - --db-dir=./tmp/db3
+        - "/work/target/debug/ciruela-server"
+        - --config-base-dir=/work/example-configs3
+        - --db-dir=/work/tmp/db3
         - --override-machine-id=77985419c732412ea38b94db00000003
 
 containers:

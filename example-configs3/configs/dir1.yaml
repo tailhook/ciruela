@@ -1,4 +1,4 @@
-directory: ./tmp/dest/dir1
+directory: ./dir1
 num-levels: 2
 append-only: true
 auto-clean: true
