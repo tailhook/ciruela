@@ -1,49 +1,76 @@
+use std::collections::BTreeMap;
+use std::collections::hash_map::Entry;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Instant;
 
+use ciruela::database::signatures::State;
+use ciruela::proto::BaseDirState;
 
+use futures::Future;
 use atomic::Atomic;
 use ciruela::{VPath, Hash};
 use config::Directory;
+use peers::config::get_hash;
+use tracking::Subsystem;
+
 
 #[derive(Debug)]
 pub struct BaseDir {
     pub path: VPath,
     pub config: Arc<Directory>,
     hash: Atomic<Hash>,
+    last_scan: Atomic<Instant>,
     num_subdirs: AtomicUsize,
     num_downloading: AtomicUsize,
 }
 
 impl BaseDir {
-    pub fn new(path: VPath, config: &Arc<Directory>) -> BaseDir {
-        BaseDir {
-            path: path,
-            config: config.clone(),
-            hash: Atomic::new(Hash::new(&[0u8; 32])),
-            num_subdirs: AtomicUsize::new(0),
-            num_downloading: AtomicUsize::new(0),
-        }
-    }
     pub fn hash(&self) -> Hash {
         self.hash.load(Ordering::SeqCst)
     }
-    pub fn restore(path: VPath, config: &Arc<Directory>, hash: Hash,
-                   num_subdirs: usize, num_downloading: usize)
-        -> BaseDir
-    {
-        BaseDir {
-            path: path,
-            config: config.clone(),
-            // TODO(tailhook)
-            hash: Atomic::new(hash),
-            num_subdirs: AtomicUsize::new(num_subdirs),
-            num_downloading: AtomicUsize::new(num_downloading),
-        }
+    pub fn last_scan(&self) -> Instant {
+        self.last_scan.load(Ordering::SeqCst)
     }
-    // Assumes that new dir is downloading immediately
-    pub fn new_subdir(&self) {
-        self.num_subdirs.fetch_add(1, Ordering::Relaxed);
-        self.num_downloading.fetch_add(1, Ordering::Relaxed);
+    pub fn commit_scan(path: VPath, dirs: BTreeMap<String, State>,
+        scan_time: Instant, sys: &Subsystem)
+    {
+        let config = sys.config.dirs.get(path.key())
+                        .expect("only scans configured basedirs");
+        let mut state = &mut *sys.state();
+        let ref mut lst = state.base_dir_list;
+        let dir_data = BaseDirState {
+            path: path,
+            config_hash: get_hash(config),
+            dirs: dirs,
+        };
+        let hash = Hash::for_object(&dir_data);
+        let down = state.in_progress.iter()
+            .filter(|x| x.virtual_path.parent() == dir_data.path)
+            .count();
+        match state.base_dirs.entry(dir_data.path.clone()) {
+            Entry::Vacant(e) => {
+                let new = Arc::new(BaseDir {
+                    config: config.clone(),
+                    path: dir_data.path,
+                    hash: Atomic::new(hash),
+                    last_scan: Atomic::new(scan_time),
+                    num_subdirs: AtomicUsize::new(dir_data.dirs.len()),
+                    num_downloading: AtomicUsize::new(down.into()),
+                });
+                lst.push(new.clone());
+                e.insert(new);
+                // TODO(tailhook) send to gossip
+            }
+            Entry::Occupied(e) => {
+                let val = e.get();
+                val.last_scan.store(scan_time, Ordering::SeqCst);
+                if val.hash() != hash {
+                    val.hash.store(hash, Ordering::SeqCst);
+                    val.num_subdirs.store(dir_data.dirs.len(),
+                        Ordering::SeqCst);
+                }
+            }
+        }
     }
 }

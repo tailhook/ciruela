@@ -43,6 +43,7 @@ commands:
     - ./target/debug/ciruela-server
     - --config-base-dir=./example-configs
     - --db-dir=./tmp/db
+    - --override-machine-id=77985419c732412ea38b94db00000001
 
   example-upload: !Command
     description: Run the upload command with example key

@@ -142,21 +142,22 @@ impl Meta {
             Ok(())
         }).forget();
     }
-    pub fn scan_base_dirs(&self)
-        -> CpuFuture<Vec<(VPath, Hash, usize)>, Error>
+    pub fn scan_base_dirs(&self, tracking: &Tracking)
+        -> CpuFuture<(), Error>
     {
         let meta = self.clone();
+        let tracking = tracking.clone();
         self.cpu_pool.spawn_fn(move || {
-            first_scan::scan(&meta)
+            first_scan::scan(&meta, &tracking)
         })
     }
-    pub fn scan_dir(&self, dir: &Arc<BaseDir>)
+    pub fn scan_dir(&self, dir: &VPath)
         -> CpuFuture<BTreeMap<String, State>, Error>
     {
         let dir = dir.clone();
         let meta = self.clone();
         self.cpu_pool.spawn_fn(move || {
-            let dir = meta.signatures()?.open_vpath(&dir.path)?;
+            let dir = meta.signatures()?.open_vpath(&dir)?;
             scan::all_states(&dir)
         })
     }

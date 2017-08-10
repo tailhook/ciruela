@@ -1,19 +1,19 @@
 mod base_dir;
 mod fetch_dir;
 mod progress;
-mod first_scan;
 mod cleanup;
 
 use std::net::SocketAddr;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Weak, Mutex, MutexGuard};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::time::{Instant, Duration};
 
-use futures::{Stream};
-use futures::future::Shared;
+use futures::{Future, Stream};
+use futures::future::{Shared, Either, ok};
 use futures::sync::mpsc::{unbounded, UnboundedSender, UnboundedReceiver};
 use futures::sync::oneshot::{Receiver};
-use tk_easyloop;
+use tk_easyloop::{spawn, timeout};
 
 use ciruela::{ImageId, Hash, VPath};
 use config::{Config, Directory};
@@ -47,7 +47,8 @@ pub struct State {
 
 #[derive(Clone)]
 pub struct Tracking {
-    chan: UnboundedSender<Command>,
+    cmd_chan: UnboundedSender<Command>,
+    rescan_chan: UnboundedSender<(VPath, Instant)>,
     state: Arc<Mutex<State>>,
 }
 
@@ -58,6 +59,7 @@ pub struct Subsystem(Arc<Data>);
 pub struct Data {
     state: Arc<Mutex<State>>,
     cleanup: UnboundedSender<cleanup::Command>,
+    scan: UnboundedSender<(VPath, Instant)>,
     config: Arc<Config>,
     meta: Meta,
     disk: Disk,
@@ -66,7 +68,8 @@ pub struct Data {
 }
 
 pub struct TrackingInit {
-    chan: UnboundedReceiver<Command>,
+    cmd_chan: UnboundedReceiver<Command>,
+    rescan_chan: UnboundedReceiver<(VPath, Instant)>,
     tracking: Tracking,
 }
 
@@ -76,7 +79,8 @@ pub enum Command {
 
 impl Tracking {
     pub fn new() -> (Tracking, TrackingInit) {
-        let (tx, rx) = unbounded();
+        let (ctx, crx) = unbounded();
+        let (rtx, rrx) = unbounded();
         let handler = Tracking {
             state: Arc::new(Mutex::new(State {
                 image_futures: HashMap::new(),
@@ -86,11 +90,13 @@ impl Tracking {
                 base_dirs: HashMap::new(),
                 base_dir_list: Vec::new(),
             })),
-            chan: tx,
+            cmd_chan: ctx,
+            rescan_chan: rtx,
         };
         (handler.clone(),
          TrackingInit {
-            chan: rx,
+            cmd_chan: crx,
+            rescan_chan: rrx,
             tracking: handler,
          })
     }
@@ -125,10 +131,14 @@ impl Tracking {
             .map(|d| (d.path.clone(), d.hash()))
     }
     fn send(&self, command: Command) {
-        self.chan.send(command).expect("image tracking subsystem is alive")
+        self.cmd_chan.send(command)
+            .expect("image tracking subsystem is alive")
     }
     fn state(&self) -> MutexGuard<State> {
         self.state.lock().expect("image tracking subsystem is not poisoned")
+    }
+    pub fn scan_dir(&self, path: VPath) {
+        self.rescan_chan.send((path, Instant::now()));
     }
 }
 
@@ -148,10 +158,14 @@ impl Subsystem {
             .expect("can always send in cleanup channel");
     }
     fn undry_cleanup(&self) {
+        info!("Okay, now real cleanup routines will start");
         self.0.dry_cleanup.store(false, Ordering::Relaxed);
     }
     fn dry_cleanup(&self) -> bool {
         self.0.dry_cleanup.load(Ordering::Relaxed)
+    }
+    fn rescan_dir(&self, path: VPath) {
+        self.0.scan.send((path, Instant::now()));
     }
 }
 
@@ -160,7 +174,7 @@ pub fn start(init: TrackingInit, config: &Arc<Config>,
     -> Result<(), String> // actually void
 {
     let (ctx, crx) = unbounded();
-    let TrackingInit { chan, tracking } = init;
+    let TrackingInit { cmd_chan, rescan_chan, tracking } = init;
     let sys = Subsystem(Arc::new(Data {
         config: config.clone(),
         meta: meta.clone(),
@@ -168,17 +182,48 @@ pub fn start(init: TrackingInit, config: &Arc<Config>,
         state: tracking.state.clone(),
         remote: remote.clone(),
         cleanup: ctx,
+        scan: tracking.rescan_chan.clone(),
         dry_cleanup: AtomicBool::new(true),  // start with no cleanup
     }));
-    first_scan::spawn_scan(&sys);
+    let sys2 = sys.clone();
+    let sys3 = sys.clone();
+    let meta = meta.clone();
+
+    spawn(meta.scan_base_dirs(&tracking)
+        .map_err(|e| error!("Error during first scan: {}", e)));
     cleanup::spawn_loop(crx, &sys);
-    tk_easyloop::spawn(chan
+    spawn(cmd_chan
         .for_each(move |command| {
             use self::Command::*;
             match command {
-                FetchDir(info) => fetch_dir::start(&sys, info),
+                FetchDir(info) => fetch_dir::start(&sys2, info),
             }
             Ok(())
         }));
+    spawn(rescan_chan
+        .for_each(move |(path, time): (VPath, Instant)| {
+            if sys.state().base_dirs.get(&path)
+                .map(|x| x.last_scan() > time).unwrap_or(false)
+            {
+                // race condition between scan and enqueue. just skip it
+                return Either::A(ok(()))
+            }
+            let sys = sys.clone();
+            let scan_time = Instant::now();
+            Either::B(meta.scan_dir(&path)
+                .then(move |res| match res {
+                    Ok(states) => {
+                        BaseDir::commit_scan(path, states, scan_time, &sys);
+                        Ok(())
+                    }
+                    Err(e) => {
+                        error!("Scaning {:?} failed: {}", path, e);
+                        Ok(())
+                    }
+                }))
+        }));
+    spawn(timeout(Duration::new(30, 0))
+        .map(move |()| sys3.undry_cleanup())
+        .map_err(|_| unreachable!()));
     Ok(())
 }

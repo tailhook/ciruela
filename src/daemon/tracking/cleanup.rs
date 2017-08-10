@@ -67,7 +67,7 @@ pub fn spawn_loop(rx: UnboundedReceiver<Command>, sys: &Subsystem) {
                     let sys2 = sys.clone();
                     let time = SystemTime::now();
                     Either::A(
-                        sys.meta.scan_dir(dir).map_err(boxerr)
+                        sys.meta.scan_dir(&dir.path).map_err(boxerr)
                         .join(sys.disk.read_keep_list(&dir.config)
                               .map_err(boxerr))
                         .and_then(move |(lst, keep_list)| {

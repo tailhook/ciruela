@@ -17,17 +17,9 @@ use tracking::{Subsystem, Block, Downloading, BaseDir};
 
 pub fn start(sys: &Subsystem, cmd: Downloading) {
     let cmd = Arc::new(cmd);
+    sys.rescan_dir(cmd.virtual_path.parent());
     let mut state = &mut *sys.state();
     state.in_progress.insert(cmd.clone());
-    let ref mut lst = state.base_dir_list;
-    state.base_dirs.entry(cmd.virtual_path.parent())
-        .or_insert_with(|| {
-            let new = Arc::new(
-                BaseDir::new(cmd.virtual_path.parent(), &cmd.config));
-            lst.push(new.clone());
-            new
-        })
-        .new_subdir();
 
     let cached = state.images.get(&cmd.image_id)
         .and_then(|x| x.upgrade()).map(Index);
