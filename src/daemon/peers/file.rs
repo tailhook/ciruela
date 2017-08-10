@@ -9,7 +9,6 @@ use abstract_ns::{Router, Resolver};
 use crossbeam::sync::ArcCell;
 use futures::{Future, Stream};
 use futures::stream::iter;
-use tk_easyloop::spawn;
 
 use peers::Peer;
 use machine_id::MachineId;
@@ -21,7 +20,6 @@ pub fn read_peers(cell: &Arc<ArcCell<HashMap<MachineId, Peer>>>,
     -> Box<Future<Item=HashMap<SocketAddr, String>, Error=()>>
 {
     let router = router.clone();
-    let cell = cell.clone();
     Box::new(disk.read_peer_list(&peer_file)
         .and_then(move |lst| {
             if lst.len() == 0 {

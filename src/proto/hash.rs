@@ -27,6 +27,11 @@ impl Hash {
     pub fn builder() -> digest_writer::Writer<Blake2b<U32>> {
         digest_writer::Writer::new(Blake2b::<U32>::new())
     }
+    pub fn for_object<S: Serialize>(obj: &S) -> Hash {
+        let mut dig = Hash::builder();
+        dig.object(obj);
+        return dig.done();
+    }
 }
 
 pub trait Builder: io::Write {

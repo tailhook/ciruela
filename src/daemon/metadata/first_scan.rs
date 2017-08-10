@@ -1,8 +1,6 @@
 use std::path::{PathBuf, Path};
 
-use serde_cbor::ser::to_writer;
-
-use ciruela::{VPath, Hash, HashBuilder};
+use ciruela::{VPath, Hash};
 use ciruela::proto::{BaseDirState};
 use metadata::dir::Dir;
 use metadata::scan;
@@ -23,15 +21,13 @@ fn scan_dir(cfg_hash: Hash, dir: &Dir, virtual_path: PathBuf, level: usize,
             }
         }
     } else {
-        let mut dig = Hash::builder();
         let states = scan::all_states(dir)?;
         let state = BaseDirState {
             path: virtual_path.into(),
             config_hash: cfg_hash,
             dirs: states,
         };
-        dig.object(&state);
-        let hash = dig.done();
+        let hash = Hash::for_object(&state);
         debug!("Found path {:?} with {} states, hash: {}",
             state.path, state.dirs.len(), hash);
         result.push((state.path, hash, state.dirs.len()));

@@ -1,9 +1,8 @@
 use std::io::BufReader;
 use std::collections::BTreeMap;
 
-use metadata::{Meta, Error, Dir};
+use metadata::{Error, Dir};
 
-use ciruela::VPath;
 use ciruela::database::signatures::State;
 use serde_cbor::de::from_reader as read_cbor;
 

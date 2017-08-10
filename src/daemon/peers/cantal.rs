@@ -38,8 +38,8 @@ pub fn spawn_fetcher(cell: &Arc<ArcCell<HashMap<MachineId, Peer>>>,
                                      hostname: p.hostname,
                                      name: p.name,
                                 })),
-                            (_, Err(machine_id)) => {
-                                info!("Invalid machine id {:?}", p.id);
+                            (_, Err(e)) => {
+                                info!("Invalid machine id {:?}: {}", p.id, e);
                                 None
                             }
                             _ => None,

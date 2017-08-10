@@ -1,12 +1,12 @@
 use std::io;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use std::collections::{HashSet, HashMap};
 
 use crossbeam::sync::ArcCell;
 use futures::{Future, Stream, Async};
-use rand::{thread_rng, sample, Rng};
+use rand::{thread_rng, sample};
 use tk_easyloop::{handle, spawn, interval};
 use tokio_core::net::UdpSocket;
 use tokio_core::reactor::Interval;
@@ -18,7 +18,6 @@ use ciruela::VPath;
 use ciruela::proto::Hash;
 use peers::Peer;
 use tracking::Tracking;
-use serde_cbor::from_reader;
 use serde_cbor::ser::to_writer;
 
 

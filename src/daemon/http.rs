@@ -12,7 +12,6 @@ use tk_http::server::{Proto, Encoder, EncoderDone, Error, Config};
 use tk_http::server::buffered::{Request, BufferedDispatcher};
 use tk_http::websocket::{Config as WsConfig};
 use tk_listen::ListenExt;
-use tokio_core::io::Io;
 use tokio_core::net::TcpListener;
 use tk_easyloop::{spawn, handle};
 
@@ -24,7 +23,7 @@ use remote::Remote;
 
 const BODY: &'static str = "Not found";
 
-fn service<S:Io>(req: Request, mut e: Encoder<S>)
+fn service<S>(req: Request, mut e: Encoder<S>)
     -> FutureResult<EncoderDone<S>, Error>
 {
     if let Some(ws) = req.websocket_handshake() {
