@@ -11,6 +11,7 @@ use serde_cbor::ser::Serializer as Cbor;
 use ssh_keys::{PrivateKey, PublicKey};
 
 
+// Note everything here, must be stable-serialized
 pub enum Signature {
     SshEd25519([u8; 64]),
 }

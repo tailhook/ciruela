@@ -28,7 +28,7 @@ impl BaseDir {
     pub fn hash(&self) -> Hash {
         self.hash.load(Ordering::SeqCst)
     }
-    pub fn restore(path: VPath, config: &Arc<Directory>,
+    pub fn restore(path: VPath, config: &Arc<Directory>, hash: Hash,
                    num_subdirs: usize, num_downloading: usize)
         -> BaseDir
     {
@@ -36,7 +36,7 @@ impl BaseDir {
             path: path,
             config: config.clone(),
             // TODO(tailhook)
-            hash: Atomic::new(Hash::new(&[0u8; 32])),
+            hash: Atomic::new(hash),
             num_subdirs: AtomicUsize::new(num_subdirs),
             num_downloading: AtomicUsize::new(num_downloading),
         }

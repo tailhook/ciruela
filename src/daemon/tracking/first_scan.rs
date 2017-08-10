@@ -21,14 +21,15 @@ pub fn spawn_scan(sys: &Subsystem) {
             }
             let mut sum = 0;
             let mut ndown = 0;
-            state.base_dirs.extend(items.into_iter().map(|(dir, num)| {
+            state.base_dirs.extend(items.into_iter().map(|(dir, hash, num)| {
                 let cur_down = downloading.remove(dir.as_ref()).unwrap_or(0);
                 let config = sys.config.dirs.get(dir.key())
                     .expect("config does not vanish at runtime");
                 sum += num;
                 ndown += cur_down;
                 (dir.clone(),
-                 Arc::new(BaseDir::restore(dir, config, num, cur_down)))
+                 Arc::new(BaseDir::restore(dir, config,
+                    hash, num, cur_down)))
             }));
             state.base_dir_list.extend(state.base_dirs.values().cloned());
             if downloading.len() > 0 {

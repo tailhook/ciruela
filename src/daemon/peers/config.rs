@@ -7,6 +7,7 @@ use serde_cbor::ser::to_writer;
 use typenum::U32;
 
 use ciruela::serialize;
+use ciruela::{Hash, HashBuilder};
 use config::Directory;
 
 
@@ -20,7 +21,7 @@ pub struct RemoteConfig {
     pub keep_recent: Duration,
 }
 
-pub fn get_hash(cfg: &Arc<Directory>) -> [u8; 64] {
+pub fn get_hash(cfg: &Arc<Directory>) -> Hash {
     let mut result = [0u8; 64];
     let cfg = RemoteConfig {
         num_levels: cfg.num_levels,
@@ -29,9 +30,8 @@ pub fn get_hash(cfg: &Arc<Directory>) -> [u8; 64] {
         keep_max_directories: cfg.keep_max_directories,
         keep_recent: *cfg.keep_recent,
     };
-    let mut dig = digest_writer::Writer::new(Blake2b::<U32>::new());
+    let mut dig = Hash::builder();
     to_writer(&mut dig, &cfg)
         .expect("can always serialize/hash structure");
-    result[..].copy_from_slice(&dig.into_inner().result()[..]);
-    return result;
+    return dig.done();
 }

@@ -1,5 +1,7 @@
 extern crate base64;
+extern crate blake2;
 extern crate crypto;
+extern crate digest_writer;
 extern crate dir_signature;
 extern crate hex;
 extern crate futures;
@@ -9,6 +11,7 @@ extern crate serde;
 extern crate serde_cbor;
 extern crate serde_bytes;
 extern crate ssh_keys;
+extern crate typenum;
 extern crate tk_easyloop;
 extern crate tokio_core;
 
@@ -26,5 +29,5 @@ pub mod time;
 pub mod serialize;
 
 pub use id::ImageId;
-pub use proto::Hash;
+pub use proto::{Hash, HashBuilder};
 pub use virtual_path::VPath;

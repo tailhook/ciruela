@@ -1,7 +1,7 @@
 mod file;
 mod cantal;
-mod config;
 mod gossip;
+pub mod config;
 
 use std::collections::HashMap;
 use std::path::{PathBuf};

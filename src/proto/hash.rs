@@ -1,8 +1,14 @@
 use std::fmt;
+use std::io;
 
 use hex::ToHex;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::de::{Visitor, Error};
+use serde_cbor::ser::to_writer;
+
+use digest_writer;
+use blake2::{Blake2b, Digest};
+use typenum::U32;
 
 
 #[derive(Hash, PartialEq, Eq, Clone, Copy)]
@@ -17,6 +23,23 @@ impl Hash {
         let mut val = [0u8; 32];
         val.copy_from_slice(hash);
         return Hash(val);
+    }
+    pub fn builder() -> digest_writer::Writer<Blake2b<U32>> {
+        digest_writer::Writer::new(Blake2b::<U32>::new())
+    }
+}
+
+pub trait Builder: io::Write {
+    fn done(self) -> Hash;
+    fn object<S: Serialize>(&mut self, obj: &S);
+}
+
+impl Builder for digest_writer::Writer<Blake2b<U32>> {
+    fn object<S: Serialize>(&mut self, obj: &S) {
+        to_writer(self, obj).expect("can always serialize/hash structure");
+    }
+    fn done(self) -> Hash {
+        Hash::new(&self.into_inner().result()[..])
     }
 }
 

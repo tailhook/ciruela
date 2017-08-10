@@ -8,12 +8,14 @@ use time::{to_ms, from_ms};
 
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+// Note everything here, must be stable-serialized
 pub struct SignatureEntry {
     pub timestamp: SystemTime,
     pub signature: Signature,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+// Note everything here, must be stable-serialized
 pub struct State {
     pub image: ImageId,
     pub signatures: Vec<SignatureEntry>,

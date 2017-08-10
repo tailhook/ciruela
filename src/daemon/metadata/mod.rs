@@ -8,7 +8,7 @@ mod scan;
 mod store_index;
 pub mod reconciliation;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, BTreeMap};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -18,7 +18,7 @@ use openat::Metadata;
 use ciruela::database::signatures::State;
 use ciruela::proto::{AppendDir, AppendDirAck};
 use ciruela::proto::{ReplaceDir, ReplaceDirAck};
-use ciruela::{ImageId, VPath};
+use ciruela::{ImageId, VPath, Hash};
 use config::Config;
 use index::Index;
 use tracking::{Tracking, BaseDir};
@@ -142,18 +142,23 @@ impl Meta {
             Ok(())
         }).forget();
     }
-    pub fn scan_base_dirs(&self) -> CpuFuture<Vec<(VPath, usize)>, Error> {
+    pub fn scan_base_dirs(&self)
+        -> CpuFuture<Vec<(VPath, Hash, usize)>, Error>
+    {
         let meta = self.clone();
         self.cpu_pool.spawn_fn(move || {
             first_scan::scan(&meta)
         })
     }
     pub fn scan_dir(&self, dir: &Arc<BaseDir>)
-        -> CpuFuture<Vec<(String, State)>, Error>
+        -> CpuFuture<BTreeMap<String, State>, Error>
     {
         let dir = dir.clone();
         let meta = self.clone();
-        self.cpu_pool.spawn_fn(move || scan::all_states(&dir.path, &meta))
+        self.cpu_pool.spawn_fn(move || {
+            let dir = meta.signatures()?.open_vpath(&dir.path)?;
+            scan::all_states(&dir)
+        })
     }
     fn signatures(&self) -> Result<Dir, Error> {
         self.base_dir.ensure_dir("signatures")

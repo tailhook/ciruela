@@ -30,7 +30,7 @@ fn append_signatures(state: &mut State, new: Vec<SignatureEntry>) {
     sort_signatures(&mut state.signatures);
 }
 
-fn read_state(f: File) -> Result<State, CborError> {
+pub fn read_state(f: File) -> Result<State, CborError> {
     read_cbor(&mut BufReader::new(f))
 }
 

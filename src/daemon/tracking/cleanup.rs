@@ -1,6 +1,7 @@
+use std::collections::BTreeMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
-use std::path::PathBuf;
 
 use futures::{Future, Stream};
 use futures::future::{Either, ok};
@@ -19,7 +20,7 @@ pub enum Command {
 }
 
 fn find_unused(sys: &Subsystem, dir: &Arc<BaseDir>,
-    all: Vec<(String, State)>, keep_list: Vec<PathBuf>)
+    all: BTreeMap<String, State>, keep_list: Vec<PathBuf>)
     -> Vec<Image>
 {
     let images = all.into_iter().map(|(name, state)| {
