@@ -10,7 +10,7 @@ use ciruela::proto::{ReceivedImage, BaseDirState, RequestFuture};
 
 
 pub struct Connections {
-    connections: HashSet<Connection>,
+    incoming: HashSet<Connection>,
 }
 
 pub struct Token(Remote, Connection);
@@ -22,19 +22,19 @@ pub struct Remote(Arc<Mutex<Connections>>);
 impl Remote {
     pub fn new() -> Remote {
         Remote(Arc::new(Mutex::new(Connections {
-            connections: HashSet::new(),
+            incoming: HashSet::new(),
         })))
     }
     fn inner(&self) -> MutexGuard<Connections> {
         self.0.lock().expect("remote interface poisoned")
     }
     pub fn register_connection(&self, cli: &Connection) -> Token {
-        self.inner().connections.insert(cli.clone());
+        self.inner().incoming.insert(cli.clone());
         return Token(self.clone(), cli.clone());
     }
     pub fn get_connection_for_index(&self, id: &ImageId) -> Option<Connection>
     {
-        for conn in self.inner().connections.iter() {
+        for conn in self.inner().incoming.iter() {
             if conn.has_image(id) {
                 return Some(conn.clone());
             }
@@ -42,7 +42,7 @@ impl Remote {
         return None;
     }
     pub fn notify_received_image(&self, ref id: ImageId, path: &VPath) {
-        for conn in self.inner().connections.iter() {
+        for conn in self.inner().incoming.iter() {
             if conn.has_image(id) {
                 conn.notification(ReceivedImage {
                     id: id.clone(),
@@ -63,6 +63,6 @@ impl Remote {
 
 impl Drop for Token {
     fn drop(&mut self) {
-        self.0.inner().connections.remove(&self.1);
+        self.0.inner().incoming.remove(&self.1);
     }
 }
