@@ -51,6 +51,7 @@ use futures_cpupool::CpuPool;
 use ns_std_threaded::ThreadedResolver;
 
 
+mod base_dir;
 mod cleanup;
 mod config;
 mod dir_util;
@@ -191,7 +192,7 @@ fn main() {
         }
     };
 
-    let remote = remote::Remote::new(&meta, &disk);
+    let remote = remote::Remote::new(&config, &meta, &disk);
 
     let (peers, peers_init) = peers::Peers::new(
         machine_id.clone(),

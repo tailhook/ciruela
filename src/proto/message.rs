@@ -3,7 +3,7 @@ use std::fmt;
 use serde::{Deserialize, Deserializer};
 use serde::de::{Visitor, SeqAccess, Error};
 
-use proto::{dir_commands, index_commands, block_commands};
+use proto::{dir_commands, index_commands, block_commands, p2p_commands};
 use proto::{NOTIFICATION, REQUEST, RESPONSE};
 
 
@@ -24,6 +24,7 @@ pub enum Type {
     ReplaceDir,
     GetIndex,
     GetBlock,
+    GetBaseDir,
 }
 
 pub enum NotificationType {
@@ -36,6 +37,7 @@ const TYPES: &'static [&'static str] = &[
     "ReplaceDir",
     "GetIndex",
     "GetBlock",
+    "GetBaseDir",
     ];
 
 const NOTIFICATION_TYPES: &'static [&'static str] = &[
@@ -48,6 +50,7 @@ pub enum Request {
     ReplaceDir(dir_commands::ReplaceDir),
     GetIndex(index_commands::GetIndex),
     GetBlock(block_commands::GetBlock),
+    GetBaseDir(p2p_commands::GetBaseDir),
 }
 
 pub enum Response {
@@ -55,6 +58,7 @@ pub enum Response {
     ReplaceDir(dir_commands::ReplaceDirAck),
     GetIndex(index_commands::GetIndexResponse),
     GetBlock(block_commands::GetBlockResponse),
+    GetBaseDir(p2p_commands::GetBaseDirResponse),
 }
 
 #[derive(Debug)]
@@ -85,6 +89,7 @@ impl<'a> Visitor<'a> for TypeVisitor {
             "ReplaceDir" => Ok(Type::ReplaceDir),
             "GetIndex" => Ok(Type::GetIndex),
             "GetBlock" => Ok(Type::GetBlock),
+            "GetBaseDir" => Ok(Type::GetBaseDir),
             _ => Err(Error::unknown_field(value, TYPES)),
         }
     }
@@ -178,6 +183,10 @@ impl<'a> Visitor<'a> for MessageVisitor {
                         Some(data) => Request::GetBlock(data),
                         None => return Err(Error::invalid_length(3, &self)),
                     },
+                    Type::GetBaseDir => match visitor.next_element()? {
+                        Some(data) => Request::GetBaseDir(data),
+                        None => return Err(Error::invalid_length(3, &self)),
+                    },
                 };
                 Ok(Message::Request(request_id, data))
             },
@@ -205,6 +214,10 @@ impl<'a> Visitor<'a> for MessageVisitor {
                     },
                     Type::GetBlock => match visitor.next_element()? {
                         Some(data) => Response::GetBlock(data),
+                        None => return Err(Error::invalid_length(3, &self)),
+                    },
+                    Type::GetBaseDir => match visitor.next_element()? {
+                        Some(data) => Response::GetBaseDir(data),
                         None => return Err(Error::invalid_length(3, &self)),
                     },
                 };

@@ -9,21 +9,21 @@ use futures::stream::MapErr;
 use futures::future::{FutureResult, ok};
 use futures::sync::mpsc::{UnboundedReceiver};
 use serde_cbor::de::from_slice;
-use tk_http::websocket::{self, Frame, Error, Loop};
+use tk_http::websocket::{self, Frame, Loop};
 use tk_http::websocket::ServerCodec;
 use tk_easyloop::{spawn, handle};
 use tk_bufstream::{WriteFramed, ReadFramed};
 use tokio_core::net::TcpStream;
 
+use base_dir;
 use ciruela::proto::message::{Message, Request};
 use ciruela::proto::{GetIndex, GetIndexResponse};
 use ciruela::proto::{GetBlock, GetBlockResponse};
+use ciruela::proto::{GetBaseDirResponse};
 use ciruela::proto::{RequestClient, RequestDispatcher, Sender};
 use ciruela::proto::{RequestFuture, Registry, StreamExt, PacketStream};
 use ciruela::proto::{WrapTrait, Notification};
 use ciruela::{ImageId, Hash};
-use metadata::Meta;
-use disk::Disk;
 use remote::Remote;
 
 lazy_static! {
@@ -44,20 +44,27 @@ struct ConnectionState {
 
 pub struct Dispatcher {
     connection: Connection,
-    metadata: Meta,
-    disk: Disk,
+    remote: Remote,
     requests: Registry,
 }
 
+quick_error! {
+    #[derive(Debug)]
+    pub enum Error {
+        ConfigNotFound {
+            description("config not found")
+        }
+    }
+}
+
 impl Dispatcher {
-    pub fn new(cli: Connection, meta: &Meta, disk: &Disk)
+    pub fn new(cli: Connection, remote: &Remote)
         -> (Dispatcher, Registry)
     {
         let registry = Registry::new();
         let disp = Dispatcher {
             connection: cli.clone(),
-            metadata: meta.clone(),
-            disk: disk.clone(),
+            remote: remote.clone(),
             requests: registry.clone(),
         };
         return (disp, registry);
@@ -85,8 +92,7 @@ impl Connection {
             sender: tx,
             images: Mutex::new(HashSet::new()),
         }));
-        let (disp, registry) = Dispatcher::new(cli.clone(),
-            &remote.meta(), &remote.disk());
+        let (disp, registry) = Dispatcher::new(cli.clone(), &remote);
         let rx = rx.packetize(&registry);
         let fut = Loop::server(out, inp, rx, disp,
             remote.websock_config(), &handle());
@@ -151,7 +157,7 @@ fn closed(():()) -> &'static str {
 
 impl websocket::Dispatcher for Dispatcher {
     // TODO(tailhook) implement backpressure
-    type Future = FutureResult<(), Error>;
+    type Future = FutureResult<(), websocket::Error>;
     fn frame(&mut self, frame: &Frame) -> Self::Future {
         use ciruela::proto::message::Notification as N;
 
@@ -159,7 +165,7 @@ impl websocket::Dispatcher for Dispatcher {
             Frame::Binary(data) => match from_slice(data) {
                 Ok(Message::Request(request_id, Request::AppendDir(ad))) => {
                     let chan = self.connection.0.sender.clone();
-                    spawn(self.metadata.append_dir(ad).then(move |res| {
+                    spawn(self.remote.meta().append_dir(ad).then(move |res| {
                         match res {
                             Ok(value) => {
                                 chan.response(request_id, value);
@@ -174,7 +180,7 @@ impl websocket::Dispatcher for Dispatcher {
                 }
                 Ok(Message::Request(request_id, Request::ReplaceDir(ad))) => {
                     let chan = self.connection.0.sender.clone();
-                    spawn(self.metadata.replace_dir(ad).then(move |res| {
+                    spawn(self.remote.meta().replace_dir(ad).then(move |res| {
                         match res {
                             Ok(value) => {
                                 chan.response(request_id, value);
@@ -194,6 +200,42 @@ impl websocket::Dispatcher for Dispatcher {
                 Ok(Message::Request(request_id, Request::GetBlock(gb))) => {
                     //let chan = self.connection.0.sender.clone();
                     unimplemented!();
+                }
+                Ok(Message::Request(request_id, Request::GetBaseDir(binfo)))
+                => {
+                    let chan = self.connection.0.sender.clone();
+                    match self.remote.config().dirs.get(binfo.path.key()) {
+                        Some(cfg) => {
+                            spawn(
+                                base_dir::scan(&binfo.path, cfg,
+                                    self.remote.meta(), self.remote.disk())
+                                .then(move |res| {
+                                    match res {
+                                        Ok(value) => {
+                                            chan.response(request_id,
+                                                GetBaseDirResponse {
+                                                    config_hash:
+                                                        value.config_hash,
+                                                    keep_list_hash:
+                                                        value.keep_list_hash,
+                                                    dirs: value.dirs,
+                                                });
+                                        }
+                                        Err(e) => {
+                                            error!("GetBaseDir error: {}", e);
+                                            chan.error_response(request_id, e);
+                                        }
+                                    };
+                                    Ok(())
+                                }));
+                        }
+                        None => {
+                            chan.error_response(request_id,
+                                Error::ConfigNotFound);
+                            error!("GetBaseDir error: config not found");
+                        }
+                    };
+
                 }
                 Ok(Message::Response(request_id, resp)) => {
                     self.respond(request_id, resp);

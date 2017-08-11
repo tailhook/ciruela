@@ -31,8 +31,7 @@ pub fn connect(sys: &Remote, cli: Connection, tok: Token,
         })
         .and_then(move |(out, inp, ())| {
             debug!("Established outgoing connection to {}", addr);
-            let (disp, registry) = Dispatcher::new(cli,
-                &sys.0.meta, &sys.0.disk);
+            let (disp, registry) = Dispatcher::new(cli, &sys);
             let rx = rx.map_err(closed as fn(()) -> &'static str);
             let rx = rx.packetize(&registry);
             Loop::client(out, inp, rx, disp, sys.websock_config(), &handle())

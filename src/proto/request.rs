@@ -16,6 +16,7 @@ use proto::message;
 use proto::dir_commands::{AppendDir, ReplaceDir};
 use proto::index_commands::GetIndex;
 use proto::block_commands::GetBlock;
+use proto::p2p_commands::GetBaseDir;
 
 
 quick_error! {
@@ -148,6 +149,7 @@ pub trait RequestDispatcher {
             R::ReplaceDir(x) => respond::<ReplaceDir, _>(request_id, x, self),
             R::GetIndex(x) => respond::<GetIndex, _>(request_id, x, self),
             R::GetBlock(x) => respond::<GetBlock, _>(request_id, x, self),
+            R::GetBaseDir(x) => respond::<GetBaseDir, _>(request_id, x, self),
         }
     }
 }

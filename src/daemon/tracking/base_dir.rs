@@ -1,16 +1,14 @@
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{HashMap};
 use std::collections::hash_map::Entry;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Instant, Duration};
 
-use ciruela::database::signatures::State;
 use ciruela::proto::BaseDirState;
 
 use atomic::Atomic;
 use ciruela::{VPath, Hash};
 use config::Directory;
-use peers::config::get_hash;
 use tracking::Subsystem;
 
 
@@ -43,19 +41,11 @@ impl BaseDir {
     fn recon_table(&self) -> MutexGuard<HashMap<Hash, Instant>> {
         self.recon_table.lock().expect("recon table is okay")
     }
-    pub fn commit_scan(path: VPath, dirs: BTreeMap<String, State>,
-        keep_list: BTreeSet<String>, scan_time: Instant, sys: &Subsystem)
+    pub fn commit_scan(dir_data: BaseDirState, config: &Arc<Directory>,
+        scan_time: Instant, sys: &Subsystem)
     {
-        let config = sys.config.dirs.get(path.key())
-                        .expect("only scans configured basedirs");
         let mut state = &mut *sys.state();
         let ref mut lst = state.base_dir_list;
-        let dir_data = BaseDirState {
-            path: path,
-            config_hash: get_hash(config),
-            keep_list_hash: Hash::for_object(&keep_list),
-            dirs: dirs,
-        };
         let hash = Hash::for_object(&dir_data);
         let down = state.in_progress.iter()
             .filter(|x| x.virtual_path.parent() == dir_data.path)

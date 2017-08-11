@@ -5,6 +5,7 @@ use std::collections::{HashSet, HashMap};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
+use config::Config;
 use websocket::Connection;
 use ciruela::{ImageId, VPath};
 use ciruela::proto::{ReceivedImage, Request, RequestFuture, RequestClient};
@@ -33,13 +34,15 @@ struct RemoteState {
     websock_config: Arc<WsConfig>,
     meta: Meta,
     disk: Disk,
+    config: Arc<Config>,
     conn: Mutex<Connections>,
 }
 
 
 impl Remote {
-    pub fn new(meta: &Meta, disk: &Disk) -> Remote {
+    pub fn new(config: &Arc<Config>, meta: &Meta, disk: &Disk) -> Remote {
         Remote(Arc::new(RemoteState {
+            config: config.clone(),
             meta: meta.clone(),
             disk: disk.clone(),
             websock_config: WsConfig::new()
@@ -106,12 +109,16 @@ impl Remote {
             .request(req)
     }
     /// Only public for daemon::websocket
-    pub fn meta(&self) -> Meta {
-        self.0.meta.clone()
+    pub fn meta(&self) -> &Meta {
+        &self.0.meta
     }
     /// Only public for daemon::websocket
-    pub fn disk(&self) -> Disk {
-        self.0.disk.clone()
+    pub fn disk(&self) -> &Disk {
+        &self.0.disk
+    }
+    /// Only public for daemon::websocket
+    pub fn config(&self) -> &Arc<Config> {
+        &self.0.config
     }
 }
 

@@ -36,8 +36,12 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
                 Ok(dir) => {
                     let dir_hash = Hash::for_object(&dir);
                     if dir_hash == hash {
+                        // TODO(tailhook) isn't it too early to remove?
                         state.reconciling.remove(&pair);
                         return Ok(Loop::Break((addr, dir)))
+                    } else {
+                        debug!("Mismatching hash from {}:{:?}: {} != {}",
+                            addr, pair.0, hash, dir_hash);
                     }
                 }
                 Err(e) => {
@@ -61,6 +65,7 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
                 // (keep-alive connection is dropping). But we didn't mark
                 // this hash as visited, yet so on next ping we will retry.
                 state.reconciling.remove(&pair);
+                debug!("No next host for {:?}", pair);
                 return Err(());
             }
         })

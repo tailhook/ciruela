@@ -241,25 +241,15 @@ pub fn start(init: TrackingInit, meta: &Meta, remote: &Remote, disk: &Disk)
                 return Either::A(ok(()))
             }
             let config = sys.config.dirs.get(path.key())
-                .expect("only scan configured dirs");
+                .expect("only scan configured dirs")
+                .clone();
             let sys = sys.clone();
             let scan_time = Instant::now();
             Either::B(
-                meta.scan_dir(&path).map_err(boxerr)
-                .join(sys.disk.read_keep_list(config).map_err(boxerr))
+                ::base_dir::scan(&path, &config, &meta, &sys.disk)
                 .then(move |res| match res {
-                    Ok((states, keep_list)) => {
-                        let kl = keep_list.into_iter()
-                            .filter_map(|p| {
-                                p.strip_prefix(path.suffix()).ok()
-                                .and_then(|name| name.to_str())
-                                .map(|name| {
-                                    assert!(name.find('/').is_none());
-                                    name.to_string()
-                                })
-                            }).collect();
-                        BaseDir::commit_scan(path, states, kl,
-                            scan_time, &sys);
+                    Ok(bdir) => {
+                        BaseDir::commit_scan(bdir, &config, scan_time, &sys);
                         Ok(())
                     }
                     Err(e) => {
@@ -272,10 +262,4 @@ pub fn start(init: TrackingInit, meta: &Meta, remote: &Remote, disk: &Disk)
         .map(move |()| sys3.undry_cleanup())
         .map_err(|_| unreachable!()));
     Ok(())
-}
-
-fn boxerr<E: ::std::error::Error + Send + 'static>(e: E)
-    -> Box<::std::error::Error + Send>
-{
-    Box::new(e) as Box<::std::error::Error + Send>
 }
