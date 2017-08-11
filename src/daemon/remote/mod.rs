@@ -1,9 +1,12 @@
+use std::net::SocketAddr;
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex, MutexGuard};
 
+use futures::Future;
+
 use websocket::Connection;
 use ciruela::{ImageId, VPath};
-use ciruela::proto::ReceivedImage;
+use ciruela::proto::{ReceivedImage, BaseDirState, RequestFuture};
 
 
 pub struct Connections {
@@ -50,6 +53,11 @@ impl Remote {
                 })
             }
         }
+    }
+    pub fn fetch_base_dir(&self, addr: SocketAddr, path: &VPath)
+        -> RequestFuture<BaseDirState>
+    {
+         unimplemented!();
     }
 }
 
