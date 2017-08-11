@@ -1,12 +1,18 @@
+mod outgoing;
+
 use std::net::SocketAddr;
 use std::collections::{HashSet, HashMap};
 use std::sync::{Arc, Mutex, MutexGuard};
-
-use futures::Future;
+use std::time::Duration;
 
 use websocket::Connection;
 use ciruela::{ImageId, VPath};
-use ciruela::proto::{ReceivedImage, BaseDirState, RequestFuture};
+use ciruela::proto::{ReceivedImage, Request, RequestFuture, RequestClient};
+use ciruela::proto::{GetBaseDir, GetBaseDirResponse};
+use remote::outgoing::connect;
+use tk_http::websocket::{Config as WsConfig};
+use metadata::Meta;
+use disk::Disk;
 
 
 pub struct Connections {
@@ -21,24 +27,43 @@ pub struct Connections {
 pub struct Token(Remote, Connection);
 
 #[derive(Clone)]
-pub struct Remote(Arc<Mutex<Connections>>);
+pub struct Remote(Arc<RemoteState>);
+
+struct RemoteState {
+    websock_config: Arc<WsConfig>,
+    meta: Meta,
+    disk: Disk,
+    conn: Mutex<Connections>,
+}
 
 
 impl Remote {
-    pub fn new() -> Remote {
-        Remote(Arc::new(Mutex::new(Connections {
-            incoming: HashSet::new(),
-            outgoing: HashMap::new(),
-        })))
+    pub fn new(meta: &Meta, disk: &Disk) -> Remote {
+        Remote(Arc::new(RemoteState {
+            meta: meta.clone(),
+            disk: disk.clone(),
+            websock_config: WsConfig::new()
+                .ping_interval(Duration::new(1200, 0)) // no pings
+                .inactivity_timeout(Duration::new(5, 0))
+                .done(),
+            conn: Mutex::new(Connections {
+                incoming: HashSet::new(),
+                outgoing: HashMap::new(),
+            }),
+        }))
+    }
+    pub fn websock_config(&self) -> &Arc<WsConfig> {
+        &self.0.websock_config
     }
     fn inner(&self) -> MutexGuard<Connections> {
-        self.0.lock().expect("remote interface poisoned")
+        self.0.conn.lock().expect("remote interface poisoned")
     }
     pub fn register_connection(&self, cli: &Connection) -> Token {
         self.inner().incoming.insert(cli.clone());
         return Token(self.clone(), cli.clone());
     }
-    pub fn get_connection_for_index(&self, id: &ImageId) -> Option<Connection>
+    pub fn get_connection_for_index(&self, id: &ImageId)
+        -> Option<Connection>
     {
         for conn in self.inner().incoming.iter() {
             if conn.has_image(id) {
@@ -61,9 +86,33 @@ impl Remote {
         }
     }
     pub fn fetch_base_dir(&self, addr: SocketAddr, path: &VPath)
-        -> RequestFuture<BaseDirState>
+        -> RequestFuture<GetBaseDirResponse>
     {
-        unimplemented!();
+        self.connect_and_request(addr, GetBaseDir {
+            path: path.clone(),
+        })
+    }
+    fn connect_and_request<R>(&self, addr: SocketAddr, req: R)
+        -> RequestFuture<R::Response>
+        where R: Request + 'static
+    {
+        if let Some(conn) = self.inner().outgoing.get(&addr) {
+            conn.request(req)
+        } else {
+            let (cli, rx) = Connection::outgoing(addr);
+            self.inner().outgoing.insert(addr, cli.clone());
+            let tok = Token(self.clone(), cli.clone());
+            connect(self, cli.clone(), tok, addr, rx);
+            cli.request(req)
+        }
+    }
+    /// Only public for daemon::websocket
+    pub fn meta(&self) -> Meta {
+        self.0.meta.clone()
+    }
+    /// Only public for daemon::websocket
+    pub fn disk(&self) -> Disk {
+        self.0.disk.clone()
     }
 }
 

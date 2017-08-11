@@ -10,14 +10,12 @@ use tk_http::Status;
 use tk_http::server::{Proto, Encoder, EncoderDone, Error, Config};
 
 use tk_http::server::buffered::{Request, BufferedDispatcher};
-use tk_http::websocket::{Config as WsConfig};
 use tk_listen::ListenExt;
 use tokio_core::net::TcpListener;
 use tk_easyloop::{spawn, handle};
 
 
 use websocket::Connection;
-use metadata::Meta;
 use remote::Remote;
 
 
@@ -52,27 +50,23 @@ fn service<S>(req: Request, mut e: Encoder<S>)
 }
 
 
-pub fn start(addr: SocketAddr, meta: &Meta, remote: &Remote)
+pub fn start(addr: SocketAddr, remote: &Remote)
     -> Result<(), io::Error>
 {
     let listener = TcpListener::bind(&addr, &handle())?;
     let cfg = Config::new().done();
-    let wcfg = WsConfig::new().done();
-    let meta = meta.clone();
     let remote = remote.clone();
 
     spawn(listener.incoming()
         .sleep_on_error(Duration::from_millis(100), &tk_easyloop::handle())
         .map(move |(socket, addr)| {
-            let wcfg = wcfg.clone();
-            let meta = meta.clone();
             let remote = remote.clone();
             Proto::new(socket, &cfg,
                 BufferedDispatcher::new_with_websockets(addr, &handle(),
                     service,
                     move |out, inp| {
-                        let (cli, fut) = Connection::new(
-                            addr, out, inp, &meta, &wcfg);
+                        let (cli, fut) = Connection::incoming(
+                            addr, out, inp, &remote);
                         let token = remote.register_connection(&cli);
                         fut
                             .map_err(|e| debug!("websocket closed: {}", e))

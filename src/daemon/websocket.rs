@@ -9,7 +9,7 @@ use futures::stream::MapErr;
 use futures::future::{FutureResult, ok};
 use futures::sync::mpsc::{UnboundedReceiver};
 use serde_cbor::de::from_slice;
-use tk_http::websocket::{self, Frame, Error, Config, Loop};
+use tk_http::websocket::{self, Frame, Error, Loop};
 use tk_http::websocket::ServerCodec;
 use tk_easyloop::{spawn, handle};
 use tk_bufstream::{WriteFramed, ReadFramed};
@@ -23,6 +23,8 @@ use ciruela::proto::{RequestFuture, Registry, StreamExt, PacketStream};
 use ciruela::proto::{WrapTrait, Notification};
 use ciruela::{ImageId, Hash};
 use metadata::Meta;
+use disk::Disk;
+use remote::Remote;
 
 lazy_static! {
     static ref CONNECTION_ID: AtomicUsize = AtomicUsize::new(0);
@@ -35,6 +37,7 @@ struct ConnectionState {
     id: usize,
     addr: SocketAddr,
     sender: Sender,
+    // TODO(tailhook) is this images thing needed?
     images: Mutex<HashSet<ImageId>>,
 }
 
@@ -42,14 +45,30 @@ struct ConnectionState {
 pub struct Dispatcher {
     connection: Connection,
     metadata: Meta,
+    disk: Disk,
     requests: Registry,
 }
 
+impl Dispatcher {
+    pub fn new(cli: Connection, meta: &Meta, disk: &Disk)
+        -> (Dispatcher, Registry)
+    {
+        let registry = Registry::new();
+        let disp = Dispatcher {
+            connection: cli.clone(),
+            metadata: meta.clone(),
+            disk: disk.clone(),
+            requests: registry.clone(),
+        };
+        return (disp, registry);
+    }
+}
+
 impl Connection {
-    pub fn new(addr: SocketAddr,
+    pub fn incoming(addr: SocketAddr,
                out: WriteFramed<TcpStream, ServerCodec>,
                inp: ReadFramed<TcpStream, ServerCodec>,
-               meta: &Meta, cfg: &Arc<Config>)
+               remote: &Remote)
         -> (Connection, Loop<TcpStream,
             PacketStream<
                 MapErr<UnboundedReceiver<Box<WrapTrait>>,
@@ -66,15 +85,26 @@ impl Connection {
             sender: tx,
             images: Mutex::new(HashSet::new()),
         }));
-        let registry = Registry::new();
-        let disp = Dispatcher {
-            connection: cli.clone(),
-            metadata: meta.clone(),
-            requests: registry.clone(),
-        };
+        let (disp, registry) = Dispatcher::new(cli.clone(),
+            &remote.meta(), &remote.disk());
         let rx = rx.packetize(&registry);
-        let fut = Loop::server(out, inp, rx, disp, cfg, &handle());
+        let fut = Loop::server(out, inp, rx, disp,
+            remote.websock_config(), &handle());
         return (cli, fut);
+    }
+
+    pub fn outgoing(addr: SocketAddr)
+        -> (Connection, UnboundedReceiver<Box<WrapTrait>>)
+    {
+        let (tx, rx) = Sender::channel();
+        let id = CONNECTION_ID.fetch_add(1, Ordering::SeqCst);
+        let cli = Connection(Arc::new(ConnectionState {
+            id: id,
+            addr: addr,
+            sender: tx,
+            images: Mutex::new(HashSet::new()),
+        }));
+        return (cli, rx);
     }
 
     pub fn addr(&self) -> SocketAddr {

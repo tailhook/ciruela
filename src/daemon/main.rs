@@ -191,7 +191,7 @@ fn main() {
         }
     };
 
-    let remote = remote::Remote::new();
+    let remote = remote::Remote::new(&meta, &disk);
 
     let (peers, peers_init) = peers::Peers::new(
         machine_id.clone(),
@@ -200,7 +200,7 @@ fn main() {
         });
 
     tk_easyloop::run_forever(|| -> Result<(), Box<Error>> {
-        http::start(addr, &meta, &remote)?;
+        http::start(addr, &remote)?;
         disk::start(disk_init, &meta)?;
         tracking::start(tracking_init, &meta, &remote, &disk)?;
         peers::start(peers_init, addr, &config, &disk, &router, &tracking)?;
