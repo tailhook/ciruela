@@ -135,7 +135,7 @@ impl Tracking {
         {
             let pair = (path, hash);
             if state.reconciling.contains_key(&pair) {
-                debug!("Already reconciling {:?}", pair);
+                trace!("Already reconciling {:?}", pair);
                 state.reconciling.get_mut(&pair).unwrap()
                     .insert((peer_addr, peer_id));
             } else {
