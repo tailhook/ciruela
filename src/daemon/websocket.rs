@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::hash::{Hasher};
+use std::net::SocketAddr;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -32,6 +33,7 @@ pub struct Connection(Arc<ConnectionState>);
 
 struct ConnectionState {
     id: usize,
+    addr: SocketAddr,
     sender: Sender,
     images: Mutex<HashSet<ImageId>>,
 }
@@ -44,7 +46,8 @@ pub struct Dispatcher {
 }
 
 impl Connection {
-    pub fn new(out: WriteFramed<TcpStream, ServerCodec>,
+    pub fn new(addr: SocketAddr,
+               out: WriteFramed<TcpStream, ServerCodec>,
                inp: ReadFramed<TcpStream, ServerCodec>,
                meta: &Meta, cfg: &Arc<Config>)
         -> (Connection, Loop<TcpStream,
@@ -59,6 +62,7 @@ impl Connection {
         let id = CONNECTION_ID.fetch_add(1, Ordering::SeqCst);
         let cli = Connection(Arc::new(ConnectionState {
             id: id,
+            addr: addr,
             sender: tx,
             images: Mutex::new(HashSet::new()),
         }));
@@ -71,6 +75,10 @@ impl Connection {
         let rx = rx.packetize(&registry);
         let fut = Loop::server(out, inp, rx, disp, cfg, &handle());
         return (cli, fut);
+    }
+
+    pub fn addr(&self) -> SocketAddr {
+        self.0.addr
     }
 
     fn images(&self) -> MutexGuard<HashSet<ImageId>> {

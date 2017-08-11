@@ -72,7 +72,7 @@ pub fn start(addr: SocketAddr, meta: &Meta, remote: &Remote)
                     service,
                     move |out, inp| {
                         let (cli, fut) = Connection::new(
-                            out, inp, &meta, &wcfg);
+                            addr, out, inp, &meta, &wcfg);
                         let token = remote.register_connection(&cli);
                         fut
                             .map_err(|e| debug!("websocket closed: {}", e))

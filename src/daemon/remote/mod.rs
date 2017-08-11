@@ -1,5 +1,5 @@
 use std::net::SocketAddr;
-use std::collections::HashSet;
+use std::collections::{HashSet, HashMap};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use futures::Future;
@@ -10,7 +10,12 @@ use ciruela::proto::{ReceivedImage, BaseDirState, RequestFuture};
 
 
 pub struct Connections {
+    // TODO(tailhook) optimize incoming and outgoing connections
+    // but keep in mind that client connections should never be used as
+    // outgoing (i.e. you can use `ciruela upload` on the same host as
+    // `ciruela-server`)
     incoming: HashSet<Connection>,
+    outgoing: HashMap<SocketAddr, Connection>,
 }
 
 pub struct Token(Remote, Connection);
@@ -23,6 +28,7 @@ impl Remote {
     pub fn new() -> Remote {
         Remote(Arc::new(Mutex::new(Connections {
             incoming: HashSet::new(),
+            outgoing: HashMap::new(),
         })))
     }
     fn inner(&self) -> MutexGuard<Connections> {
@@ -57,12 +63,18 @@ impl Remote {
     pub fn fetch_base_dir(&self, addr: SocketAddr, path: &VPath)
         -> RequestFuture<BaseDirState>
     {
-         unimplemented!();
+        unimplemented!();
     }
 }
 
 impl Drop for Token {
     fn drop(&mut self) {
-        self.0.inner().incoming.remove(&self.1);
+        let mut remote = self.0.inner();
+        remote.incoming.remove(&self.1);
+        if remote.outgoing.get(&self.1.addr())
+            .map(|x| *x == self.1).unwrap_or(false)
+        {
+            remote.outgoing.remove(&self.1.addr());
+        }
     }
 }

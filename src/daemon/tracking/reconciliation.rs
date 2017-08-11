@@ -25,6 +25,8 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
         initial_addr: addr,
         initial_machine_id: mid
     } = info;
+    // TODO(tailhook) allow Remote subsystem to pick a connection, so
+    // it can choose one, already available when multiple choices are there
     spawn(loop_fn((addr, mid), move |(addr, mid)| {
         let sys = sys.clone();
         let pair = (path.clone(), hash); // TODO(tailhook) optimize?
@@ -53,7 +55,11 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
             if let Some(next_host) = next_host {
                 return Ok(Loop::Continue(next_host))
             } else {
-                // It's fine, probably all hosts have an updated hash already
+                // It's fine, probably all hosts have an updated hash already.
+                // It might also be that there is some race condition, like
+                // we tried to do request, and it failed temporarily
+                // (keep-alive connection is dropping). But we didn't mark
+                // this hash as visited, yet so on next ping we will retry.
                 state.reconciling.remove(&pair);
                 return Err(());
             }
