@@ -2,6 +2,7 @@ mod base_dir;
 mod fetch_dir;
 mod progress;
 mod cleanup;
+mod reconciliation;
 
 use std::net::SocketAddr;
 use std::collections::{HashMap, HashSet};
@@ -23,6 +24,7 @@ use machine_id::MachineId;
 use metadata::Meta;
 use rand::{thread_rng, Rng};
 use remote::Remote;
+use self::reconciliation::ReconPush;
 
 pub use self::progress::Downloading;
 pub use self::base_dir::BaseDir;
@@ -43,10 +45,12 @@ pub struct State {
 
     base_dirs: HashMap<VPath, Arc<BaseDir>>,
     base_dir_list: Vec<Arc<BaseDir>>,
+    reconciling: HashMap<(VPath, Hash), HashSet<(SocketAddr, MachineId)>>,
 }
 
 #[derive(Clone)]
 pub struct Tracking {
+    config: Arc<Config>,
     cmd_chan: UnboundedSender<Command>,
     rescan_chan: UnboundedSender<(VPath, Instant)>,
     state: Arc<Mutex<State>>,
@@ -75,13 +79,15 @@ pub struct TrackingInit {
 
 pub enum Command {
     FetchDir(Downloading),
+    Reconcile(ReconPush),
 }
 
 impl Tracking {
-    pub fn new() -> (Tracking, TrackingInit) {
+    pub fn new(config: &Arc<Config>) -> (Tracking, TrackingInit) {
         let (ctx, crx) = unbounded();
         let (rtx, rrx) = unbounded();
         let handler = Tracking {
+            config: config.clone(),
             state: Arc::new(Mutex::new(State {
                 image_futures: HashMap::new(),
                 images: HashMap::new(),
@@ -89,6 +95,7 @@ impl Tracking {
                 in_progress: HashSet::new(),
                 base_dirs: HashMap::new(),
                 base_dir_list: Vec::new(),
+                reconciling: HashMap::new(),
             })),
             cmd_chan: ctx,
             rescan_chan: rtx,
@@ -118,11 +125,32 @@ impl Tracking {
     pub fn reconcile_dir(&self, path: VPath, hash: Hash,
         peer_addr: SocketAddr, peer_id: MachineId)
     {
-        if self.state().base_dirs
-           .get(&path).map(|x| x.hash() != hash)
+        if self.config.dirs.get(path.key()).is_none() {
+            return;
+        }
+        let mut state = self.state();
+        if state.base_dirs
+           .get(&path).map(|x| !x.is_superset_of(hash))
            .unwrap_or(true)
         {
-            unimplemented!();
+            let pair = (path, hash);
+            if state.reconciling.contains_key(&pair) {
+                debug!("Already reconciling {:?}", pair);
+                state.reconciling.get_mut(&pair).unwrap()
+                    .insert((peer_addr, peer_id));
+            } else {
+                state.reconciling.insert(pair.clone(), {
+                    let mut hash = HashSet::new();
+                    hash.insert((peer_addr, peer_id.clone()));
+                    hash
+                });
+                self.send(Command::Reconcile(ReconPush {
+                    path: pair.0,
+                    hash: pair.1,
+                    initial_addr: peer_addr,
+                    initial_machine_id: peer_id,
+                }));
+            }
         }
     }
     pub fn pick_random_dir(&self) -> Option<(VPath, Hash)> {
@@ -169,14 +197,13 @@ impl Subsystem {
     }
 }
 
-pub fn start(init: TrackingInit, config: &Arc<Config>,
-    meta: &Meta, remote: &Remote, disk: &Disk)
+pub fn start(init: TrackingInit, meta: &Meta, remote: &Remote, disk: &Disk)
     -> Result<(), String> // actually void
 {
     let (ctx, crx) = unbounded();
     let TrackingInit { cmd_chan, rescan_chan, tracking } = init;
     let sys = Subsystem(Arc::new(Data {
-        config: config.clone(),
+        config: tracking.config.clone(),
         meta: meta.clone(),
         disk: disk.clone(),
         state: tracking.state.clone(),
@@ -197,6 +224,7 @@ pub fn start(init: TrackingInit, config: &Arc<Config>,
             use self::Command::*;
             match command {
                 FetchDir(info) => fetch_dir::start(&sys2, info),
+                Reconcile(info) => reconciliation::start(&sys2, info),
             }
             Ok(())
         }));

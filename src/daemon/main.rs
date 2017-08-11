@@ -170,7 +170,7 @@ fn main() {
     router.add_default(ThreadedResolver::new(CpuPool::new(1)));
     let router = router.into_resolver();
 
-    let (tracking, tracking_init) = tracking::Tracking::new();
+    let (tracking, tracking_init) = tracking::Tracking::new(&config);
 
     let (disk, disk_init) = match disk::Disk::new(disk_threads, &config) {
         Ok(pair) => pair,
@@ -202,7 +202,7 @@ fn main() {
     tk_easyloop::run_forever(|| -> Result<(), Box<Error>> {
         http::start(addr, &meta, &remote)?;
         disk::start(disk_init, &meta)?;
-        tracking::start(tracking_init, &config, &meta, &remote, &disk)?;
+        tracking::start(tracking_init, &meta, &remote, &disk)?;
         peers::start(peers_init, addr, &config, &disk, &router, &tracking)?;
         Ok(())
     }).map_err(|e| {
