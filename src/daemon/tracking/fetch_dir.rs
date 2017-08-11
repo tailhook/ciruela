@@ -12,7 +12,7 @@ use ciruela::Hash;
 use disk::{self, Image};
 use index::Index;
 use metadata::Error;
-use tracking::{Subsystem, Block, Downloading, BaseDir};
+use tracking::{Subsystem, Block, Downloading};
 
 
 pub fn start(sys: &Subsystem, cmd: Downloading) {

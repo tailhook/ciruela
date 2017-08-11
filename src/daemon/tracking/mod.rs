@@ -166,7 +166,8 @@ impl Tracking {
         self.state.lock().expect("image tracking subsystem is not poisoned")
     }
     pub fn scan_dir(&self, path: VPath) {
-        self.rescan_chan.send((path, Instant::now()));
+        self.rescan_chan.send((path, Instant::now()))
+            .expect("rescan thread is alive");
     }
 }
 
@@ -193,7 +194,8 @@ impl Subsystem {
         self.0.dry_cleanup.load(Ordering::Relaxed)
     }
     fn rescan_dir(&self, path: VPath) {
-        self.0.scan.send((path, Instant::now()));
+        self.0.scan.send((path, Instant::now()))
+            .expect("can always send in rescan channel");
     }
 }
 
@@ -214,9 +216,11 @@ pub fn start(init: TrackingInit, meta: &Meta, remote: &Remote, disk: &Disk)
     }));
     let sys2 = sys.clone();
     let sys3 = sys.clone();
+    let sys4 = sys.clone();
     let meta = meta.clone();
 
     spawn(meta.scan_base_dirs(&tracking)
+        .map(move |()| sys4.start_cleanup())
         .map_err(|e| error!("Error during first scan: {}", e)));
     cleanup::spawn_loop(crx, &sys);
     spawn(cmd_chan

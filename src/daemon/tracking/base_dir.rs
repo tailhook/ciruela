@@ -7,7 +7,6 @@ use std::time::{Instant, Duration};
 use ciruela::database::signatures::State;
 use ciruela::proto::BaseDirState;
 
-use futures::Future;
 use atomic::Atomic;
 use ciruela::{VPath, Hash};
 use config::Directory;

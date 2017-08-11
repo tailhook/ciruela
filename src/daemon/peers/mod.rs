@@ -59,7 +59,7 @@ pub fn start(me: PeersInit, addr: SocketAddr,
         let tracking = tracking.clone();
         let id = me.machine_id.clone();
         spawn(
-            file::read_peers(&cell, peer_file, disk, router, config.port)
+            file::read_peers(peer_file, disk, router, config.port)
             .and_then(move |fut| {
                 gossip::start(addr, cell, id, &tracking, fut)
                     .expect("can start gossip");

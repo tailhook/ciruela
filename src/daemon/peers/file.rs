@@ -1,21 +1,15 @@
 use std::path::PathBuf;
 use std::net::SocketAddr;
-use std::sync::Arc;
 use std::collections::HashMap;
 
 use disk::Disk;
 
 use abstract_ns::{Router, Resolver};
-use crossbeam::sync::ArcCell;
 use futures::{Future, Stream};
 use futures::stream::iter;
 
-use peers::Peer;
-use machine_id::MachineId;
 
-
-pub fn read_peers(cell: &Arc<ArcCell<HashMap<MachineId, Peer>>>,
-    peer_file: PathBuf, disk: &Disk,
+pub fn read_peers(peer_file: PathBuf, disk: &Disk,
     router: &Router, port: u16)
     -> Box<Future<Item=HashMap<SocketAddr, String>, Error=()>>
 {

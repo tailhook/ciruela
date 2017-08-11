@@ -17,10 +17,10 @@ use openat::Metadata;
 use ciruela::database::signatures::State;
 use ciruela::proto::{AppendDir, AppendDirAck};
 use ciruela::proto::{ReplaceDir, ReplaceDirAck};
-use ciruela::{ImageId, VPath, Hash};
+use ciruela::{ImageId, VPath};
 use config::Config;
 use index::Index;
-use tracking::{Tracking, BaseDir};
+use tracking::{Tracking};
 
 use self::dir::Dir;
 pub use self::error::Error;
