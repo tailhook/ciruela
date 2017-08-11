@@ -6,7 +6,6 @@ mod first_scan;
 mod read_index;
 mod scan;
 mod store_index;
-pub mod reconciliation;
 
 use std::collections::{HashMap, BTreeMap};
 use std::sync::{Arc, Mutex, MutexGuard};
