@@ -96,15 +96,14 @@ impl Remote {
         -> RequestFuture<R::Response>
         where R: Request + 'static
     {
-        if let Some(conn) = self.inner().outgoing.get(&addr) {
-            conn.request(req)
-        } else {
-            let (cli, rx) = Connection::outgoing(addr);
-            self.inner().outgoing.insert(addr, cli.clone());
-            let tok = Token(self.clone(), cli.clone());
-            connect(self, cli.clone(), tok, addr, rx);
-            cli.request(req)
-        }
+        self.inner().outgoing.entry(addr)
+            .or_insert_with(move || {
+                let (cli, rx) = Connection::outgoing(addr);
+                let tok = Token(self.clone(), cli.clone());
+                connect(self, cli.clone(), tok, addr, rx);
+                cli
+            })
+            .request(req)
     }
     /// Only public for daemon::websocket
     pub fn meta(&self) -> Meta {
