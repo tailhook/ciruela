@@ -13,6 +13,7 @@ pub struct GetBaseDir {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct GetBaseDirResponse {
     pub config_hash: Hash,
+    pub keep_list_hash: Hash,
     pub dirs: BTreeMap<String, State>,
 }
 
@@ -20,6 +21,7 @@ pub struct GetBaseDirResponse {
 pub struct BaseDirState {
     pub path: VPath,
     pub config_hash: Hash,
+    pub keep_list_hash: Hash,
     pub dirs: BTreeMap<String, State>,
 }
 

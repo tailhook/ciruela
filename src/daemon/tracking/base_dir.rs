@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::collections::hash_map::Entry;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -33,7 +33,7 @@ impl BaseDir {
         self.last_scan.load(Ordering::SeqCst)
     }
     pub fn commit_scan(path: VPath, dirs: BTreeMap<String, State>,
-        scan_time: Instant, sys: &Subsystem)
+        keep_list: BTreeSet<String>, scan_time: Instant, sys: &Subsystem)
     {
         let config = sys.config.dirs.get(path.key())
                         .expect("only scans configured basedirs");
@@ -42,6 +42,7 @@ impl BaseDir {
         let dir_data = BaseDirState {
             path: path,
             config_hash: get_hash(config),
+            keep_list_hash: Hash::for_object(&keep_list),
             dirs: dirs,
         };
         let hash = Hash::for_object(&dir_data);

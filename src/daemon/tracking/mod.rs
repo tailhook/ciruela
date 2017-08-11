@@ -208,12 +208,26 @@ pub fn start(init: TrackingInit, config: &Arc<Config>,
                 // race condition between scan and enqueue. just skip it
                 return Either::A(ok(()))
             }
+            let config = sys.config.dirs.get(path.key())
+                .expect("only scan configured dirs");
             let sys = sys.clone();
             let scan_time = Instant::now();
-            Either::B(meta.scan_dir(&path)
+            Either::B(
+                meta.scan_dir(&path).map_err(boxerr)
+                .join(sys.disk.read_keep_list(config).map_err(boxerr))
                 .then(move |res| match res {
-                    Ok(states) => {
-                        BaseDir::commit_scan(path, states, scan_time, &sys);
+                    Ok((states, keep_list)) => {
+                        let kl = keep_list.into_iter()
+                            .filter_map(|p| {
+                                p.strip_prefix(path.suffix()).ok()
+                                .and_then(|name| name.to_str())
+                                .map(|name| {
+                                    assert!(name.find('/').is_none());
+                                    name.to_string()
+                                })
+                            }).collect();
+                        BaseDir::commit_scan(path, states, kl,
+                            scan_time, &sys);
                         Ok(())
                     }
                     Err(e) => {
@@ -226,4 +240,10 @@ pub fn start(init: TrackingInit, config: &Arc<Config>,
         .map(move |()| sys3.undry_cleanup())
         .map_err(|_| unreachable!()));
     Ok(())
+}
+
+fn boxerr<E: ::std::error::Error + Send + 'static>(e: E)
+    -> Box<::std::error::Error + Send>
+{
+    Box::new(e) as Box<::std::error::Error + Send>
 }
