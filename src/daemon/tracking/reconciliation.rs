@@ -1,6 +1,7 @@
 use std::net::SocketAddr;
 
 use ciruela::{VPath, Hash};
+use ciruela::proto::BaseDirState;
 use machine_id::{MachineId};
 use tracking::Subsystem;
 
@@ -34,11 +35,17 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
             let mut state = sys.state();
             match res {
                 Ok(dir) => {
-                    let dir_hash = Hash::for_object(&dir);
+                    let dir_state = BaseDirState {
+                        path: pair.0.clone(),
+                        config_hash: dir.config_hash,
+                        keep_list_hash: dir.keep_list_hash,
+                        dirs: dir.dirs,
+                    };
+                    let dir_hash = Hash::for_object(&dir_state);
                     if dir_hash == hash {
                         // TODO(tailhook) isn't it too early to remove?
                         state.reconciling.remove(&pair);
-                        return Ok(Loop::Break((addr, dir)))
+                        return Ok(Loop::Break((addr, dir_state)))
                     } else {
                         debug!("Mismatching hash from {}:{:?}: {} != {}",
                             addr, pair.0, hash, dir_hash);
