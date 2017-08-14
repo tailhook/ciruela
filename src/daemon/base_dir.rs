@@ -32,7 +32,8 @@ pub fn scan(path: &VPath, config: &Arc<Directory>, meta: &Meta, disk: &Disk)
 {
     let path = path.clone();
     let config = config.clone();
-    Box::new(meta.scan_dir(&path).map_err(Error::Meta)
+    Box::new(
+        meta.scan_dir(&path).map_err(Error::Meta)
         .join(disk.read_keep_list(&config).map_err(Error::Disk))
         .map(move |(dirs, keep_list)| {
             let kl: BTreeSet<String> = keep_list.into_iter()

@@ -1,12 +1,13 @@
 use std::net::SocketAddr;
 
 use ciruela::{VPath, Hash};
-use ciruela::proto::BaseDirState;
+use ciruela::proto::{BaseDirState, AppendDir, ReplaceDir};
 use machine_id::{MachineId};
 use tracking::Subsystem;
 
 use futures::future::{Future, Loop, loop_fn};
 use tk_easyloop::spawn;
+use base_dir;
 
 
 pub struct ReconPush {
@@ -20,6 +21,9 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
     debug!("Reconciling {:?} to hash {} from {}/{}",
         info.path, info.hash, info.initial_addr, info.initial_machine_id);
     let sys = sys.clone();
+    let sys2 = sys.clone();
+    let sys3 = sys.clone();
+    let sys_drop = sys.clone();
     let ReconPush {
         path,
         hash,
@@ -28,9 +32,10 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
     } = info;
     // TODO(tailhook) allow Remote subsystem to pick a connection, so
     // it can choose one, already available when multiple choices are there
+    let pair = (path.clone(), hash);
     spawn(loop_fn((addr, mid), move |(addr, mid)| {
         let sys = sys.clone();
-        let pair = (path.clone(), hash); // TODO(tailhook) optimize?
+        let pair = pair.clone(); // TODO(tailhook) optimize?
         sys.remote.fetch_base_dir(addr, &pair.0).then(move |res| {
             let mut state = sys.state();
             match res {
@@ -43,8 +48,6 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
                     };
                     let dir_hash = Hash::for_object(&dir_state);
                     if dir_hash == hash {
-                        // TODO(tailhook) isn't it too early to remove?
-                        state.reconciling.remove(&pair);
                         return Ok(Loop::Break((addr, dir_state)))
                     } else {
                         debug!("Mismatching hash from {}:{:?}: {} != {}",
@@ -71,14 +74,57 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
                 // we tried to do request, and it failed temporarily
                 // (keep-alive connection is dropping). But we didn't mark
                 // this hash as visited, yet so on next ping we will retry.
-                state.reconciling.remove(&pair);
                 debug!("No next host for {:?}", pair);
                 return Err(());
             }
         })
     })
-    .map(|(addr, dir)| {
-        debug!("Got dir {:?} from addr {}", dir, addr);
-        unimplemented!();
+    .and_then(move |(addr, dir)| {
+        let config = sys2.config.dirs.get(dir.path.key())
+            .expect("only configured dirs are reconciled");
+        base_dir::scan(&dir.path, config, &sys2.meta, &sys2.disk)
+        .then(move |result| match result {
+            Ok(state) => Ok((addr, dir, state)),
+            Err(e) => {
+                error!("Error scanning base-dir {:?}: {}", dir.path, e);
+                Err(())
+            }
+        })
+    })
+    .map(move |(_addr, remote, mut local)| {
+        for (name, mut rstate) in remote.dirs {
+            let vpath = local.path.join(&name);
+            let sig = match rstate.signatures.pop() {
+                Some(x) => x,
+                None => {
+                    warn!("Got image with no signatures: {:?}", vpath);
+                    continue;
+                }
+            };
+            // TODO(tailhook) consume multiple signatures
+            if let Some(old_state) = local.dirs.remove(&name) {
+                debug!("Replacing {:?}", vpath);
+                sys3.meta.replace_dir(ReplaceDir {
+                    path: vpath,
+                    image: rstate.image,
+                    old_image: Some(old_state.image),
+                    timestamp: sig.timestamp,
+                    signatures: vec![sig.signature],
+                }).forget();
+            } else {
+                debug!("Appending {:?}", vpath);
+                sys3.meta.append_dir(AppendDir {
+                    path: vpath,
+                    image: rstate.image,
+                    timestamp: sig.timestamp,
+                    signatures: vec![sig.signature],
+                }).forget();
+            }
+        }
+        Ok::<(), ()>(())
+    })
+    .then(move |_| -> Result<(), ()> {
+        sys_drop.state().reconciling.remove(&(path, hash));
+        Ok(())
     }));
 }

@@ -7,6 +7,7 @@ mod read_index;
 mod scan;
 mod store_index;
 
+use std::io;
 use std::collections::{HashMap, BTreeMap};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -156,8 +157,13 @@ impl Meta {
         let dir = dir.clone();
         let meta = self.clone();
         self.cpu_pool.spawn_fn(move || {
-            let dir = meta.signatures()?.open_vpath(&dir)?;
-            scan::all_states(&dir)
+            match meta.signatures()?.open_vpath(&dir) {
+                Ok(dir) => scan::all_states(&dir),
+                Err(Error::Open(_, ref e))
+                if e.kind() == io::ErrorKind::NotFound
+                => Ok(BTreeMap::new()),
+                Err(e) => Err(e.into()),
+            }
         })
     }
     fn signatures(&self) -> Result<Dir, Error> {
