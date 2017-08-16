@@ -17,6 +17,7 @@ use tk_easyloop::{spawn, handle};
 
 use websocket::Connection;
 use remote::Remote;
+use tracking::Tracking;
 
 
 const BODY: &'static str = "Not found";
@@ -50,23 +51,25 @@ fn service<S>(req: Request, mut e: Encoder<S>)
 }
 
 
-pub fn start(addr: SocketAddr, remote: &Remote)
+pub fn start(addr: SocketAddr, remote: &Remote, tracking: &Tracking)
     -> Result<(), io::Error>
 {
     let listener = TcpListener::bind(&addr, &handle())?;
     let cfg = Config::new().done();
     let remote = remote.clone();
+    let tracking = tracking.clone();
 
     spawn(listener.incoming()
         .sleep_on_error(Duration::from_millis(100), &tk_easyloop::handle())
         .map(move |(socket, addr)| {
             let remote = remote.clone();
+            let tracking = tracking.clone();
             Proto::new(socket, &cfg,
                 BufferedDispatcher::new_with_websockets(addr, &handle(),
                     service,
                     move |out, inp| {
                         let (cli, fut) = Connection::incoming(
-                            addr, out, inp, &remote);
+                            addr, out, inp, &remote, &tracking);
                         let token = remote.register_connection(&cli);
                         fut
                             .map_err(|e| debug!("websocket closed: {}", e))

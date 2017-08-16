@@ -14,6 +14,7 @@ use remote::outgoing::connect;
 use tk_http::websocket::{Config as WsConfig};
 use metadata::Meta;
 use disk::Disk;
+use tracking::Tracking;
 
 
 pub struct Connections {
@@ -32,19 +33,15 @@ pub struct Remote(Arc<RemoteState>);
 
 struct RemoteState {
     websock_config: Arc<WsConfig>,
-    meta: Meta,
-    disk: Disk,
-    config: Arc<Config>,
     conn: Mutex<Connections>,
 }
 
 
 impl Remote {
-    pub fn new(config: &Arc<Config>, meta: &Meta, disk: &Disk) -> Remote {
+    pub fn new()
+        -> Remote
+    {
         Remote(Arc::new(RemoteState {
-            config: config.clone(),
-            meta: meta.clone(),
-            disk: disk.clone(),
             websock_config: WsConfig::new()
                 .ping_interval(Duration::new(1200, 0)) // no pings
                 .inactivity_timeout(Duration::new(5, 0))
@@ -65,7 +62,7 @@ impl Remote {
         self.inner().incoming.insert(cli.clone());
         return Token(self.clone(), cli.clone());
     }
-    pub fn get_connection_for_index(&self, id: &ImageId)
+    pub fn get_incoming_connection_for_index(&self, id: &ImageId)
         -> Option<Connection>
     {
         for conn in self.inner().incoming.iter() {
@@ -74,6 +71,20 @@ impl Remote {
             }
         }
         return None;
+    }
+    pub fn get_connection(&self, addr: SocketAddr) -> Option<Connection> {
+        self.inner().outgoing.get(&addr).cloned()
+    }
+    pub fn ensure_connected(&self, tracking: &Tracking, addr: SocketAddr)
+        -> Connection
+    {
+        self.inner().outgoing.entry(addr)
+            .or_insert_with(move || {
+                let (cli, rx) = Connection::outgoing(addr);
+                let tok = Token(self.clone(), cli.clone());
+                connect(self, tracking, cli.clone(), tok, addr, rx);
+                cli
+            }).clone()
     }
     pub fn notify_received_image(&self, ref id: ImageId, path: &VPath) {
         for conn in self.inner().incoming.iter() {
@@ -87,38 +98,6 @@ impl Remote {
                 })
             }
         }
-    }
-    pub fn fetch_base_dir(&self, addr: SocketAddr, path: &VPath)
-        -> RequestFuture<GetBaseDirResponse>
-    {
-        self.connect_and_request(addr, GetBaseDir {
-            path: path.clone(),
-        })
-    }
-    fn connect_and_request<R>(&self, addr: SocketAddr, req: R)
-        -> RequestFuture<R::Response>
-        where R: Request + 'static
-    {
-        self.inner().outgoing.entry(addr)
-            .or_insert_with(move || {
-                let (cli, rx) = Connection::outgoing(addr);
-                let tok = Token(self.clone(), cli.clone());
-                connect(self, cli.clone(), tok, addr, rx);
-                cli
-            })
-            .request(req)
-    }
-    /// Only public for daemon::websocket
-    pub fn meta(&self) -> &Meta {
-        &self.0.meta
-    }
-    /// Only public for daemon::websocket
-    pub fn disk(&self) -> &Disk {
-        &self.0.disk
-    }
-    /// Only public for daemon::websocket
-    pub fn config(&self) -> &Arc<Config> {
-        &self.0.config
     }
 }
 

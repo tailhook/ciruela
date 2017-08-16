@@ -9,8 +9,8 @@ use serde_cbor::error::Error as CborError;
 use serde_cbor::ser::Serializer as Cbor;
 
 use ciruela::database::signatures::{State, SignatureEntry};
-use ciruela::proto::{AppendDir, AppendDirAck};
-use ciruela::proto::{ReplaceDir, ReplaceDirAck};
+use ciruela::proto::{AppendDir};
+use ciruela::proto::{ReplaceDir};
 use ciruela::proto::{SigData, Signature, verify};
 use config::Directory;
 use metadata::keys::read_upload_keys;
@@ -47,10 +47,10 @@ fn check_keys(sigdata: &SigData, signatures: &Vec<Signature>,
 }
 
 pub fn start_append(params: AppendDir, meta: &Meta)
-    -> Result<AppendDirAck, Error>
+    -> Result<bool, Error>
 {
     let vpath = params.path.clone();
-    let config = if let Some(cfg) = meta.config.dirs.get(vpath.key()) {
+    let config = if let Some(cfg) = meta.0.config.dirs.get(vpath.key()) {
         if vpath.level() != cfg.num_levels {
             return Err(Error::LevelMismatch(vpath.level(), cfg.num_levels));
         }
@@ -62,9 +62,7 @@ pub fn start_append(params: AppendDir, meta: &Meta)
     if !check_keys(&params.sig_data(), &params.signatures, config, meta)? {
         warn!("{:?} has no valid signatures. Upload-keys: {:?}",
               params, config.upload_keys);
-        return Ok(AppendDirAck {
-            accepted: false,
-        });
+        return Ok(false);
     }
 
     let dir = meta.signatures()?.ensure_dir(vpath.parent_rel())?;
@@ -89,9 +87,7 @@ pub fn start_append(params: AppendDir, meta: &Meta)
                     e.insert(state.clone());
                     state
                 } else {
-                    return Ok(AppendDirAck {
-                        accepted: false,
-                    });
+                    return Ok(false);
                 }
             } else {
                 let state = Arc::new(State {
@@ -111,26 +107,21 @@ pub fn start_append(params: AppendDir, meta: &Meta)
                 }
                 old_state.clone()
             } else {
-                return Ok(AppendDirAck {
-                    accepted: false,
-                });
+                return Ok(false);
             }
         }
     };
     dir.replace_file(&state_file, |file| {
         state.serialize(&mut Cbor::new(BufWriter::new(file)))
     })?;
-    meta.tracking.fetch_dir(&params.image, vpath, false, config);
-    Ok(AppendDirAck {
-        accepted: true,
-    })
+    Ok(true)
 }
 
 pub fn start_replace(params: ReplaceDir, meta: &Meta)
-    -> Result<ReplaceDirAck, Error>
+    -> Result<bool, Error>
 {
     let vpath = params.path.clone();
-    let config = if let Some(cfg) = meta.config.dirs.get(vpath.key()) {
+    let config = if let Some(cfg) = meta.0.config.dirs.get(vpath.key()) {
         if vpath.level() != cfg.num_levels {
             return Err(Error::LevelMismatch(vpath.level(), cfg.num_levels));
         }
@@ -139,15 +130,11 @@ pub fn start_replace(params: ReplaceDir, meta: &Meta)
         return Err(Error::PathNotFound(vpath));
     };
     if config.append_only {
-        return Ok(ReplaceDirAck {
-            accepted: false,
-        });
+        return Ok(false);
     }
 
     if !check_keys(&params.sig_data(), &params.signatures, config, meta)? {
-        return Ok(ReplaceDirAck {
-            accepted: false,
-        });
+        return Ok(false);
     }
 
     let dir = meta.signatures()?.ensure_dir(vpath.parent_rel())?;
@@ -199,17 +186,12 @@ pub fn start_replace(params: ReplaceDir, meta: &Meta)
                 // TODO(tailhook) stop fetching image, delete and
                 // start replacing
                 warn!("Replace is rejected because already in progress");
-                return Ok(ReplaceDirAck {
-                    accepted: false,
-                });
+                return Ok(false);
             }
         }
     };
     dir.replace_file(&state_file, |file| {
         state.serialize(&mut Cbor::new(BufWriter::new(file)))
     })?;
-    meta.tracking.fetch_dir(&params.image, vpath, true, config);
-    Ok(ReplaceDirAck {
-        accepted: true,
-    })
+    Ok(true)
 }

@@ -36,4 +36,7 @@ impl Response for GetBaseDirResponse {
     fn type_name(&self) -> &'static str {
         return "GetBaseDir";
     }
+    fn static_type_name() -> &'static str {
+        return "GetBaseDir";
+    }
 }

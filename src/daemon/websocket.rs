@@ -1,8 +1,10 @@
 use std::collections::HashSet;
+use std::fmt;
 use std::hash::{Hasher};
+use std::marker::PhantomData;
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex, MutexGuard};
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use futures::{Future, Stream};
 use futures::stream::MapErr;
@@ -16,15 +18,16 @@ use tk_bufstream::{WriteFramed, ReadFramed};
 use tokio_core::net::TcpStream;
 
 use base_dir;
-use ciruela::proto::message::{Message, Request};
+use ciruela::proto::message::{Message};
 use ciruela::proto::{GetIndex, GetIndexResponse};
 use ciruela::proto::{GetBlock, GetBlockResponse};
 use ciruela::proto::{GetBaseDirResponse};
 use ciruela::proto::{RequestClient, RequestDispatcher, Sender};
 use ciruela::proto::{RequestFuture, Registry, StreamExt, PacketStream};
-use ciruela::proto::{WrapTrait, Notification};
+use ciruela::proto::{Response, WrapTrait, Notification};
 use ciruela::{ImageId, Hash};
 use remote::Remote;
+use tracking::Tracking;
 
 lazy_static! {
     static ref CONNECTION_ID: AtomicUsize = AtomicUsize::new(0);
@@ -44,8 +47,14 @@ struct ConnectionState {
 
 pub struct Dispatcher {
     connection: Connection,
-    remote: Remote,
+    tracking: Tracking,
     requests: Registry,
+}
+
+pub struct Responder<R: Response> {
+    request_id: u64,
+    chan: Sender,
+    item: PhantomData<R>,
 }
 
 quick_error! {
@@ -58,13 +67,13 @@ quick_error! {
 }
 
 impl Dispatcher {
-    pub fn new(cli: Connection, remote: &Remote)
+    pub fn new(cli: Connection, tracking: &Tracking)
         -> (Dispatcher, Registry)
     {
         let registry = Registry::new();
         let disp = Dispatcher {
             connection: cli.clone(),
-            remote: remote.clone(),
+            tracking: tracking.clone(),
             requests: registry.clone(),
         };
         return (disp, registry);
@@ -75,7 +84,7 @@ impl Connection {
     pub fn incoming(addr: SocketAddr,
                out: WriteFramed<TcpStream, ServerCodec>,
                inp: ReadFramed<TcpStream, ServerCodec>,
-               remote: &Remote)
+               remote: &Remote, tracking: &Tracking)
         -> (Connection, Loop<TcpStream,
             PacketStream<
                 MapErr<UnboundedReceiver<Box<WrapTrait>>,
@@ -92,7 +101,7 @@ impl Connection {
             sender: tx,
             images: Mutex::new(HashSet::new()),
         }));
-        let (disp, registry) = Dispatcher::new(cli.clone(), &remote);
+        let (disp, registry) = Dispatcher::new(cli.clone(), tracking);
         let rx = rx.packetize(&registry);
         let fut = Loop::server(out, inp, rx, disp,
             remote.websock_config(), &handle());
@@ -125,21 +134,6 @@ impl Connection {
     pub fn has_image(&self, id: &ImageId) -> bool {
         self.images().contains(id)
     }
-
-    pub fn fetch_index(&self, id: &ImageId) -> RequestFuture<GetIndexResponse>
-    {
-        debug!("Fetching index {}", id);
-        self.request(GetIndex {
-            id: id.clone()
-        })
-    }
-    pub fn fetch_block(&self, hash: &Hash) -> RequestFuture<GetBlockResponse>
-    {
-        debug!("Fetching block {}", hash);
-        self.request(GetBlock {
-            hash: hash.clone()
-        })
-    }
     pub fn notification<N: Notification>(&self, n: N) {
         self.0.sender.notification(n)
     }
@@ -163,79 +157,30 @@ impl websocket::Dispatcher for Dispatcher {
 
         match *frame {
             Frame::Binary(data) => match from_slice(data) {
-                Ok(Message::Request(request_id, Request::AppendDir(ad))) => {
-                    let chan = self.connection.0.sender.clone();
-                    spawn(self.remote.meta().append_dir(ad).then(move |res| {
-                        match res {
-                            Ok(value) => {
-                                chan.response(request_id, value);
-                            }
-                            Err(e) => {
-                                error!("AppendDir error: {}", e);
-                                chan.error_response(request_id, e);
-                            }
-                        };
-                        Ok(())
-                    }));
-                }
-                Ok(Message::Request(request_id, Request::ReplaceDir(ad))) => {
-                    let chan = self.connection.0.sender.clone();
-                    spawn(self.remote.meta().replace_dir(ad).then(move |res| {
-                        match res {
-                            Ok(value) => {
-                                chan.response(request_id, value);
-                            }
-                            Err(e) => {
-                                error!("ReplaceDir error: {}", e);
-                                chan.error_response(request_id, e);
-                            }
-                        };
-                        Ok(())
-                    }));
-                }
-                Ok(Message::Request(request_id, Request::GetIndex(gi))) => {
-                    //let chan = self.connection.0.sender.clone();
-                    unimplemented!();
-                }
-                Ok(Message::Request(request_id, Request::GetBlock(gb))) => {
-                    //let chan = self.connection.0.sender.clone();
-                    unimplemented!();
-                }
-                Ok(Message::Request(request_id, Request::GetBaseDir(binfo)))
-                => {
-                    let chan = self.connection.0.sender.clone();
-                    match self.remote.config().dirs.get(binfo.path.key()) {
-                        Some(cfg) => {
-                            spawn(
-                                base_dir::scan(&binfo.path, cfg,
-                                    self.remote.meta(), self.remote.disk())
-                                .then(move |res| {
-                                    match res {
-                                        Ok(value) => {
-                                            chan.response(request_id,
-                                                GetBaseDirResponse {
-                                                    config_hash:
-                                                        value.config_hash,
-                                                    keep_list_hash:
-                                                        value.keep_list_hash,
-                                                    dirs: value.dirs,
-                                                });
-                                        }
-                                        Err(e) => {
-                                            error!("GetBaseDir error: {}", e);
-                                            chan.error_response(request_id, e);
-                                        }
-                                    };
-                                    Ok(())
-                                }));
+                Ok(Message::Request(rid, req)) => {
+                    use ciruela::proto::message::Request::*;
+                    match req {
+                        AppendDir(ad) => {
+                            self.tracking.append_dir(ad,
+                                Responder::new(rid, self));
                         }
-                        None => {
-                            chan.error_response(request_id,
-                                Error::ConfigNotFound);
-                            error!("GetBaseDir error: config not found");
+                        ReplaceDir(ad) => {
+                            self.tracking.replace_dir(ad,
+                                Responder::new(rid, self));
                         }
-                    };
-
+                        GetIndex(gi) => {
+                            self.tracking.get_index(gi,
+                                Responder::new(rid, self));
+                        }
+                        GetBlock(gb) => {
+                            self.tracking.get_block(gb,
+                                Responder::new(rid, self));
+                        }
+                        GetBaseDir(gb) => {
+                            self.tracking.get_base_dir(gb,
+                                Responder::new(rid, self));
+                        }
+                    }
                 }
                 Ok(Message::Response(request_id, resp)) => {
                     self.respond(request_id, resp);
@@ -293,3 +238,36 @@ impl PartialEq for Connection {
 }
 
 impl Eq for Connection {}
+
+impl<R: Response> Responder<R> {
+    fn new(request_id: u64, disp: &Dispatcher) -> Responder<R> {
+        Responder {
+            request_id: request_id,
+            chan: disp.connection.0.sender.clone(),
+            item: PhantomData,
+        }
+    }
+}
+
+impl<R: Response> Responder<R> {
+    pub fn respond_with_future<F>(self, fut: F)
+        where F: Future<Item=R> + 'static,
+              F::Error: ::std::error::Error + Send + 'static,
+    {
+        spawn(fut.then(move |res| {
+            match res {
+                Ok(value) => {
+                    self.chan.response(self.request_id, value);
+                }
+                Err(e) => {
+                    error!("{} error: {}", R::static_type_name(), e);
+                    self.chan.error_response(self.request_id, e);
+                }
+            };
+            Ok(())
+        }));
+    }
+    pub fn respond_now(self, value: R) {
+        self.chan.response(self.request_id, value);
+    }
+}

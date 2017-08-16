@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering::Relaxed;
 use std::sync::atomic::{AtomicBool, AtomicUsize};
 
-use index::Index;
+use tracking::fetch_index::Index;
 use ciruela::{ImageId, VPath};
 use config::Directory;
 use tracking::Block;

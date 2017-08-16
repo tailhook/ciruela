@@ -66,6 +66,9 @@ impl Response for AppendDirAck {
     fn type_name(&self) -> &'static str {
         return "AppendDir";
     }
+    fn static_type_name() -> &'static str {
+        return "AppendDir";
+    }
 }
 
 impl Request for ReplaceDir {
@@ -77,6 +80,9 @@ impl Request for ReplaceDir {
 
 impl Response for ReplaceDirAck {
     fn type_name(&self) -> &'static str {
+        return "ReplaceDir";
+    }
+    fn static_type_name() -> &'static str {
         return "ReplaceDir";
     }
 }

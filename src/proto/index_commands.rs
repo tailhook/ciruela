@@ -55,6 +55,9 @@ impl Response for GetIndexResponse {
     fn type_name(&self) -> &'static str {
         return "GetIndex";
     }
+    fn static_type_name() -> &'static str {
+        return "GetIndex";
+    }
 }
 
 impl fmt::Debug for GetIndexResponse {

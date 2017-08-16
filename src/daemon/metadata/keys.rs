@@ -42,8 +42,8 @@ pub fn read_upload_keys(cfg: &Arc<Directory>, meta: &Meta)
     -> Result<Vec<PublicKey>, Error>
 {
     let mut res = Vec::new();
-    let cfg_dir = Dir::open(&meta.config.config_dir)
-        .map_err(|e| Error::ReadKey(meta.config.config_dir.clone(), e))?;
+    let cfg_dir = Dir::open(&meta.0.config.config_dir)
+        .map_err(|e| Error::ReadKey(meta.0.config.config_dir.clone(), e))?;
     read_keys(&cfg_dir, "master.key", &mut res);
     match cfg_dir.sub_dir("keys") {
         Ok(dir) => {
@@ -58,7 +58,7 @@ pub fn read_upload_keys(cfg: &Arc<Directory>, meta: &Meta)
         }
         Err(e) => {
             return Err(Error::ReadKey(
-                meta.config.config_dir.join("keys"), e));
+                meta.0.config.config_dir.join("keys"), e));
         }
     }
     Ok(res)

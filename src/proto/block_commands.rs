@@ -26,6 +26,9 @@ impl Response for GetBlockResponse {
     fn type_name(&self) -> &'static str {
         return "GetBlock";
     }
+    fn static_type_name() -> &'static str {
+        return "GetBlock";
+    }
 }
 
 impl fmt::Debug for GetBlockResponse {
