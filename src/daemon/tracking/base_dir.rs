@@ -1,20 +1,41 @@
-use std::collections::{HashMap};
+use std::collections::{HashMap, BTreeSet};
 use std::collections::hash_map::Entry;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Instant, Duration};
 
+use futures::Future;
 use ciruela::proto::BaseDirState;
 
 use atomic::Atomic;
 use ciruela::{VPath, Hash};
 use config::Directory;
 use tracking::Subsystem;
+use metadata::{self, Meta};
+use disk::{self, Disk};
+use peers::config::get_hash;
 
 
 /// Time hashes are kept in cache so we can skip checking if some peer sends
 /// us the same hash again
 const RETAIN_TIME: u64 = 300000;
+
+
+quick_error! {
+    #[derive(Debug)]
+    pub enum Error {
+        Meta(err: metadata::Error) {
+            description(err.description())
+            display("{}", err)
+            from(err)
+        }
+        Disk(err: disk::Error) {
+            description(err.description())
+            display("{}", err)
+            from(err)
+        }
+    }
+}
 
 
 #[derive(Debug)]
@@ -82,4 +103,31 @@ impl BaseDir {
             }
         }
     }
+}
+
+pub fn scan(path: &VPath, config: &Arc<Directory>, meta: &Meta, disk: &Disk)
+    -> Box<Future<Item=BaseDirState, Error=Error>>
+{
+    let path = path.clone();
+    let config = config.clone();
+    Box::new(
+        meta.scan_dir(&path).map_err(Error::Meta)
+        .join(disk.read_keep_list(&config).map_err(Error::Disk))
+        .map(move |(dirs, keep_list)| {
+            let kl: BTreeSet<String> = keep_list.into_iter()
+                .filter_map(|p| {
+                    p.strip_prefix(path.suffix()).ok()
+                    .and_then(|name| name.to_str())
+                    .map(|name| {
+                        assert!(name.find('/').is_none());
+                        name.to_string()
+                    })
+                }).collect();
+            BaseDirState {
+                path: path,
+                config_hash: get_hash(&config),
+                keep_list_hash: Hash::for_object(&kl),
+                dirs: dirs,
+            }
+        }))
 }

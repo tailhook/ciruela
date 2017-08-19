@@ -7,9 +7,8 @@ use ciruela::proto::{ReplaceDir, ReplaceDirAck};
 use ciruela::proto::{GetIndex, GetIndexResponse};
 use ciruela::proto::{GetBlock, GetBlockResponse};
 use ciruela::proto::{GetBaseDir, GetBaseDirResponse};
-use tracking::{Tracking, Command, Downloading};
+use tracking::{Tracking, Command, Downloading, base_dir};
 use websocket::Responder;
-use base_dir;
 
 
 impl Tracking {

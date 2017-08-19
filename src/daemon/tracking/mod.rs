@@ -6,14 +6,16 @@ mod fetch_index;
 mod reconciliation;
 mod rpc;
 
-use std::net::SocketAddr;
 use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, Weak, Mutex, MutexGuard};
+use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{Arc, Weak, Mutex, MutexGuard};
 use std::time::{Instant, Duration};
 
 use futures::{Future, Stream};
 use futures::future::{Shared, Either, ok};
+use futures::stream::iter;
 use futures::sync::mpsc::{unbounded, UnboundedSender, UnboundedReceiver};
 use futures::sync::oneshot::{Receiver};
 use tk_easyloop::{spawn, timeout};
@@ -55,7 +57,7 @@ struct Inner {
     images: fetch_index::Indexes,
     config: Arc<Config>,
     cmd_chan: UnboundedSender<Command>,
-    rescan_chan: UnboundedSender<(VPath, Instant)>,
+    rescan_chan: UnboundedSender<(VPath, Instant, bool)>,
     state: Arc<Mutex<State>>,
     meta: Meta,
     disk: Disk,
@@ -70,7 +72,7 @@ pub struct Data {
     images: fetch_index::Indexes,
     state: Arc<Mutex<State>>,
     cleanup: UnboundedSender<cleanup::Command>,
-    scan: UnboundedSender<(VPath, Instant)>,
+    scan: UnboundedSender<(VPath, Instant, bool)>,
     config: Arc<Config>,
     meta: Meta,
     disk: Disk,
@@ -81,7 +83,7 @@ pub struct Data {
 
 pub struct TrackingInit {
     cmd_chan: UnboundedReceiver<Command>,
-    rescan_chan: UnboundedReceiver<(VPath, Instant)>,
+    rescan_chan: UnboundedReceiver<(VPath, Instant, bool)>,
     tracking: Tracking,
 }
 
@@ -179,8 +181,8 @@ impl Tracking {
         self.0.state.lock()
             .expect("image tracking subsystem is not poisoned")
     }
-    pub fn scan_dir(&self, path: VPath) {
-        self.0.rescan_chan.send((path, Instant::now()))
+    fn scan_dir(&self, path: VPath) {
+        self.0.rescan_chan.send((path, Instant::now(), true))
             .expect("rescan thread is alive");
     }
 }
@@ -208,7 +210,7 @@ impl Subsystem {
         self.0.dry_cleanup.load(Ordering::Relaxed)
     }
     fn rescan_dir(&self, path: VPath) {
-        self.0.scan.send((path, Instant::now()))
+        self.0.scan.send((path, Instant::now(), false))
             .expect("can always send in rescan channel");
     }
 }
@@ -250,7 +252,7 @@ pub fn start(init: TrackingInit, disk: &Disk)
             Ok(())
         }));
     spawn(rescan_chan
-        .for_each(move |(path, time): (VPath, Instant)| {
+        .for_each(move |(path, time, first_time): (VPath, Instant, bool)| {
             if sys.state().base_dirs.get(&path)
                 .map(|x| x.last_scan() > time).unwrap_or(false)
             {
@@ -263,15 +265,78 @@ pub fn start(init: TrackingInit, disk: &Disk)
             let sys = sys.clone();
             let scan_time = Instant::now();
             Either::B(
-                ::base_dir::scan(&path, &config, &meta, &sys.disk)
+                base_dir::scan(&path, &config, &meta, &sys.disk)
                 .then(move |res| match res {
                     Ok(bdir) => {
-                        BaseDir::commit_scan(bdir, &config, scan_time, &sys);
-                        Ok(())
+                        if first_time {
+                            let dirs = bdir.dirs.clone();
+                            BaseDir::commit_scan(bdir, &config, scan_time, &sys);
+                            Either::B(iter(
+                                    dirs.into_iter()
+                                    .filter(|&(ref dir, ref state)| {
+                                        if state.signatures.len() < 1 {
+                                            error!("Wrong state for {:?}",
+                                                dir);
+                                            false
+                                        } else {
+                                            true
+                                        }
+                                    })
+                                    .map(Ok))
+                                .for_each(move |(dir, mut state)| {
+                                    // TODO(tailhook) also check if replace
+                                    // is done (tmp directory exists)
+                                    let dir = path.join(dir);
+                                    let sig = state.signatures.pop()
+                                        .expect("just checked above");
+                                    let image_id = state.image.clone();
+                                    let cmd = AppendDir {
+                                        path: dir.clone(),
+                                        image: state.image,
+                                        timestamp: sig.timestamp,
+                                        signatures: vec![sig.signature],
+                                    };
+                                    let sys = sys.clone();
+                                    sys.disk.check_exists(&config,
+                                        PathBuf::from(cmd.path.suffix()))
+                                    .then(move |result| match result {
+                                        Ok(true) => Either::A(ok(())),
+                                        Err(e) => {
+                                            error!("Can't check {:?}: {}",
+                                                cmd.path, e);
+                                            Either::A(ok(()))
+                                        }
+                                        Ok(false) => {
+                                            warn!("Resuming download of \
+                                                {:?}: {}",
+                                                cmd.path, cmd.image);
+                                            Either::B(
+                                                sys.meta.append_dir(cmd)
+                                                .map(move |result| {
+                                                    if result {
+                                                        sys.tracking
+                                                        .fetch_dir(
+                                                            dir,
+                                                            image_id,
+                                                            false);
+                                                    }
+                                                })
+                                                .map_err(|e| {
+                                                    error!("Resume download \
+                                                            failed: {}", e);
+                                                }))
+                                        }
+                                    })
+                                }))
+                        } else {
+                            let bdir = BaseDir::commit_scan(
+                                bdir, &config, scan_time, &sys);
+                            Either::A(ok(()))
+                        }
                     }
                     Err(e) => {
                         error!("Scaning {:?} failed: {}", path, e);
-                        Ok(())
+                        Either::A(ok(()))
                     }
                 }))
         }));

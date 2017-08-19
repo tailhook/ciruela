@@ -8,7 +8,7 @@ use tracking::Subsystem;
 
 use futures::future::{Future, Loop, loop_fn};
 use tk_easyloop::spawn;
-use base_dir;
+use tracking::base_dir;
 
 
 pub struct ReconPush {
@@ -97,6 +97,7 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
     .map(move |(_addr, remote, mut local)| {
         for (name, mut rstate) in remote.dirs {
             let vpath = local.path.join(&name);
+            let sys = sys3.clone();
             let sig = match rstate.signatures.pop() {
                 Some(x) => x,
                 None => {
@@ -105,23 +106,52 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
                 }
             };
             // TODO(tailhook) consume multiple signatures
+            let image_id = rstate.image;
             if let Some(old_state) = local.dirs.remove(&name) {
                 debug!("Replacing {:?}", vpath);
-                sys3.meta.replace_dir(ReplaceDir {
-                    path: vpath,
-                    image: rstate.image,
-                    old_image: Some(old_state.image),
-                    timestamp: sig.timestamp,
-                    signatures: vec![sig.signature],
-                }).forget();
+                spawn(
+                    sys.meta.replace_dir(ReplaceDir {
+                        path: vpath.clone(),
+                        image: image_id.clone(),
+                        old_image: Some(old_state.image),
+                        timestamp: sig.timestamp,
+                        signatures: vec![sig.signature],
+                    }).then(move |result| {
+                        match result {
+                            Ok(true) => {
+                                sys.tracking.fetch_dir(
+                                    vpath, image_id, true);
+                            }
+                            Ok(false) => {} // TODO(tailhook) log?
+                            Err(e) => {
+                                error!("Error reconciling {:?}: {}",
+                                    vpath, e);
+                            }
+                        }
+                        Ok(())
+                    }));
             } else {
                 debug!("Appending {:?}", vpath);
-                sys3.meta.append_dir(AppendDir {
-                    path: vpath,
-                    image: rstate.image,
-                    timestamp: sig.timestamp,
-                    signatures: vec![sig.signature],
-                }).forget();
+                spawn(
+                    sys.meta.append_dir(AppendDir {
+                        path: vpath.clone(),
+                        image: image_id.clone(),
+                        timestamp: sig.timestamp,
+                        signatures: vec![sig.signature],
+                    }).then(move |result| {
+                        match result {
+                            Ok(true) => {
+                                sys.tracking.fetch_dir(
+                                    vpath, image_id, false);
+                            }
+                            Ok(false) => {} // TODO(tailhook) log?
+                            Err(e) => {
+                                error!("Error reconciling {:?}: {}",
+                                    vpath, e);
+                            }
+                        }
+                        Ok(())
+                    }));
             }
         }
         Ok::<(), ()>(())

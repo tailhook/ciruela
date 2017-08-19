@@ -17,7 +17,6 @@ use tk_easyloop::{spawn, handle};
 use tk_bufstream::{WriteFramed, ReadFramed};
 use tokio_core::net::TcpStream;
 
-use base_dir;
 use ciruela::proto::message::{Message};
 use ciruela::proto::{GetIndex, GetIndexResponse};
 use ciruela::proto::{GetBlock, GetBlockResponse};

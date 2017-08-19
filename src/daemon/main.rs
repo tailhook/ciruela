@@ -52,7 +52,6 @@ use futures_cpupool::CpuPool;
 use ns_std_threaded::ThreadedResolver;
 
 
-mod base_dir;
 mod cleanup;
 mod config;
 mod dir_util;

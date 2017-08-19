@@ -190,6 +190,22 @@ impl Disk {
             Ok(result)
         })
     }
+    pub fn check_exists(&self, config: &Arc<Directory>, path: PathBuf)
+        -> CpuFuture<bool, Error>
+    {
+        let cfg = config.clone();
+        self.pool.spawn_fn(move || {
+            let dir = Dir::open(&cfg.directory)
+                .map_err(|e| Error::OpenBase(cfg.directory.clone(), e))?;
+            match open_path(&dir, path) {
+                Ok(_) => Ok(true),
+                Err(Error::OpenDir(_, ref e))
+                if e.kind() == io::ErrorKind::NotFound
+                => Ok(false),
+                Err(e) => Err(e),
+            }
+        })
+    }
 }
 
 fn write_block(dir: &Dir, filename: &Path, offset: u64, block: Block)
