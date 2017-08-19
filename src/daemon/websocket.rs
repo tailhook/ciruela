@@ -285,4 +285,7 @@ impl<R: Response> Responder<R> {
     pub fn respond_now(self, value: R) {
         self.chan.response(self.request_id, value);
     }
+    pub fn error_now<E: fmt::Display + Send + 'static>(self, e: E) {
+        self.chan.error_response(self.request_id, e);
+    }
 }

@@ -80,7 +80,7 @@ pub struct ResponseWrap<R: Response> {
     data: R,
 }
 
-pub struct ErrorWrap<E: ::std::error::Error + Send> {
+pub struct ErrorWrap<E: fmt::Display + Send> {
     request_id: u64,
     error: E,
 }
@@ -197,7 +197,7 @@ impl<N: Response> WrapTrait for ResponseWrap<N> {
     }
 }
 
-impl<E: ::std::error::Error + Send + 'static> WrapTrait for ErrorWrap<E> {
+impl<E: fmt::Display + Send + 'static> WrapTrait for ErrorWrap<E> {
     fn is_request(&self) -> bool {
         false
     }
@@ -318,7 +318,7 @@ impl Sender {
         }).ok();
     }
     pub fn error_response<E>(&self, request_id: u64, e: E)
-        where E: ::std::error::Error + Send + 'static
+        where E: fmt::Display + Send + 'static
     {
         self.0.send(Box::new(ErrorWrap {
             request_id: request_id,

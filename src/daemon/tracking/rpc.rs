@@ -9,6 +9,7 @@ use ciruela::proto::{GetBlock, GetBlockResponse};
 use ciruela::proto::{GetBaseDir, GetBaseDirResponse};
 use tracking::{Tracking, Command, Downloading};
 use websocket::Responder;
+use base_dir;
 
 
 impl Tracking {
@@ -81,18 +82,35 @@ impl Tracking {
             }
         }));
     }
-    pub fn get_index(&self, cmd: GetIndex, resp: Responder<GetIndexResponse>)
+    pub fn get_block(&self, cmd: GetBlock, resp: Responder<GetBlockResponse>)
+
     {
         unimplemented!();
     }
-    pub fn get_block(&self, cmd: GetBlock, resp: Responder<GetBlockResponse>)
-
+    pub fn get_index(&self, cmd: GetIndex, resp: Responder<GetIndexResponse>)
     {
         unimplemented!();
     }
     pub fn get_base_dir(&self, cmd: GetBaseDir,
         resp: Responder<GetBaseDirResponse>)
     {
-        unimplemented!();
+        let cfg = match self.0.config.dirs.get(cmd.path.key()) {
+            Some(cfg) => cfg.clone(),
+            None => {
+                resp.error_now("No such config");
+                return;
+            }
+        };
+        resp.respond_with_future(
+            base_dir::scan(&cmd.path, &cfg, &self.0.meta, &self.0.disk)
+            .map(|value| {
+                GetBaseDirResponse {
+                    config_hash:
+                        value.config_hash,
+                    keep_list_hash:
+                        value.keep_list_hash,
+                    dirs: value.dirs,
+                }
+            }));
     }
 }
