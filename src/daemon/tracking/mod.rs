@@ -2,7 +2,9 @@ mod base_dir;
 mod fetch_dir;
 mod progress;
 mod cleanup;
+mod fetch_index;
 mod reconciliation;
+mod rpc;
 
 use std::net::SocketAddr;
 use std::collections::{HashMap, HashSet};
@@ -17,15 +19,17 @@ use futures::sync::oneshot::{Receiver};
 use tk_easyloop::{spawn, timeout};
 
 use ciruela::{ImageId, Hash, VPath};
+use ciruela::proto::{AppendDir, AppendDirAck};
 use config::{Config, Directory};
 use disk::Disk;
-use index::{Index, IndexData};
+use index::{IndexData};
 use machine_id::MachineId;
-use metadata::Meta;
+use metadata::{Meta, Error as MetaError};
 use rand::{thread_rng, Rng};
 use remote::Remote;
-use self::reconciliation::ReconPush;
+use tracking::reconciliation::ReconPush;
 
+pub use self::fetch_index::Index;
 pub use self::progress::Downloading;
 pub use self::base_dir::BaseDir;
 
@@ -35,10 +39,6 @@ type ImageFuture = Shared<Receiver<Index>>;
 type BlockFuture = Shared<Receiver<Block>>;
 
 pub struct State {
-
-    image_futures: HashMap<ImageId, ImageFuture>,
-    images: HashMap<ImageId, Weak<IndexData>>,
-
     block_futures: HashMap<Hash, BlockFuture>,
 
     in_progress: HashSet<Arc<Downloading>>,
@@ -49,11 +49,17 @@ pub struct State {
 }
 
 #[derive(Clone)]
-pub struct Tracking {
+pub struct Tracking(Arc<Inner>);
+
+struct Inner {
+    images: fetch_index::Indexes,
     config: Arc<Config>,
     cmd_chan: UnboundedSender<Command>,
     rescan_chan: UnboundedSender<(VPath, Instant)>,
     state: Arc<Mutex<State>>,
+    meta: Meta,
+    disk: Disk,
+    remote: Remote,
 }
 
 #[derive(Clone)]
@@ -61,6 +67,7 @@ pub struct Subsystem(Arc<Data>);
 
 // Subsystem data, only here for Deref trait
 pub struct Data {
+    images: fetch_index::Indexes,
     state: Arc<Mutex<State>>,
     cleanup: UnboundedSender<cleanup::Command>,
     scan: UnboundedSender<(VPath, Instant)>,
@@ -68,6 +75,7 @@ pub struct Data {
     meta: Meta,
     disk: Disk,
     remote: Remote,
+    tracking: Tracking,
     dry_cleanup: AtomicBool,
 }
 
@@ -83,23 +91,28 @@ pub enum Command {
 }
 
 impl Tracking {
-    pub fn new(config: &Arc<Config>) -> (Tracking, TrackingInit) {
+    pub fn new(config: &Arc<Config>, meta: &Meta, disk: &Disk,
+        remote: &Remote)
+        -> (Tracking, TrackingInit)
+    {
         let (ctx, crx) = unbounded();
         let (rtx, rrx) = unbounded();
-        let handler = Tracking {
+        let handler = Tracking(Arc::new(Inner {
             config: config.clone(),
+            images: fetch_index::Indexes::new(meta, remote),
             state: Arc::new(Mutex::new(State {
-                image_futures: HashMap::new(),
-                images: HashMap::new(),
                 block_futures: HashMap::new(),
                 in_progress: HashSet::new(),
                 base_dirs: HashMap::new(),
                 base_dir_list: Vec::new(),
                 reconciling: HashMap::new(),
             })),
+            meta: meta.clone(),
+            disk: disk.clone(),
+            remote: remote.clone(),
             cmd_chan: ctx,
             rescan_chan: rtx,
-        };
+        }));
         (handler.clone(),
          TrackingInit {
             cmd_chan: crx,
@@ -107,25 +120,10 @@ impl Tracking {
             tracking: handler,
          })
     }
-    pub fn fetch_dir(&self, image: &ImageId, vpath: VPath, replace: bool,
-                     config: &Arc<Directory>)
-    {
-        self.send(Command::FetchDir(Downloading {
-            replacing: replace,
-            virtual_path: vpath,
-            image_id: image.clone(),
-            config: config.clone(),
-            index_fetched: AtomicBool::new(false),
-            bytes_fetched: AtomicUsize::new(0),
-            bytes_total: AtomicUsize::new(0),
-            blocks_fetched: AtomicUsize::new(0),
-            blocks_total: AtomicUsize::new(0),
-        }));
-    }
     pub fn reconcile_dir(&self, path: VPath, hash: Hash,
         peer_addr: SocketAddr, peer_id: MachineId)
     {
-        if self.config.dirs.get(path.key()).is_none() {
+        if self.0.config.dirs.get(path.key()).is_none() {
             return;
         }
         let mut state = self.state();
@@ -159,14 +157,15 @@ impl Tracking {
             .map(|d| (d.path.clone(), d.hash()))
     }
     fn send(&self, command: Command) {
-        self.cmd_chan.send(command)
+        self.0.cmd_chan.send(command)
             .expect("image tracking subsystem is alive")
     }
     fn state(&self) -> MutexGuard<State> {
-        self.state.lock().expect("image tracking subsystem is not poisoned")
+        self.0.state.lock()
+            .expect("image tracking subsystem is not poisoned")
     }
     pub fn scan_dir(&self, path: VPath) {
-        self.rescan_chan.send((path, Instant::now()))
+        self.0.rescan_chan.send((path, Instant::now()))
             .expect("rescan thread is alive");
     }
 }
@@ -199,27 +198,30 @@ impl Subsystem {
     }
 }
 
-pub fn start(init: TrackingInit, meta: &Meta, remote: &Remote, disk: &Disk)
+pub fn start(init: TrackingInit, disk: &Disk)
     -> Result<(), String> // actually void
 {
     let (ctx, crx) = unbounded();
     let TrackingInit { cmd_chan, rescan_chan, tracking } = init;
     let sys = Subsystem(Arc::new(Data {
-        config: tracking.config.clone(),
-        meta: meta.clone(),
+        images: tracking.0.images.clone(),
+        config: tracking.0.config.clone(),
+        meta: tracking.0.meta.clone(),
         disk: disk.clone(),
-        state: tracking.state.clone(),
-        remote: remote.clone(),
+        state: tracking.0.state.clone(),
+        remote: tracking.0.remote.clone(),
+        tracking: tracking.clone(),
         cleanup: ctx,
-        scan: tracking.rescan_chan.clone(),
+        scan: tracking.0.rescan_chan.clone(),
         dry_cleanup: AtomicBool::new(true),  // start with no cleanup
     }));
     let sys2 = sys.clone();
     let sys3 = sys.clone();
     let sys4 = sys.clone();
-    let meta = meta.clone();
+    let meta = tracking.0.meta.clone();
+    let trk1 = tracking.clone();
 
-    spawn(meta.scan_base_dirs(&tracking)
+    spawn(meta.scan_base_dirs(move |dir| trk1.scan_dir(dir))
         .map(move |()| sys4.start_cleanup())
         .map_err(|e| error!("Error during first scan: {}", e)));
     cleanup::spawn_loop(crx, &sys);

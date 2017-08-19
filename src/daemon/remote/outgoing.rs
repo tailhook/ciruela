@@ -11,6 +11,7 @@ use ciruela::proto::{WrapTrait};
 use ciruela::proto::{StreamExt};
 use websocket::{Dispatcher, Connection};
 use remote::{Remote, Token};
+use tracking::Tracking;
 
 
 fn closed(():()) -> &'static str {
@@ -18,20 +19,22 @@ fn closed(():()) -> &'static str {
 }
 
 
-pub fn connect(sys: &Remote, cli: Connection, tok: Token,
+pub fn connect(sys: &Remote, tracking: &Tracking,
+    cli: Connection, tok: Token,
     addr: SocketAddr, rx: UnboundedReceiver<Box<WrapTrait>>)
 {
     let sys = sys.clone();
+    let tracking = tracking.clone();
     spawn(TcpStream::connect(&addr, &handle())
         .map_err(|_| unimplemented!())
         .and_then(move |sock| {
             HandshakeProto::new(sock, SimpleAuthorizer::new(
                 "ciruela_internal", "/"))
-            .map_err(|_| unimplemented!())
+            .map_err(|e| error!("Handshake error: {}", e))
         })
         .and_then(move |(out, inp, ())| {
             debug!("Established outgoing connection to {}", addr);
-            let (disp, registry) = Dispatcher::new(cli, &sys);
+            let (disp, registry) = Dispatcher::new(cli, &tracking);
             let rx = rx.map_err(closed as fn(()) -> &'static str);
             let rx = rx.packetize(&registry);
             Loop::client(out, inp, rx, disp, sys.websock_config(), &handle())

@@ -47,6 +47,7 @@ pub trait Request: Serialize + Send + 'static {
 
 pub trait Response: Serialize + Send + 'static {
     fn type_name(&self) -> &'static str;
+    fn static_type_name() -> &'static str;
 }
 
 pub trait Notification: Serialize + Send + 'static {

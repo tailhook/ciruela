@@ -14,7 +14,7 @@ use disk::dir::{ensure_virtual_parent, ensure_path, open_path};
 use disk::dir::{ensure_subdir, recover_path, DirBorrow};
 use disk::dir::{remove_dir_recursive};
 use disk::{Init, Error};
-use index::Index;
+use tracking::Index;
 use metadata::Meta;
 use tracking::Block;
 

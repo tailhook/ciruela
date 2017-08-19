@@ -1,37 +1,39 @@
 use std::path::{PathBuf, Path};
 
+use ciruela::VPath;
 use metadata::dir::Dir;
 use metadata::{Meta, Error};
-use tracking::Tracking;
 
 
 
-fn scan_dir(dir: &Dir, virtual_path: PathBuf, level: usize,
-            tracking: &Tracking)
+fn scan_dir<F>(dir: &Dir, virtual_path: PathBuf, level: usize,
+    add_dir: &mut F)
     -> Result<(), Error>
+    where F: FnMut(VPath),
 {
     if level > 1 {
         for item in dir.list_dirs()? {
             if let Some(sub_dir) = dir.dir_if_exists(&item)? {
                 scan_dir(&sub_dir,
-                    virtual_path.join(item), level-1, tracking)?;
+                    virtual_path.join(item), level-1, add_dir)?;
             }
         }
     } else {
-        tracking.scan_dir(virtual_path.into());
+        add_dir(virtual_path.into());
     }
     Ok(())
 }
 
-pub fn scan(meta: &Meta, tracking: &Tracking)
+pub fn scan<F>(meta: &Meta, mut add_dir: F)
     -> Result<(), Error>
+    where F: FnMut(VPath),
 {
     // TODO(tailhook) throttle maybe?
     let root = meta.signatures()?;
-    for (virtual_name, ref cfg) in &meta.config.dirs {
+    for (virtual_name, ref cfg) in &meta.0.config.dirs {
         if let Some(dir) = root.dir_if_exists(virtual_name)? {
             let vpath = Path::new("/").join(virtual_name);
-            scan_dir(&dir, vpath, cfg.num_levels, tracking)?;
+            scan_dir(&dir, vpath, cfg.num_levels, &mut add_dir)?;
         }
     }
     Ok(())

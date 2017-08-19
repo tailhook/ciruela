@@ -1,7 +1,8 @@
 use std::net::SocketAddr;
 
 use ciruela::{VPath, Hash};
-use ciruela::proto::{BaseDirState, AppendDir, ReplaceDir};
+use ciruela::proto::{BaseDirState, AppendDir, ReplaceDir, GetBaseDir};
+use ciruela::proto::{RequestClient};
 use machine_id::{MachineId};
 use tracking::Subsystem;
 
@@ -36,48 +37,50 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
     spawn(loop_fn((addr, mid), move |(addr, mid)| {
         let sys = sys.clone();
         let pair = pair.clone(); // TODO(tailhook) optimize?
-        sys.remote.fetch_base_dir(addr, &pair.0).then(move |res| {
-            let mut state = sys.state();
-            match res {
-                Ok(dir) => {
-                    let dir_state = BaseDirState {
-                        path: pair.0.clone(),
-                        config_hash: dir.config_hash,
-                        keep_list_hash: dir.keep_list_hash,
-                        dirs: dir.dirs,
-                    };
-                    let dir_hash = Hash::for_object(&dir_state);
-                    if dir_hash == hash {
-                        return Ok(Loop::Break((addr, dir_state)))
-                    } else {
-                        debug!("Mismatching hash from {}:{:?}: {} != {}",
-                            addr, pair.0, hash, dir_hash);
+        sys.remote.ensure_connected(&sys.tracking, addr)
+            .request(GetBaseDir { path: pair.0.clone() })
+            .then(move |res| {
+                let mut state = sys.state();
+                match res {
+                    Ok(dir) => {
+                        let dir_state = BaseDirState {
+                            path: pair.0.clone(),
+                            config_hash: dir.config_hash,
+                            keep_list_hash: dir.keep_list_hash,
+                            dirs: dir.dirs,
+                        };
+                        let dir_hash = Hash::for_object(&dir_state);
+                        if dir_hash == hash {
+                            return Ok(Loop::Break((addr, dir_state)))
+                        } else {
+                            debug!("Mismatching hash from {}:{:?}: {} != {}",
+                                addr, pair.0, hash, dir_hash);
+                        }
+                    }
+                    Err(e) => {
+                        warn!("Error fetching {} from {}: {}", hash, addr, e);
                     }
                 }
-                Err(e) => {
-                    warn!("Error fetching {} from {}: {}", hash, addr, e);
+                let next_host = state.reconciling
+                    .get_mut(&pair)
+                    .and_then(|h| {
+                        h.remove(&(addr, mid));
+                        let item = h.iter().cloned().next();
+                        item.as_ref().map(|pair| h.remove(&pair));
+                        item
+                    });
+                if let Some(next_host) = next_host {
+                    return Ok(Loop::Continue(next_host))
+                } else {
+                    // It's fine, probably all hosts have an updated hash already.
+                    // It might also be that there is some race condition, like
+                    // we tried to do request, and it failed temporarily
+                    // (keep-alive connection is dropping). But we didn't mark
+                    // this hash as visited, yet so on next ping we will retry.
+                    debug!("No next host for {:?}", pair);
+                    return Err(());
                 }
-            }
-            let next_host = state.reconciling
-                .get_mut(&pair)
-                .and_then(|h| {
-                    h.remove(&(addr, mid));
-                    let item = h.iter().cloned().next();
-                    item.as_ref().map(|pair| h.remove(&pair));
-                    item
-                });
-            if let Some(next_host) = next_host {
-                return Ok(Loop::Continue(next_host))
-            } else {
-                // It's fine, probably all hosts have an updated hash already.
-                // It might also be that there is some race condition, like
-                // we tried to do request, and it failed temporarily
-                // (keep-alive connection is dropping). But we didn't mark
-                // this hash as visited, yet so on next ping we will retry.
-                debug!("No next host for {:?}", pair);
-                return Err(());
-            }
-        })
+            })
     })
     .and_then(move |(addr, dir)| {
         let config = sys2.config.dirs.get(dir.path.key())

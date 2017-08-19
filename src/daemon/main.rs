@@ -1,8 +1,8 @@
 #![recursion_limit="100"]
 extern crate abstract_ns;
 extern crate argparse;
-extern crate blake2;
 extern crate atomic;
+extern crate blake2;
 extern crate ciruela;
 extern crate crossbeam;
 extern crate digest_writer;
@@ -22,13 +22,14 @@ extern crate serde;
 extern crate serde_cbor;
 extern crate ssh_keys;
 extern crate time;
-extern crate typenum;
 extern crate tk_bufstream;
 extern crate tk_cantal;
 extern crate tk_easyloop;
 extern crate tk_http;
 extern crate tk_listen;
 extern crate tokio_core;
+extern crate typenum;
+extern crate valuable_futures;
 
 #[macro_use] extern crate log;
 #[macro_use] extern crate lazy_static;
@@ -171,8 +172,6 @@ fn main() {
     router.add_default(ThreadedResolver::new(CpuPool::new(1)));
     let router = router.into_resolver();
 
-    let (tracking, tracking_init) = tracking::Tracking::new(&config);
-
     let (disk, disk_init) = match disk::Disk::new(disk_threads, &config) {
         Ok(pair) => pair,
         Err(e) => {
@@ -181,9 +180,7 @@ fn main() {
         }
     };
 
-    let meta = match
-        metadata::Meta::new(metadata_threads, &config, &tracking)
-    {
+    let meta = match metadata::Meta::new(metadata_threads, &config) {
         Ok(meta) => meta,
         Err(e) => {
             error!("Can't open metadata directory {:?}: {}",
@@ -192,7 +189,10 @@ fn main() {
         }
     };
 
-    let remote = remote::Remote::new(&config, &meta, &disk);
+    let remote = remote::Remote::new();
+
+    let (tracking, tracking_init) = tracking::Tracking::new(&config,
+        &meta, &disk, &remote);
 
     let (peers, peers_init) = peers::Peers::new(
         machine_id.clone(),
@@ -201,9 +201,9 @@ fn main() {
         });
 
     tk_easyloop::run_forever(|| -> Result<(), Box<Error>> {
-        http::start(addr, &remote)?;
+        http::start(addr, &remote, &tracking)?;
         disk::start(disk_init, &meta)?;
-        tracking::start(tracking_init, &meta, &remote, &disk)?;
+        tracking::start(tracking_init, &disk)?;
         peers::start(peers_init, addr, &config, &disk, &router, &tracking)?;
         Ok(())
     }).map_err(|e| {

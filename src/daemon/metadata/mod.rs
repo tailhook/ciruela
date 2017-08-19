@@ -20,20 +20,20 @@ use ciruela::proto::{AppendDir, AppendDirAck};
 use ciruela::proto::{ReplaceDir, ReplaceDirAck};
 use ciruela::{ImageId, VPath};
 use config::Config;
-use index::Index;
-use tracking::{Tracking};
+use index::IndexData;
 
 use self::dir::Dir;
 pub use self::error::Error;
 
 
 #[derive(Clone)]
-pub struct Meta {
+pub struct Meta(Arc<Inner>);
+
+struct Inner {
     cpu_pool: CpuPool,
     config: Arc<Config>,
-    writing: Arc<Mutex<HashMap<VPath, Arc<State>>>>,
+    writing: Mutex<HashMap<VPath, Arc<State>>>,
     base_dir: Dir,
-    tracking: Tracking,
 }
 
 fn is_fresher(meta: &Metadata, time: SystemTime) -> bool {
@@ -42,40 +42,38 @@ fn is_fresher(meta: &Metadata, time: SystemTime) -> bool {
 }
 
 impl Meta {
-    pub fn new(num_threads: usize, config: &Arc<Config>,
-        tracking: &Tracking)
+    pub fn new(num_threads: usize, config: &Arc<Config>)
         -> Result<Meta, Error>
     {
         let dir = Dir::open_root(&config.db_dir)?;
         // TODO(tailhook) start rescanning the database for consistency
-        Ok(Meta {
+        Ok(Meta(Arc::new(Inner {
             cpu_pool: CpuPool::new(num_threads),
             config: config.clone(),
             base_dir: dir,
-            tracking: tracking.clone(),
-            writing: Arc::new(Mutex::new(HashMap::new())),
-        })
+            writing: Mutex::new(HashMap::new()),
+        })))
     }
     pub fn append_dir(&self, params: AppendDir)
-        -> CpuFuture<AppendDirAck, Error>
+        -> CpuFuture<bool, Error>
     {
         let meta = self.clone();
-        self.cpu_pool.spawn_fn(move || {
+        self.0.cpu_pool.spawn_fn(move || {
             upload::start_append(params, &meta)
         })
     }
     pub fn replace_dir(&self, params: ReplaceDir)
-        -> CpuFuture<ReplaceDirAck, Error>
+        -> CpuFuture<bool, Error>
     {
         let meta = self.clone();
-        self.cpu_pool.spawn_fn(move || {
+        self.0.cpu_pool.spawn_fn(move || {
             upload::start_replace(params, &meta)
         })
     }
     pub fn dir_committed(&self, path: &VPath) {
         let meta = self.clone();
         let path: VPath = path.clone();
-        self.cpu_pool.spawn_fn(move || -> Result<(), ()> {
+        self.0.cpu_pool.spawn_fn(move || -> Result<(), ()> {
             // need to offload to disk thread because we hold ``writing`` lock
             // in disk thread too
             if meta.writing().remove(&path).is_none() {
@@ -85,14 +83,14 @@ impl Meta {
         }).forget();
     }
     fn writing(&self) -> MutexGuard<HashMap<VPath, Arc<State>>> {
-        self.writing.lock().expect("writing is not poisoned")
+        self.0.writing.lock().expect("writing is not poisoned")
     }
     pub fn remove_state_file(&self, path: VPath, at: SystemTime)
         -> CpuFuture<(), Error>
     {
         // TODO(tailhook) maybe check that meta hasn't changed
         let meta = self.clone();
-        self.cpu_pool.spawn_fn(move || {
+        self.0.cpu_pool.spawn_fn(move || {
             // need to lock "writing" to avoid race conditions
             let writing = meta.writing();
             if writing.contains_key(&path) {
@@ -112,11 +110,11 @@ impl Meta {
         })
     }
     pub fn read_index(&self, index: &ImageId)
-        -> CpuFuture<Index, Error>
+        -> CpuFuture<IndexData, Error>
     {
         let meta = self.clone();
         let index = index.clone();
-        self.cpu_pool.spawn_fn(move || {
+        self.0.cpu_pool.spawn_fn(move || {
             let res = read_index::read(&index, &meta);
             match res {
                 Ok(ref index) => {
@@ -134,7 +132,7 @@ impl Meta {
     {
         let meta = self.clone();
         let id = id.clone();
-        self.cpu_pool.spawn_fn(move || -> Result<(), ()> {
+        self.0.cpu_pool.spawn_fn(move || -> Result<(), ()> {
             store_index::write(&id, data, &meta)
                 .map_err(|e| {
                     error!("Can't store index {:?}: {}", id, e);
@@ -142,13 +140,13 @@ impl Meta {
             Ok(())
         }).forget();
     }
-    pub fn scan_base_dirs(&self, tracking: &Tracking)
+    pub fn scan_base_dirs<F>(&self, add_dir: F)
         -> CpuFuture<(), Error>
+        where F: FnMut(VPath) + Send + 'static
     {
         let meta = self.clone();
-        let tracking = tracking.clone();
-        self.cpu_pool.spawn_fn(move || {
-            first_scan::scan(&meta, &tracking)
+        self.0.cpu_pool.spawn_fn(move || {
+            first_scan::scan(&meta, add_dir)
         })
     }
     pub fn scan_dir(&self, dir: &VPath)
@@ -156,7 +154,7 @@ impl Meta {
     {
         let dir = dir.clone();
         let meta = self.clone();
-        self.cpu_pool.spawn_fn(move || {
+        self.0.cpu_pool.spawn_fn(move || {
             match meta.signatures()?.open_vpath(&dir) {
                 Ok(dir) => scan::all_states(&dir),
                 Err(Error::Open(_, ref e))
@@ -167,9 +165,9 @@ impl Meta {
         })
     }
     fn signatures(&self) -> Result<Dir, Error> {
-        self.base_dir.ensure_dir("signatures")
+        self.0.base_dir.ensure_dir("signatures")
     }
     fn indexes(&self) -> Result<Dir, Error> {
-        self.base_dir.ensure_dir("indexes")
+        self.0.base_dir.ensure_dir("indexes")
     }
 }
