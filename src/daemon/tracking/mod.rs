@@ -151,6 +151,21 @@ impl Tracking {
             }
         }
     }
+    pub fn fetch_dir(&self, path: VPath, image: ImageId, replace: bool) {
+        let cfg = self.0.config.dirs.get(path.key())
+            .expect("config should exist");
+        self.send(Command::FetchDir(Downloading {
+            replacing: replace,
+            virtual_path: path,
+            image_id: image,
+            config: cfg.clone(),
+            index_fetched: AtomicBool::new(false),
+            bytes_fetched: AtomicUsize::new(0),
+            bytes_total: AtomicUsize::new(0),
+            blocks_fetched: AtomicUsize::new(0),
+            blocks_total: AtomicUsize::new(0),
+        }));
+    }
     pub fn pick_random_dir(&self) -> Option<(VPath, Hash)> {
         let state = self.state();
         thread_rng().choose(&state.base_dir_list)

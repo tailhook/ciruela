@@ -16,32 +16,19 @@ impl Tracking {
     /// RPC Requests
     pub fn append_dir(&self, cmd: AppendDir, resp: Responder<AppendDirAck>)
     {
-        let tracking = self.clone();
-        let cfg = match self.0.config.dirs.get(cmd.path.key()) {
-            Some(cfg) => cfg.clone(),
-            None => {
-                resp.respond_now(AppendDirAck {
-                    accepted: false,
-                });
-                return;
-            }
+        if !self.0.config.dirs.contains_key(cmd.path.key()) {
+            resp.respond_now(AppendDirAck {
+                accepted: false,
+            });
+            return;
         };
+        let tracking = self.clone();
         let path = cmd.path.clone();
         let image_id = cmd.image.clone();
         resp.respond_with_future(self.0.meta.append_dir(cmd)
             .map(move |result| {
             if result {
-                tracking.send(Command::FetchDir(Downloading {
-                    replacing: false,
-                    virtual_path: path,
-                    image_id: image_id,
-                    config: cfg,
-                    index_fetched: AtomicBool::new(false),
-                    bytes_fetched: AtomicUsize::new(0),
-                    bytes_total: AtomicUsize::new(0),
-                    blocks_fetched: AtomicUsize::new(0),
-                    blocks_total: AtomicUsize::new(0),
-                }));
+                tracking.fetch_dir(path, image_id, false);
             }
             AppendDirAck {
                 accepted: result,
@@ -50,32 +37,19 @@ impl Tracking {
     }
     pub fn replace_dir(&self, cmd: ReplaceDir, resp: Responder<ReplaceDirAck>)
     {
-        let tracking = self.clone();
-        let cfg = match self.0.config.dirs.get(cmd.path.key()) {
-            Some(cfg) => cfg.clone(),
-            None => {
-                resp.respond_now(ReplaceDirAck {
-                    accepted: false,
-                });
-                return;
-            }
+        if !self.0.config.dirs.contains_key(cmd.path.key()) {
+            resp.respond_now(ReplaceDirAck {
+                accepted: false,
+            });
+            return;
         };
+        let tracking = self.clone();
         let path = cmd.path.clone();
         let image_id = cmd.image.clone();
         resp.respond_with_future(self.0.meta.replace_dir(cmd)
             .map(move |result| {
             if result {
-                tracking.send(Command::FetchDir(Downloading {
-                    replacing: true,
-                    virtual_path: path,
-                    image_id: image_id,
-                    config: cfg,
-                    index_fetched: AtomicBool::new(false),
-                    bytes_fetched: AtomicUsize::new(0),
-                    bytes_total: AtomicUsize::new(0),
-                    blocks_fetched: AtomicUsize::new(0),
-                    blocks_total: AtomicUsize::new(0),
-                }));
+                tracking.fetch_dir(path, image_id, true);
             }
             ReplaceDirAck {
                 accepted: result,
