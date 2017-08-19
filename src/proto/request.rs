@@ -60,6 +60,7 @@ pub struct RequestFuture<R> {
 
 pub trait WrapTrait: mopa::Any + Send {
     fn is_request(&self) -> bool;
+    fn send_error(&mut self, err: String);
     fn serialize_req(&self, request_id: u64) -> Packet;
     fn serialize(&self) -> Packet;
 }
@@ -141,6 +142,21 @@ fn respond<T: Request, D: RequestDispatcher + ?Sized>(request_id: u64,
     }
 }
 
+fn respond_error<D: RequestDispatcher + ?Sized>(request_id: u64,
+    err: String, dispatcher: &D)
+{
+    let requests = dispatcher.request_registry();
+    match requests.remove(request_id) {
+        Some(mut r) => {
+            error!("Error in request {}: {}", request_id, err);
+            r.send_error(err);
+        }
+        None => {
+            error!("Unsolicited error {}", request_id);
+        }
+    }
+}
+
 pub trait RequestDispatcher {
     fn request_registry(&self) -> &Registry;
     fn respond(&self, request_id: u64, response: message::Response) {
@@ -151,6 +167,7 @@ pub trait RequestDispatcher {
             R::GetIndex(x) => respond::<GetIndex, _>(request_id, x, self),
             R::GetBlock(x) => respond::<GetBlock, _>(request_id, x, self),
             R::GetBaseDir(x) => respond::<GetBaseDir, _>(request_id, x, self),
+            R::Error(x) => respond_error(request_id, x, self),
         }
     }
 }
@@ -158,6 +175,11 @@ pub trait RequestDispatcher {
 impl<R: Request> WrapTrait for RequestWrap<R> {
     fn is_request(&self) -> bool {
         true
+    }
+    fn send_error(&mut self, err: String) {
+        // TODO(tailhook) propagate the error
+        // currently we just close channel to wake up a listener
+        self.chan.take().unwrap();
     }
     fn serialize_req(&self, request_id: u64) -> Packet {
         let mut buf = Vec::new();
@@ -173,6 +195,7 @@ impl<N: Notification> WrapTrait for NotificationWrap<N> {
     fn is_request(&self) -> bool {
         false
     }
+    fn send_error(&mut self, _err: String) { unreachable!(); }
     fn serialize_req(&self, _: u64) -> Packet { unreachable!(); }
     fn serialize(&self) -> Packet {
         let mut buf = Vec::new();
@@ -188,6 +211,7 @@ impl<N: Response> WrapTrait for ResponseWrap<N> {
         false
     }
     fn serialize_req(&self, _: u64) -> Packet { unreachable!(); }
+    fn send_error(&mut self, _err: String) { unreachable!(); }
     fn serialize(&self) -> Packet {
         let mut buf = Vec::new();
         (RESPONSE, self.data.type_name(), self.request_id, &self.data)
@@ -202,6 +226,7 @@ impl<E: fmt::Display + Send + 'static> WrapTrait for ErrorWrap<E> {
         false
     }
     fn serialize_req(&self, _: u64) -> Packet { unreachable!(); }
+    fn send_error(&mut self, _err: String) { unreachable!(); }
     fn serialize(&self) -> Packet {
         let mut buf = Vec::new();
         (RESPONSE, "Error", self.request_id, self.error.to_string())

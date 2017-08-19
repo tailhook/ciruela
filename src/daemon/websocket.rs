@@ -57,15 +57,6 @@ pub struct Responder<R: Response> {
     item: PhantomData<R>,
 }
 
-quick_error! {
-    #[derive(Debug)]
-    pub enum Error {
-        ConfigNotFound {
-            description("config not found")
-        }
-    }
-}
-
 impl Dispatcher {
     pub fn new(cli: Connection, tracking: &Tracking)
         -> (Dispatcher, Registry)

@@ -16,10 +16,11 @@ pub enum Message {
 }
 
 struct MessageVisitor;
-struct TypeVisitor;
+struct RequestTypeVisitor;
+struct ResponseTypeVisitor;
 struct NotificationTypeVisitor;
 
-pub enum Type {
+pub enum RequestType {
     AppendDir,
     ReplaceDir,
     GetIndex,
@@ -27,12 +28,29 @@ pub enum Type {
     GetBaseDir,
 }
 
+pub enum ResponseType {
+    AppendDir,
+    ReplaceDir,
+    GetIndex,
+    GetBlock,
+    GetBaseDir,
+    RequestError,
+}
+
 pub enum NotificationType {
     PublishImage,
     ReceivedImage,
 }
 
-const TYPES: &'static [&'static str] = &[
+const REQUEST_TYPES: &'static [&'static str] = &[
+    "AppendDir",
+    "ReplaceDir",
+    "GetIndex",
+    "GetBlock",
+    "GetBaseDir",
+    ];
+
+const RESPONSE_TYPES: &'static [&'static str] = &[
     "AppendDir",
     "ReplaceDir",
     "GetIndex",
@@ -59,6 +77,7 @@ pub enum Response {
     GetIndex(index_commands::GetIndexResponse),
     GetBlock(block_commands::GetBlockResponse),
     GetBaseDir(p2p_commands::GetBaseDirResponse),
+    Error(String),
 }
 
 #[derive(Debug)]
@@ -75,22 +94,43 @@ impl<'a> Deserialize<'a> for Message {
     }
 }
 
-impl<'a> Visitor<'a> for TypeVisitor {
-    type Value = Type;
+impl<'a> Visitor<'a> for RequestTypeVisitor {
+    type Value = RequestType;
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str(&TYPES.join(", "))
+        formatter.write_str(&REQUEST_TYPES.join(", "))
     }
 
-    fn visit_str<E>(self, value: &str) -> Result<Type, E>
+    fn visit_str<E>(self, value: &str) -> Result<RequestType, E>
         where E: Error
     {
         match value {
-            "AppendDir" => Ok(Type::AppendDir),
-            "ReplaceDir" => Ok(Type::ReplaceDir),
-            "GetIndex" => Ok(Type::GetIndex),
-            "GetBlock" => Ok(Type::GetBlock),
-            "GetBaseDir" => Ok(Type::GetBaseDir),
-            _ => Err(Error::unknown_field(value, TYPES)),
+            "AppendDir" => Ok(RequestType::AppendDir),
+            "ReplaceDir" => Ok(RequestType::ReplaceDir),
+            "GetIndex" => Ok(RequestType::GetIndex),
+            "GetBlock" => Ok(RequestType::GetBlock),
+            "GetBaseDir" => Ok(RequestType::GetBaseDir),
+            _ => Err(Error::unknown_variant(value, REQUEST_TYPES)),
+        }
+    }
+}
+
+impl<'a> Visitor<'a> for ResponseTypeVisitor {
+    type Value = ResponseType;
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str(&RESPONSE_TYPES.join(", "))
+    }
+
+    fn visit_str<E>(self, value: &str) -> Result<ResponseType, E>
+        where E: Error
+    {
+        match value {
+            "AppendDir" => Ok(ResponseType::AppendDir),
+            "ReplaceDir" => Ok(ResponseType::ReplaceDir),
+            "GetIndex" => Ok(ResponseType::GetIndex),
+            "GetBlock" => Ok(ResponseType::GetBlock),
+            "GetBaseDir" => Ok(ResponseType::GetBaseDir),
+            "Error" => Ok(ResponseType::RequestError),
+            _ => Err(Error::unknown_variant(value, RESPONSE_TYPES)),
         }
     }
 }
@@ -112,11 +152,19 @@ impl<'a> Visitor<'a> for NotificationTypeVisitor {
     }
 }
 
-impl<'a> Deserialize<'a> for Type {
+impl<'a> Deserialize<'a> for RequestType {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
         where D: Deserializer<'a>
     {
-        deserializer.deserialize_str(TypeVisitor)
+        deserializer.deserialize_str(RequestTypeVisitor)
+    }
+}
+
+impl<'a> Deserialize<'a> for ResponseType {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where D: Deserializer<'a>
+    {
+        deserializer.deserialize_str(ResponseTypeVisitor)
     }
 }
 
@@ -158,6 +206,7 @@ impl<'a> Visitor<'a> for MessageVisitor {
                 Ok(Message::Notification(data))
             }
             Some(REQUEST) => {
+                use self::RequestType::*;
                 let typ = match visitor.next_element()? {
                     Some(typ) => typ,
                     None => return Err(Error::invalid_length(1, &self)),
@@ -167,23 +216,23 @@ impl<'a> Visitor<'a> for MessageVisitor {
                     None => return Err(Error::invalid_length(2, &self)),
                 };
                 let data = match typ {
-                    Type::AppendDir => match visitor.next_element()? {
+                    AppendDir => match visitor.next_element()? {
                         Some(data) => Request::AppendDir(data),
                         None => return Err(Error::invalid_length(3, &self)),
                     },
-                    Type::ReplaceDir => match visitor.next_element()? {
+                    ReplaceDir => match visitor.next_element()? {
                         Some(data) => Request::ReplaceDir(data),
                         None => return Err(Error::invalid_length(3, &self)),
                     },
-                    Type::GetIndex => match visitor.next_element()? {
+                    GetIndex => match visitor.next_element()? {
                         Some(data) => Request::GetIndex(data),
                         None => return Err(Error::invalid_length(3, &self)),
                     },
-                    Type::GetBlock => match visitor.next_element()? {
+                    GetBlock => match visitor.next_element()? {
                         Some(data) => Request::GetBlock(data),
                         None => return Err(Error::invalid_length(3, &self)),
                     },
-                    Type::GetBaseDir => match visitor.next_element()? {
+                    GetBaseDir => match visitor.next_element()? {
                         Some(data) => Request::GetBaseDir(data),
                         None => return Err(Error::invalid_length(3, &self)),
                     },
@@ -191,6 +240,7 @@ impl<'a> Visitor<'a> for MessageVisitor {
                 Ok(Message::Request(request_id, data))
             },
             Some(RESPONSE) => {
+                use self::ResponseType::*;
                 let typ = match visitor.next_element()? {
                     Some(typ) => typ,
                     None => return Err(Error::invalid_length(1, &self)),
@@ -200,24 +250,28 @@ impl<'a> Visitor<'a> for MessageVisitor {
                     None => return Err(Error::invalid_length(2, &self)),
                 };
                 let data = match typ {
-                    Type::AppendDir => match visitor.next_element()? {
+                    AppendDir => match visitor.next_element()? {
                         Some(data) => Response::AppendDir(data),
                         None => return Err(Error::invalid_length(3, &self)),
                     },
-                    Type::ReplaceDir => match visitor.next_element()? {
+                    ReplaceDir => match visitor.next_element()? {
                         Some(data) => Response::ReplaceDir(data),
                         None => return Err(Error::invalid_length(3, &self)),
                     },
-                    Type::GetIndex => match visitor.next_element()? {
+                    GetIndex => match visitor.next_element()? {
                         Some(data) => Response::GetIndex(data),
                         None => return Err(Error::invalid_length(3, &self)),
                     },
-                    Type::GetBlock => match visitor.next_element()? {
+                    GetBlock => match visitor.next_element()? {
                         Some(data) => Response::GetBlock(data),
                         None => return Err(Error::invalid_length(3, &self)),
                     },
-                    Type::GetBaseDir => match visitor.next_element()? {
+                    GetBaseDir => match visitor.next_element()? {
                         Some(data) => Response::GetBaseDir(data),
+                        None => return Err(Error::invalid_length(3, &self)),
+                    },
+                    RequestError => match visitor.next_element()? {
+                        Some(data) => Response::Error(data),
                         None => return Err(Error::invalid_length(3, &self)),
                     },
                 };
