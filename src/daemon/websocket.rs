@@ -3,7 +3,7 @@ use std::fmt;
 use std::hash::{Hasher};
 use std::marker::PhantomData;
 use std::net::SocketAddr;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicUsize, AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use futures::{Future, Stream};
@@ -39,6 +39,8 @@ struct ConnectionState {
     id: usize,
     addr: SocketAddr,
     sender: Sender,
+    registry: Registry,
+    connected: AtomicBool,
     // TODO(tailhook) is this images thing needed?
     images: Mutex<HashSet<ImageId>>,
 }
@@ -57,16 +59,16 @@ pub struct Responder<R: Response> {
 }
 
 impl Dispatcher {
-    pub fn new(cli: Connection, tracking: &Tracking)
-        -> (Dispatcher, Registry)
+    pub fn new(cli: Connection, registry: &Registry, tracking: &Tracking)
+        -> Dispatcher
     {
-        let registry = Registry::new();
+        cli.0.connected.store(true, Ordering::SeqCst);
         let disp = Dispatcher {
             connection: cli.clone(),
             tracking: tracking.clone(),
             requests: registry.clone(),
         };
-        return (disp, registry);
+        return disp;
     }
 }
 
@@ -85,20 +87,31 @@ impl Connection {
         let (tx, rx) = Sender::channel();
         let rx = rx.map_err(closed as fn(()) -> &'static str);
         let id = CONNECTION_ID.fetch_add(1, Ordering::SeqCst);
+        let registry = Registry::new();
         let cli = Connection(Arc::new(ConnectionState {
             id: id,
             addr: addr,
             sender: tx,
+            connected: AtomicBool::new(true),
+            registry: registry.clone(),
             images: Mutex::new(HashSet::new()),
         }));
-        let (disp, registry) = Dispatcher::new(cli.clone(), tracking);
+        let disp = Dispatcher::new(cli.clone(), &registry, tracking);
         let rx = rx.packetize(&registry);
         let fut = Loop::server(out, inp, rx, disp,
             remote.websock_config(), &handle());
         return (cli, fut);
     }
 
-    pub fn outgoing(addr: SocketAddr)
+    pub fn hanging_requests(&self) -> usize {
+        self.0.registry.get_size()
+    }
+
+    pub fn is_connected(&self) -> bool {
+        self.0.connected.load(Ordering::SeqCst)
+    }
+
+    pub fn outgoing(addr: SocketAddr, registry: &Registry)
         -> (Connection, UnboundedReceiver<Box<WrapTrait>>)
     {
         let (tx, rx) = Sender::channel();
@@ -107,6 +120,8 @@ impl Connection {
             id: id,
             addr: addr,
             sender: tx,
+            connected: AtomicBool::new(false),
+            registry: registry.clone(),
             images: Mutex::new(HashSet::new()),
         }));
         return (cli, rx);

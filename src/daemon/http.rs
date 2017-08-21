@@ -2,22 +2,22 @@ use std::io;
 use std::net::SocketAddr;
 use std::time::Duration;
 
-use time;
 use futures::future::{Future, FutureResult, ok};
 use futures::stream::Stream;
+use time;
+use tk_easyloop::{spawn, handle};
 use tk_easyloop;
 use tk_http::Status;
-use tk_http::server::{Proto, Encoder, EncoderDone, Error, Config};
-
 use tk_http::server::buffered::{Request, BufferedDispatcher};
+use tk_http::server::{Proto, Encoder, EncoderDone, Error, Config};
 use tk_listen::ListenExt;
 use tokio_core::net::TcpListener;
-use tk_easyloop::{spawn, handle};
 
 
 use websocket::Connection;
 use remote::Remote;
 use tracking::Tracking;
+use ciruela::proto::Registry;
 
 
 const BODY: &'static str = "Not found";

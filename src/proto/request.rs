@@ -176,7 +176,7 @@ impl<R: Request> WrapTrait for RequestWrap<R> {
     fn is_request(&self) -> bool {
         true
     }
-    fn send_error(&mut self, err: String) {
+    fn send_error(&mut self, _err: String) {
         // TODO(tailhook) propagate the error
         // currently we just close channel to wake up a listener
         self.chan.take().unwrap();
@@ -310,6 +310,9 @@ impl Registry {
     }
     fn lock(&self) -> MutexGuard<RegistryInner> {
         self.0.lock().expect("request registry is not poisoned")
+    }
+    pub fn get_size(&self) -> usize {
+        self.lock().requests.len()
     }
     pub fn remove(&self, request_id: u64) -> Option<Box<WrapTrait>> {
         self.lock().requests.remove(&request_id)
