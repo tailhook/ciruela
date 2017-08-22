@@ -20,7 +20,6 @@ use tokio_core::net::TcpStream;
 use ciruela::proto::message::{Message};
 use ciruela::proto::{GetIndex, GetIndexResponse};
 use ciruela::proto::{GetBlock, GetBlockResponse};
-use ciruela::proto::{GetBaseDirResponse};
 use ciruela::proto::{RequestClient, RequestDispatcher, Sender};
 use ciruela::proto::{RequestFuture, Registry, StreamExt, PacketStream};
 use ciruela::proto::{Response, WrapTrait, Notification};

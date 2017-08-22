@@ -1,17 +1,12 @@
-use std::io::Cursor;
 use std::sync::Arc;
 
 use futures::{Future, Stream};
-use futures::future::{ok, Either};
 use futures::stream::iter;
 use futures::sync::oneshot::channel;
-use quick_error::ResultExt;
 use tk_easyloop::spawn;
 
 use ciruela::Hash;
 use disk::{self, Image};
-use index::IndexData;
-use metadata::Error;
 use tracking::{Subsystem, Block, Downloading};
 
 

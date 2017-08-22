@@ -16,8 +16,8 @@ use futures_cpupool::{CpuPool, CpuFuture};
 
 use openat::Metadata;
 use ciruela::database::signatures::State;
-use ciruela::proto::{AppendDir, AppendDirAck};
-use ciruela::proto::{ReplaceDir, ReplaceDirAck};
+use ciruela::proto::{AppendDir};
+use ciruela::proto::{ReplaceDir};
 use ciruela::{ImageId, VPath};
 use config::Config;
 use index::IndexData;

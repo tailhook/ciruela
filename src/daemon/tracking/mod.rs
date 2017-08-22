@@ -10,7 +10,7 @@ use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::{Arc, Weak, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Instant, Duration};
 
 use futures::{Future, Stream};
@@ -21,12 +21,11 @@ use futures::sync::oneshot::{Receiver};
 use tk_easyloop::{spawn, timeout};
 
 use ciruela::{ImageId, Hash, VPath};
-use ciruela::proto::{AppendDir, AppendDirAck};
-use config::{Config, Directory};
+use ciruela::proto::{AppendDir};
+use config::{Config};
 use disk::Disk;
-use index::{IndexData};
 use machine_id::MachineId;
-use metadata::{Meta, Error as MetaError};
+use metadata::{Meta};
 use rand::{thread_rng, Rng};
 use remote::Remote;
 use tracking::reconciliation::ReconPush;
@@ -37,7 +36,6 @@ pub use self::base_dir::BaseDir;
 
 
 pub type Block = Arc<Vec<u8>>;
-type ImageFuture = Shared<Receiver<Index>>;
 type BlockFuture = Shared<Receiver<Block>>;
 
 pub struct State {
@@ -101,7 +99,7 @@ impl Tracking {
         let (rtx, rrx) = unbounded();
         let handler = Tracking(Arc::new(Inner {
             config: config.clone(),
-            images: fetch_index::Indexes::new(meta, remote),
+            images: fetch_index::Indexes::new(),
             state: Arc::new(Mutex::new(State {
                 block_futures: HashMap::new(),
                 in_progress: HashSet::new(),
@@ -329,7 +327,7 @@ pub fn start(init: TrackingInit, disk: &Disk)
                                     })
                                 }))
                         } else {
-                            let bdir = BaseDir::commit_scan(
+                            BaseDir::commit_scan(
                                 bdir, &config, scan_time, &sys);
                             Either::A(ok(()))
                         }

@@ -2,16 +2,15 @@ use std::collections::VecDeque;
 use std::collections::hash_map::Entry;
 use std::collections::{HashSet, HashMap};
 use std::io::Cursor;
-use std::mem::replace;
 use std::net::SocketAddr;
 use std::ops::Deref;
 use std::sync::{Arc, Weak, Mutex, MutexGuard};
 use std::time::Duration;
 
 use futures::{self, Future as FutureTrait};
-use futures::future::{Shared, loop_fn, Loop, Either, ok};
+use futures::future::{Shared};
 use futures::sync::oneshot::{channel, Receiver, Sender};
-use valuable_futures::{Supply, Future, Async, StateMachine};
+use valuable_futures::{Supply, Async, StateMachine};
 
 use ciruela::ImageId;
 use ciruela::proto::{GetIndex, GetIndexResponse};
@@ -77,16 +76,6 @@ struct FetchContext {
 }
 
 struct FetchBase(Sender<Index>, Timeout, State);
-
-
-struct FetchIndex {
-    id: ImageId,
-    reg: Arc<Mutex<Registry>>,
-    tracking: Tracking,
-    state: State,
-    tx: Option<Sender<Index>>,
-    deadline: Timeout,
-}
 
 pub enum State {
     Start,
@@ -228,7 +217,7 @@ impl Drop for Inner {
 
 
 impl Indexes {
-    pub fn new(meta: &Meta, remote: &Remote) -> Indexes {
+    pub fn new() -> Indexes {
         Indexes {
             images: Arc::new(Mutex::new(Registry::new())),
         }
@@ -238,7 +227,6 @@ impl Indexes {
     }
     pub fn get(&self, tracking: &Tracking, index: &ImageId) -> IndexFuture
     {
-        let images = self.images.clone();
         match self.lock().entry(index.clone()) {
             Entry::Occupied(mut e) => {
                 let (fut, inp) = match *e.get() {
@@ -258,7 +246,7 @@ impl Indexes {
                 *e.get_mut() = IndexRef::InProgress(Box::new(inp));
                 IndexFuture::Future(fut)
             }
-            Entry::Vacant(mut e) => {
+            Entry::Vacant(e) => {
                 let (fut, inp) = spawn_try_read(index, self.images.clone(),
                     tracking);
                 e.insert(IndexRef::InProgress(Box::new(inp)));
@@ -318,7 +306,8 @@ impl futures::Future for IndexFuture {
             IndexFuture::Future(ref mut sh) => match sh.poll() {
                 Ok(Async::Ready(val)) => Ok(Async::Ready(val.clone())),
                 Ok(Async::NotReady) => Ok(Async::NotReady),
-                Err(e) => Err(Error::FutureClosed),
+                // TODO(tailhook) should we log this error
+                Err(_) => Err(Error::FutureClosed),
             },
         }
     }

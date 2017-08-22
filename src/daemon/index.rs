@@ -1,5 +1,4 @@
 use std::io::BufRead;
-use std::ops::Deref;
 
 
 use dir_signature::v1::{Entry};

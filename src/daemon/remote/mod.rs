@@ -5,16 +5,12 @@ use std::collections::{HashSet, HashMap};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
-use config::Config;
 use websocket::Connection;
 use ciruela::{ImageId, VPath};
-use ciruela::proto::{ReceivedImage, Request, RequestFuture, RequestClient};
+use ciruela::proto::{ReceivedImage};
 use ciruela::proto::{Registry};
-use ciruela::proto::{GetBaseDir, GetBaseDirResponse};
 use remote::outgoing::connect;
 use tk_http::websocket::{Config as WsConfig};
-use metadata::Meta;
-use disk::Disk;
 use tracking::Tracking;
 
 
