@@ -1,8 +1,9 @@
 mod base_dir;
-mod fetch_dir;
-mod progress;
 mod cleanup;
+mod fetch_blocks;
+mod fetch_dir;
 mod fetch_index;
+mod progress;
 mod reconciliation;
 mod rpc;
 
@@ -31,12 +32,12 @@ use remote::Remote;
 use tracking::reconciliation::ReconPush;
 
 pub use self::fetch_index::Index;
-pub use self::progress::Downloading;
+pub use self::progress::{Downloading, Slices};
 pub use self::base_dir::BaseDir;
 
 
-pub type Block = Arc<Vec<u8>>;
-type BlockFuture = Shared<Receiver<Block>>;
+pub type BlockData = Arc<Vec<u8>>;
+type BlockFuture = Shared<Receiver<BlockData>>;
 
 pub struct State {
     block_futures: HashMap<Hash, BlockFuture>,
@@ -159,6 +160,7 @@ impl Tracking {
             virtual_path: path,
             image_id: image,
             config: cfg.clone(),
+            slices: Slices::new(),
             index_fetched: AtomicBool::new(false),
             bytes_fetched: AtomicUsize::new(0),
             bytes_total: AtomicUsize::new(0),

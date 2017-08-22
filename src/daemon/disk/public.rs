@@ -16,7 +16,7 @@ use disk::dir::{remove_dir_recursive};
 use disk::{Init, Error};
 use tracking::Index;
 use metadata::Meta;
-use tracking::Block;
+use tracking::BlockData;
 
 
 #[derive(Clone)]
@@ -100,7 +100,7 @@ impl Disk {
     }
     pub fn write_block(&self, image: Arc<Image>,
                        path: Arc<PathBuf>, offset: u64,
-                       block: Block)
+                       block: BlockData)
         -> CpuFuture<(), Error>
     {
         self.pool.spawn_fn(move || {
@@ -208,7 +208,7 @@ impl Disk {
     }
 }
 
-fn write_block(dir: &Dir, filename: &Path, offset: u64, block: Block)
+fn write_block(dir: &Dir, filename: &Path, offset: u64, block: BlockData)
     -> io::Result<()>
 {
     let mut file = dir.update_file(filename, 0o644)?;

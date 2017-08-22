@@ -91,7 +91,7 @@ impl Remote {
                 cli
             }).clone()
     }
-    pub fn notify_received_image(&self, ref id: ImageId, path: &VPath) {
+    pub fn notify_received_image(&self, id: &ImageId, path: &VPath) {
         for conn in self.inner().incoming.iter() {
             if conn.has_image(id) {
                 conn.notification(ReceivedImage {
