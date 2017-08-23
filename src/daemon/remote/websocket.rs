@@ -130,7 +130,7 @@ impl Connection {
         self.0.addr
     }
 
-    fn images(&self) -> MutexGuard<HashSet<ImageId>> {
+    pub fn images(&self) -> MutexGuard<HashSet<ImageId>> {
         self.0.images.lock()
             .expect("images are not poisoned")
     }
@@ -205,7 +205,12 @@ impl websocket::Dispatcher for Dispatcher {
                     self.respond(request_id, resp);
                 }
                 Ok(Message::Notification(N::PublishImage(idx))) => {
-                    self.connection.images().insert(idx.id);
+                    self.connection.images().insert(idx.id.clone());
+                    self.tracking.remote()
+                        .inner().declared_images
+                        .entry(idx.id.clone())
+                        .or_insert_with(HashSet::new)
+                        .insert(self.connection.clone());
                     // TODO(tailhook) wakeup remote subsystem, so it can
                     // fetch image from this peer if image is currently in
                     // hanging state

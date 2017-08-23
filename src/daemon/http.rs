@@ -14,7 +14,7 @@ use tk_listen::ListenExt;
 use tokio_core::net::TcpListener;
 
 
-use websocket::Connection;
+use remote::websocket::Connection;
 use remote::Remote;
 use tracking::Tracking;
 use ciruela::proto::Registry;

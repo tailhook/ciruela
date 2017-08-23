@@ -10,7 +10,7 @@ use tk_http::websocket::{Loop};
 
 use ciruela::proto::{WrapTrait, Registry};
 use ciruela::proto::{StreamExt};
-use websocket::{Dispatcher, Connection};
+use remote::websocket::{Dispatcher, Connection};
 use remote::{Remote, Token};
 use tracking::Tracking;
 

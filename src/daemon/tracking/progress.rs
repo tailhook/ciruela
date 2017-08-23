@@ -1,18 +1,24 @@
 use std::borrow;
-use std::collections::{VecDeque, HashSet};
+use std::collections::{VecDeque, HashMap};
 use std::hash;
 use std::path::{Path, PathBuf};
-use std::net::SocketAddr;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::sync::atomic::Ordering::Relaxed;
 use std::sync::atomic::{AtomicBool, AtomicUsize};
+use std::time::Instant;
+
+use rand::{thread_rng, Rng};
 
 use ciruela::Hash;
 use ciruela::{ImageId, VPath};
 use config::Directory;
-use futures::sync::oneshot::Sender;
-use tracking::BlockData;
+use mask::AtomicMask;
+use remote::PeerId;
 use tracking::fetch_index::Index;
+use tracking::{BlockData};
+
+
+pub const MAX_SLICES: usize = 16;
 
 
 #[derive(Debug, Clone)]
@@ -24,13 +30,15 @@ pub struct Block {
 
 #[derive(Debug)]
 pub struct Slice {
+    pub index: u8,
+    pub in_progress: usize,
     pub blocks: VecDeque<Block>,
+    pub failures: HashMap<PeerId, Instant>,
 }
 
 #[derive(Debug)]
 pub struct Slices {
-    pub start: u8,
-    pub slices: Mutex<Option<[Slice; 16]>>,
+    pub slices: Mutex<VecDeque<Slice>>,
 }
 
 #[derive(Debug)]
@@ -40,6 +48,7 @@ pub struct Downloading {
     pub image_id: ImageId,
     pub config: Arc<Directory>,
     pub slices: Slices,
+    pub mask: AtomicMask,
     pub index_fetched: AtomicBool,
     pub bytes_total: AtomicUsize,
     pub bytes_fetched: AtomicUsize,
@@ -48,9 +57,12 @@ pub struct Downloading {
 }
 
 impl Slice {
-    fn new() -> Slice {
+    fn new(index: u8) -> Slice {
         Slice {
+            index: index,
             blocks: VecDeque::new(),
+            in_progress: 0,
+            failures: HashMap::new(),
         }
     }
     fn add_blocks<I: Iterator<Item=Block>>(&mut self, blocks: I) {
@@ -66,8 +78,7 @@ impl Slice {
 impl Slices {
     pub fn new() -> Slices {
         Slices {
-            start: 0,
-            slices: Mutex::new(None),
+            slices: Mutex::new(VecDeque::new()),
         }
     }
     pub fn start(&self, index: &Index) {
@@ -92,17 +103,21 @@ impl Slices {
                     }
                 }
             }).collect::<Vec<_>>();
-        let mut slices = [
-            Slice::new(), Slice::new(), Slice::new(), Slice::new(),
-            Slice::new(), Slice::new(), Slice::new(), Slice::new(),
-            Slice::new(), Slice::new(), Slice::new(), Slice::new(),
-            Slice::new(), Slice::new(), Slice::new(), Slice::new(),
-        ];
-        let num = slices.len();
+
+        let mut slices = Vec::new();
         for (idx, chunk) in blocks.windows(100).enumerate() {
-            slices[idx % num].add_blocks(chunk.iter().cloned());
+            let s = idx % MAX_SLICES;
+            while slices.len() <= s {
+                let cur = slices.len();
+                slices.push(Slice::new(cur as u8));
+            }
+            slices[s].add_blocks(chunk.iter().cloned());
         }
-        *self.slices.lock().expect("slices not poisoned") = Some(slices);
+        thread_rng().shuffle(&mut slices);
+        self.slices().extend(slices);
+    }
+    fn slices(&self) -> MutexGuard<VecDeque<Slice>> {
+        self.slices.lock().expect("slices not poisoned")
     }
 }
 
@@ -141,16 +156,7 @@ impl Downloading {
         self.bytes_fetched.fetch_add(block.len(), Relaxed);
         self.blocks_fetched.fetch_add(1, Relaxed);
     }
-}
-
-#[cfg(test)]
-mod test {
-    use std::mem::size_of;
-    use super::*;
-
-    #[test]
-    #[cfg(target_arch="x86_64")]
-    fn size() {
-        assert_eq!(size_of::<Downloading>(), 2056);
+    pub fn slices(&self) -> MutexGuard<VecDeque<Slice>> {
+        self.slices.slices()
     }
 }

@@ -59,11 +59,11 @@ mod disk;
 mod http;
 mod index;
 mod machine_id;
+mod mask;
 mod metadata;
 mod peers;
 mod remote;
 mod tracking;
-mod websocket;
 
 fn init_logging() {
     let format = |record: &log::LogRecord| {

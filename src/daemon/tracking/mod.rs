@@ -26,6 +26,7 @@ use ciruela::proto::{AppendDir};
 use config::{Config};
 use disk::Disk;
 use machine_id::MachineId;
+use mask::AtomicMask;
 use metadata::{Meta};
 use rand::{thread_rng, Rng};
 use remote::Remote;
@@ -160,6 +161,7 @@ impl Tracking {
             virtual_path: path,
             image_id: image,
             config: cfg.clone(),
+            mask: AtomicMask::new(),
             slices: Slices::new(),
             index_fetched: AtomicBool::new(false),
             bytes_fetched: AtomicUsize::new(0),
@@ -184,6 +186,9 @@ impl Tracking {
     fn scan_dir(&self, path: VPath) {
         self.0.rescan_chan.send((path, Instant::now(), true))
             .expect("rescan thread is alive");
+    }
+    pub fn remote(&self) -> &Remote {
+        &self.0.remote
     }
 }
 

@@ -21,7 +21,7 @@ use remote::{Remote};
 use tk_easyloop::{spawn, timeout};
 use tokio_core::reactor::Timeout;
 use tracking::Tracking;
-use websocket::Connection;
+use remote::websocket::Connection;
 
 
 const RETRY_FOR: u64 = 3600_000;  // retry no more than an hour

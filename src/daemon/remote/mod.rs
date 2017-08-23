@@ -1,17 +1,25 @@
 mod outgoing;
+pub mod websocket;
 
 use std::net::SocketAddr;
 use std::collections::{HashSet, HashMap};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
-use websocket::Connection;
+use remote::websocket::Connection;
 use ciruela::{ImageId, VPath};
 use ciruela::proto::{ReceivedImage};
 use ciruela::proto::{Registry};
 use remote::outgoing::connect;
 use tk_http::websocket::{Config as WsConfig};
 use tracking::Tracking;
+
+
+#[derive(PartialEq, Eq, Hash, Debug, Clone, Copy)]
+pub enum PeerId {
+    Incoming(usize),
+    Outgoing(SocketAddr),
+}
 
 
 pub struct Failure {
@@ -27,6 +35,7 @@ pub struct Connections {
     incoming: HashSet<Connection>,
     outgoing: HashMap<SocketAddr, Connection>,
     failures: HashMap<SocketAddr, Failure>,
+    declared_images: HashMap<ImageId, HashSet<Connection>>,
 }
 
 pub struct Token(Remote, Connection);
@@ -53,13 +62,14 @@ impl Remote {
                 incoming: HashSet::new(),
                 outgoing: HashMap::new(),
                 failures: HashMap::new(),
+                declared_images: HashMap::new(),
             }),
         }))
     }
     pub fn websock_config(&self) -> &Arc<WsConfig> {
         &self.0.websock_config
     }
-    fn inner(&self) -> MutexGuard<Connections> {
+    pub fn inner(&self) -> MutexGuard<Connections> {
         self.0.conn.lock().expect("remote interface poisoned")
     }
     pub fn register_connection(&self, cli: &Connection) -> Token {
@@ -69,12 +79,8 @@ impl Remote {
     pub fn get_incoming_connection_for_index(&self, id: &ImageId)
         -> Option<Connection>
     {
-        for conn in self.inner().incoming.iter() {
-            if conn.has_image(id) {
-                return Some(conn.clone());
-            }
-        }
-        return None;
+        self.inner().declared_images.get(id)
+            .and_then(|x| x.iter().cloned().next())
     }
     pub fn get_connection(&self, addr: SocketAddr) -> Option<Connection> {
         self.inner().outgoing.get(&addr).cloned()
@@ -117,7 +123,21 @@ impl Drop for Token {
                 })
                 .subsequent_failures += 1;
         }
-        remote.incoming.remove(&self.1);
+        if remote.incoming.remove(&self.1) {
+            for img in self.1.images().iter() {
+                let left = {
+                    let mut item = remote.declared_images.get_mut(img);
+                    item.as_mut().map(|x| x.remove(&self.1));
+                    item.map(|x| x.len())
+                };
+                match left {
+                    Some(0) => {
+                        remote.declared_images.remove(img);
+                    }
+                    _ => {}
+                }
+            }
+        }
         if remote.outgoing.get(&self.1.addr())
             .map(|x| *x == self.1).unwrap_or(false)
         {

@@ -8,7 +8,7 @@ use ciruela::proto::{GetIndex, GetIndexResponse};
 use ciruela::proto::{GetBlock, GetBlockResponse};
 use ciruela::proto::{GetBaseDir, GetBaseDirResponse};
 use tracking::{Tracking, base_dir};
-use websocket::Responder;
+use remote::websocket::Responder;
 
 
 impl Tracking {
