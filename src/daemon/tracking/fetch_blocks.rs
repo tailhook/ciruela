@@ -161,6 +161,7 @@ impl Future for FetchBlocks {
                         let f = Fetching(blk, s.index, req);
                         new += 1;
                         self.futures.push_back(f);
+                        s.in_progress += 1;
                         if self.futures.len() > CONCURRENCY {
                             continue 'outer;
                         }

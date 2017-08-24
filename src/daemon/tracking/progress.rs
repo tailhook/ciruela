@@ -105,7 +105,7 @@ impl Slices {
             }).collect::<Vec<_>>();
 
         let mut slices = Vec::new();
-        for (idx, chunk) in blocks.windows(100).enumerate() {
+        for (idx, chunk) in blocks.chunks(100).enumerate() {
             let s = idx % MAX_SLICES;
             while slices.len() <= s {
                 let cur = slices.len();
