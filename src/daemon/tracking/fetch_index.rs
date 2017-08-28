@@ -26,7 +26,7 @@ use remote::websocket::Connection;
 
 
 const RETRY_FOR: u64 = 3600_000;  // retry no more than an hour
-const RETRY_TIMEOUT: u64 = 10000;
+const RETRY_TIMEOUT: u64 = 2000;
 
 
 type Registry = HashMap<ImageId, IndexRef>;

@@ -9,6 +9,7 @@ use tracking::Subsystem;
 use futures::future::{Future, Loop, loop_fn};
 use tk_easyloop::spawn;
 use tracking::base_dir;
+use metadata::Upload;
 
 
 pub struct ReconPush {
@@ -118,11 +119,11 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
                         signatures: vec![sig.signature],
                     }).then(move |result| {
                         match result {
-                            Ok(true) => {
+                            Ok(Upload { accepted: true, new: true }) => {
                                 sys.tracking.fetch_dir(
                                     vpath, image_id, true);
                             }
-                            Ok(false) => {} // TODO(tailhook) log?
+                            Ok(Upload {..}) => {} // TODO(tailhook) log?
                             Err(e) => {
                                 error!("Error reconciling {:?}: {}",
                                     vpath, e);
@@ -140,11 +141,11 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
                         signatures: vec![sig.signature],
                     }).then(move |result| {
                         match result {
-                            Ok(true) => {
+                            Ok(Upload { accepted: true, new: true }) => {
                                 sys.tracking.fetch_dir(
                                     vpath, image_id, false);
                             }
-                            Ok(false) => {} // TODO(tailhook) log?
+                            Ok(Upload {..}) => {} // TODO(tailhook) log?
                             Err(e) => {
                                 error!("Error reconciling {:?}: {}",
                                     vpath, e);

@@ -318,7 +318,10 @@ pub fn start(init: TrackingInit, disk: &Disk)
                                             Either::B(
                                                 sys.meta.append_dir(cmd)
                                                 .map(move |result| {
-                                                    if result {
+                                                    // TODO(tailhook)
+                                                    // does `accepted` mean
+                                                    // here something?
+                                                    if result.new {
                                                         sys.tracking
                                                         .fetch_dir(
                                                             dir,

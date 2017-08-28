@@ -26,11 +26,11 @@ impl Tracking {
         let image_id = cmd.image.clone();
         resp.respond_with_future(self.0.meta.append_dir(cmd)
             .map(move |result| {
-            if result {
+            if result.new {
                 tracking.fetch_dir(path, image_id, false);
             }
             AppendDirAck {
-                accepted: result,
+                accepted: result.accepted,
             }
         }));
     }
@@ -47,11 +47,11 @@ impl Tracking {
         let image_id = cmd.image.clone();
         resp.respond_with_future(self.0.meta.replace_dir(cmd)
             .map(move |result| {
-            if result {
+            if result.new {
                 tracking.fetch_dir(path, image_id, true);
             }
             ReplaceDirAck {
-                accepted: result,
+                accepted: result.accepted,
             }
         }));
     }

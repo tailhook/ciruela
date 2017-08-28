@@ -17,7 +17,7 @@ pub fn start(sys: &Subsystem, cmd: Downloading) {
     sys.state().in_progress.insert(cmd.clone());
     let sys = sys.clone();
     spawn(sys.images.get(&sys.tracking, &cmd.image_id).and_then(|index| {
-        info!("Image {:?} is already cached", cmd.image_id);
+        debug!("Got index {:?}", cmd.image_id);
         spawn(sys.disk.start_image(
                 cmd.config.directory.clone(),
                 index.clone(),

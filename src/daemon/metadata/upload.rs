@@ -1,6 +1,6 @@
-use std::collections::hash_map::Entry;
-use std::fs::File;
 use std::io::{BufReader, BufWriter};
+use std::fs::File;
+use std::collections::hash_map::Entry;
 use std::sync::Arc;
 
 use serde::Serialize;
@@ -16,6 +16,13 @@ use config::Directory;
 use metadata::keys::read_upload_keys;
 use metadata::{Meta, Error};
 
+
+#[derive(Debug, Clone, Copy)]
+pub struct Upload {
+    pub accepted: bool,
+    /// set to true to singal `tracking` that it should start a directory
+    pub new: bool,
+}
 
 fn sort_signatures(new: &mut Vec<SignatureEntry>) {
     new.sort();
@@ -47,7 +54,7 @@ fn check_keys(sigdata: &SigData, signatures: &Vec<Signature>,
 }
 
 pub fn start_append(params: AppendDir, meta: &Meta)
-    -> Result<bool, Error>
+    -> Result<Upload, Error>
 {
     let vpath = params.path.clone();
     let config = if let Some(cfg) = meta.0.config.dirs.get(vpath.key()) {
@@ -62,7 +69,7 @@ pub fn start_append(params: AppendDir, meta: &Meta)
     if !check_keys(&params.sig_data(), &params.signatures, config, meta)? {
         warn!("{:?} has no valid signatures. Upload-keys: {:?}",
               params, config.upload_keys);
-        return Ok(false);
+        return Ok(Upload { accepted: false, new: false });
     }
 
     let dir = meta.signatures()?.ensure_dir(vpath.parent_rel())?;
@@ -77,7 +84,7 @@ pub fn start_append(params: AppendDir, meta: &Meta)
     let state_file = format!("{}.state", vpath.final_name());
 
     let mut writing = meta.writing();
-    let state = match writing.entry(vpath.clone()) {
+    let (state, new) = match writing.entry(vpath.clone()) {
         Entry::Vacant(e) => {
             if let Some(mut state) = dir.read_file(&state_file, read_state)?
             {
@@ -85,9 +92,9 @@ pub fn start_append(params: AppendDir, meta: &Meta)
                     append_signatures(&mut state, signatures);
                     let state = Arc::new(state);
                     e.insert(state.clone());
-                    state
+                    (state, false)
                 } else {
-                    return Ok(false);
+                    return Ok(Upload { accepted: false, new: false });
                 }
             } else {
                 let state = Arc::new(State {
@@ -95,7 +102,7 @@ pub fn start_append(params: AppendDir, meta: &Meta)
                     signatures: signatures,
                 });
                 e.insert(state.clone());
-                state
+                (state, true)
             }
         }
         Entry::Occupied(mut e) => {
@@ -105,20 +112,20 @@ pub fn start_append(params: AppendDir, meta: &Meta)
                     let nstate = Arc::make_mut(old_state);
                     append_signatures(nstate, signatures);
                 }
-                old_state.clone()
+                (old_state.clone(), false)
             } else {
-                return Ok(false);
+                return Ok(Upload { accepted: false, new: false });
             }
         }
     };
     dir.replace_file(&state_file, |file| {
         state.serialize(&mut Cbor::new(BufWriter::new(file)))
     })?;
-    Ok(true)
+    Ok(Upload { accepted: true, new: new })
 }
 
 pub fn start_replace(params: ReplaceDir, meta: &Meta)
-    -> Result<bool, Error>
+    -> Result<Upload, Error>
 {
     let vpath = params.path.clone();
     let config = if let Some(cfg) = meta.0.config.dirs.get(vpath.key()) {
@@ -130,11 +137,11 @@ pub fn start_replace(params: ReplaceDir, meta: &Meta)
         return Err(Error::PathNotFound(vpath));
     };
     if config.append_only {
-        return Ok(false);
+        return Ok(Upload { accepted: false, new: false});
     }
 
     if !check_keys(&params.sig_data(), &params.signatures, config, meta)? {
-        return Ok(false);
+        return Ok(Upload { accepted: false, new: false});
     }
 
     let dir = meta.signatures()?.ensure_dir(vpath.parent_rel())?;
@@ -149,21 +156,21 @@ pub fn start_replace(params: ReplaceDir, meta: &Meta)
     let state_file = format!("{}.state", vpath.final_name());
 
     let mut writing = meta.writing();
-    let state = match writing.entry(vpath.clone()) {
+    let (state, new) = match writing.entry(vpath.clone()) {
         Entry::Vacant(e) => {
             if let Some(mut state) = dir.read_file(&state_file, read_state)? {
                 if state.image == params.image {
                     append_signatures(&mut state, signatures);
                     let state = Arc::new(state);
                     e.insert(state.clone());
-                    state
+                    (state, false)
                 } else {
                     let state = Arc::new(State {
                         image: params.image.clone(),
                         signatures: signatures,
                     });
                     e.insert(state.clone());
-                    state
+                    (state, true)
                 }
             } else {
                 let state = Arc::new(State {
@@ -171,7 +178,7 @@ pub fn start_replace(params: ReplaceDir, meta: &Meta)
                     signatures: signatures,
                 });
                 e.insert(state.clone());
-                state
+                (state, true)
             }
         }
         Entry::Occupied(mut e) => {
@@ -181,17 +188,17 @@ pub fn start_replace(params: ReplaceDir, meta: &Meta)
                     let nstate = Arc::make_mut(old_state);
                     append_signatures(nstate, signatures);
                 }
-                old_state.clone()
+                (old_state.clone(), false)
             } else {
                 // TODO(tailhook) stop fetching image, delete and
                 // start replacing
                 warn!("Replace is rejected because already in progress");
-                return Ok(false);
+                return Ok(Upload { accepted: false, new: false});
             }
         }
     };
     dir.replace_file(&state_file, |file| {
         state.serialize(&mut Cbor::new(BufWriter::new(file)))
     })?;
-    Ok(true)
+    Ok(Upload { accepted: true, new: new })
 }

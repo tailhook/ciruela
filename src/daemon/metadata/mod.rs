@@ -24,6 +24,7 @@ use index::IndexData;
 use named_mutex::{Mutex, MutexGuard};
 
 use self::dir::Dir;
+pub use self::upload::Upload;
 pub use self::error::Error;
 
 
@@ -56,7 +57,7 @@ impl Meta {
         })))
     }
     pub fn append_dir(&self, params: AppendDir)
-        -> CpuFuture<bool, Error>
+        -> CpuFuture<Upload, Error>
     {
         let meta = self.clone();
         self.0.cpu_pool.spawn_fn(move || {
@@ -64,7 +65,7 @@ impl Meta {
         })
     }
     pub fn replace_dir(&self, params: ReplaceDir)
-        -> CpuFuture<bool, Error>
+        -> CpuFuture<Upload, Error>
     {
         let meta = self.clone();
         self.0.cpu_pool.spawn_fn(move || {

@@ -80,10 +80,13 @@ impl StateMachine for FetchBlock {
                                 Fetching(blk, slice, f)));
                         }
                         Err(e) => {
-                            // TODO(tailhook) note failure somehow
-                            //ctx.downloading.slices.lock()[slice]
-                            //    .add_block(blk);
-                            // TODO(tailhook) better message
+                            for s in ctx.downloading.slices().iter_mut() {
+                                if s.index == slice {
+                                    s.in_progress -= 1;
+                                    s.blocks.push_back(blk);
+                                    break;
+                                }
+                            }
                             error!("Block fetch error: {}", e);
                             return Err(());
                         }
