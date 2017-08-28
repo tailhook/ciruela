@@ -3,14 +3,16 @@ pub mod websocket;
 
 use std::net::SocketAddr;
 use std::collections::{HashSet, HashMap};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::collections::hash_map::Entry;
+use std::sync::{Arc};
 use std::time::{Duration, Instant};
 
-use remote::websocket::Connection;
-use ciruela::{ImageId, VPath};
 use ciruela::proto::{ReceivedImage};
 use ciruela::proto::{Registry};
+use ciruela::{ImageId, VPath};
+use named_mutex::{Mutex, MutexGuard};
 use remote::outgoing::connect;
+use remote::websocket::Connection;
 use tk_http::websocket::{Config as WsConfig};
 use tracking::Tracking;
 
@@ -63,14 +65,14 @@ impl Remote {
                 outgoing: HashMap::new(),
                 failures: HashMap::new(),
                 declared_images: HashMap::new(),
-            }),
+            }, "remote_connections"),
         }))
     }
     pub fn websock_config(&self) -> &Arc<WsConfig> {
         &self.0.websock_config
     }
-    pub fn inner(&self) -> MutexGuard<Connections> {
-        self.0.conn.lock().expect("remote interface poisoned")
+    fn inner(&self) -> MutexGuard<Connections> {
+        self.0.conn.lock()
     }
     pub fn register_connection(&self, cli: &Connection) -> Token {
         self.inner().incoming.insert(cli.clone());
@@ -88,14 +90,15 @@ impl Remote {
     pub fn ensure_connected(&self, tracking: &Tracking, addr: SocketAddr)
         -> Connection
     {
-        self.inner().outgoing.entry(addr)
-            .or_insert_with(move || {
-                let reg = Registry::new();
-                let (cli, rx) = Connection::outgoing(addr, &reg);
-                let tok = Token(self.clone(), cli.clone());
-                connect(self, tracking, &reg, cli.clone(), tok, addr, rx);
-                cli
-            }).clone()
+        if let Some(conn) = self.inner().outgoing.get(&addr) {
+            return conn.clone();
+        }
+        let reg = Registry::new();
+        let (cli, rx) = Connection::outgoing(addr, &reg);
+        self.inner().outgoing.insert(addr, cli.clone());
+        let tok = Token(self.clone(), cli.clone());
+        connect(self, tracking, &reg, cli.clone(), tok, addr, rx);
+        cli.clone()
     }
     pub fn notify_received_image(&self, id: &ImageId, path: &VPath) {
         for conn in self.inner().incoming.iter() {

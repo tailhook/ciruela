@@ -11,7 +11,7 @@ use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc};
 use std::time::{Instant, Duration};
 
 use futures::{Future, Stream};
@@ -21,13 +21,14 @@ use futures::sync::mpsc::{unbounded, UnboundedSender, UnboundedReceiver};
 use futures::sync::oneshot::{Receiver};
 use tk_easyloop::{spawn, timeout};
 
-use ciruela::{ImageId, Hash, VPath};
 use ciruela::proto::{AppendDir};
+use ciruela::{ImageId, Hash, VPath};
 use config::{Config};
 use disk::Disk;
 use machine_id::MachineId;
 use mask::AtomicMask;
 use metadata::{Meta};
+use named_mutex::{Mutex, MutexGuard};
 use rand::{thread_rng, Rng};
 use remote::Remote;
 use tracking::reconciliation::ReconPush;
@@ -108,7 +109,7 @@ impl Tracking {
                 base_dirs: HashMap::new(),
                 base_dir_list: Vec::new(),
                 reconciling: HashMap::new(),
-            })),
+            }, "tracking_state")),
             meta: meta.clone(),
             disk: disk.clone(),
             remote: remote.clone(),
@@ -181,7 +182,6 @@ impl Tracking {
     }
     fn state(&self) -> MutexGuard<State> {
         self.0.state.lock()
-            .expect("image tracking subsystem is not poisoned")
     }
     fn scan_dir(&self, path: VPath) {
         self.0.rescan_chan.send((path, Instant::now(), true))
@@ -201,7 +201,7 @@ impl ::std::ops::Deref for Subsystem {
 
 impl Subsystem {
     fn state(&self) -> MutexGuard<State> {
-        self.state.lock().expect("image tracking subsystem is not poisoned")
+        self.state.lock()
     }
     fn start_cleanup(&self) {
         self.cleanup.send(cleanup::Command::Reschedule)

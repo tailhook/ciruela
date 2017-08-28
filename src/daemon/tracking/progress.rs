@@ -2,7 +2,7 @@ use std::borrow;
 use std::collections::{VecDeque, HashMap};
 use std::hash;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc};
 use std::sync::atomic::Ordering::Relaxed;
 use std::sync::atomic::{AtomicBool, AtomicUsize};
 use std::time::Instant;
@@ -13,6 +13,7 @@ use ciruela::Hash;
 use ciruela::{ImageId, VPath};
 use config::Directory;
 use mask::AtomicMask;
+use named_mutex::{Mutex, MutexGuard};
 use remote::PeerId;
 use tracking::fetch_index::Index;
 use tracking::{BlockData};
@@ -78,7 +79,7 @@ impl Slice {
 impl Slices {
     pub fn new() -> Slices {
         Slices {
-            slices: Mutex::new(VecDeque::new()),
+            slices: Mutex::new(VecDeque::new(), "downloading_slices"),
         }
     }
     pub fn start(&self, index: &Index) {
@@ -117,7 +118,7 @@ impl Slices {
         self.slices().extend(slices);
     }
     fn slices(&self) -> MutexGuard<VecDeque<Slice>> {
-        self.slices.lock().expect("slices not poisoned")
+        self.slices.lock()
     }
 }
 

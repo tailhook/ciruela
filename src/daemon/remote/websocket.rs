@@ -4,7 +4,7 @@ use std::hash::{Hasher};
 use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicUsize, AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc};
 
 use futures::{Future, Stream};
 use futures::stream::MapErr;
@@ -17,6 +17,7 @@ use tk_easyloop::{spawn, handle};
 use tk_bufstream::{WriteFramed, ReadFramed};
 use tokio_core::net::TcpStream;
 
+use named_mutex::{Mutex, MutexGuard};
 use ciruela::proto::message::{Message};
 use ciruela::proto::{GetIndex, GetIndexResponse};
 use ciruela::proto::{GetBlock, GetBlockResponse};
@@ -93,7 +94,7 @@ impl Connection {
             sender: tx,
             connected: AtomicBool::new(true),
             registry: registry.clone(),
-            images: Mutex::new(HashSet::new()),
+            images: Mutex::new(HashSet::new(), "connection_images"),
         }));
         let disp = Dispatcher::new(cli.clone(), &registry, tracking);
         let rx = rx.packetize(&registry);
@@ -121,7 +122,7 @@ impl Connection {
             sender: tx,
             connected: AtomicBool::new(false),
             registry: registry.clone(),
-            images: Mutex::new(HashSet::new()),
+            images: Mutex::new(HashSet::new(), "connection_images"),
         }));
         return (cli, rx);
     }
@@ -132,7 +133,6 @@ impl Connection {
 
     pub fn images(&self) -> MutexGuard<HashSet<ImageId>> {
         self.0.images.lock()
-            .expect("images are not poisoned")
     }
 
     pub fn has_image(&self, id: &ImageId) -> bool {

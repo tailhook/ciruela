@@ -9,7 +9,7 @@ mod store_index;
 
 use std::io;
 use std::collections::{HashMap, BTreeMap};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use futures_cpupool::{CpuPool, CpuFuture};
@@ -21,6 +21,7 @@ use ciruela::proto::{ReplaceDir};
 use ciruela::{ImageId, VPath};
 use config::Config;
 use index::IndexData;
+use named_mutex::{Mutex, MutexGuard};
 
 use self::dir::Dir;
 pub use self::error::Error;
@@ -51,7 +52,7 @@ impl Meta {
             cpu_pool: CpuPool::new(num_threads),
             config: config.clone(),
             base_dir: dir,
-            writing: Mutex::new(HashMap::new()),
+            writing: Mutex::new(HashMap::new(), "metadata_writing"),
         })))
     }
     pub fn append_dir(&self, params: AppendDir)
@@ -83,7 +84,7 @@ impl Meta {
         }).forget();
     }
     fn writing(&self) -> MutexGuard<HashMap<VPath, Arc<State>>> {
-        self.0.writing.lock().expect("writing is not poisoned")
+        self.0.writing.lock()
     }
     pub fn remove_state_file(&self, path: VPath, at: SystemTime)
         -> CpuFuture<(), Error>

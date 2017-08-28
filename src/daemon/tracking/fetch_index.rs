@@ -4,7 +4,7 @@ use std::collections::{HashSet, HashMap};
 use std::io::Cursor;
 use std::net::SocketAddr;
 use std::ops::Deref;
-use std::sync::{Arc, Weak, Mutex, MutexGuard};
+use std::sync::{Arc, Weak};
 use std::time::Duration;
 
 use futures::{self, Future as FutureTrait};
@@ -17,6 +17,7 @@ use ciruela::proto::{GetIndex, GetIndexResponse};
 use ciruela::proto::{RequestFuture, RequestClient};
 use index::{IndexData};
 use metadata::{Meta, Error as MetaError};
+use named_mutex::{Mutex, MutexGuard};
 use remote::{Remote};
 use tk_easyloop::{spawn, timeout};
 use tokio_core::reactor::Timeout;
@@ -170,7 +171,7 @@ impl StateMachine for FetchBase {
     fn poll(self, ctx: &mut FetchContext) -> Result<Async<(), Self>, ()> {
         let FetchBase(tx, mut dline, state) = self;
 
-        let mut lock = ctx.reg.lock().expect("registry is not poisoned");
+        let mut lock = ctx.reg.lock();
         let res = match lock.get_mut(&ctx.id) {
             Some(&mut IndexRef::InProgress(ref mut inp)) => {
                 poll_state(state, &ctx.id, &ctx.tracking, inp)?
@@ -209,9 +210,7 @@ impl Deref for Index {
 
 impl Drop for Inner {
     fn drop(&mut self) {
-        self.registry.lock()
-            .expect("image registry is not poisoned")
-            .remove(&self.data.id);
+        self.registry.lock().remove(&self.data.id);
     }
 }
 
@@ -219,11 +218,11 @@ impl Drop for Inner {
 impl Indexes {
     pub fn new() -> Indexes {
         Indexes {
-            images: Arc::new(Mutex::new(Registry::new())),
+            images: Arc::new(Mutex::new(Registry::new(), "image_registry")),
         }
     }
     fn lock(&self) -> MutexGuard<Registry> {
-        self.images.lock().expect("images are not poisoned")
+        self.images.lock()
     }
     pub fn get(&self, tracking: &Tracking, index: &ImageId) -> IndexFuture
     {

@@ -167,6 +167,7 @@ impl Future for FetchBlocks {
                         }
                     } else {
                         s.blocks.push_back(blk);
+                        break;
                     }
                 }
             }
@@ -175,6 +176,8 @@ impl Future for FetchBlocks {
                 continue;
             }
             if self.futures.len() == 0 {
+                info!("Nowhere to fetch some chunks of {}. Waiting...",
+                    self.downloading.image_id);
                 let mut t = timeout(Duration::from_millis(RETRY_INTERVAL));
                 match t.poll().expect("timeout never fails") {
                     Async::Ready(()) => continue,

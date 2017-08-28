@@ -61,13 +61,14 @@ mod index;
 mod machine_id;
 mod mask;
 mod metadata;
+mod named_mutex;
 mod peers;
 mod remote;
 mod tracking;
 
-fn init_logging() {
-    let format = |record: &log::LogRecord| {
-        format!("{} [{}] {}: {}", time::now_utc().rfc3339(),
+fn init_logging(mid: machine_id::MachineId) {
+    let format = move |record: &log::LogRecord| {
+        format!("{} {} [{}] {}: {}", mid, time::now_utc().rfc3339(),
             record.location().module_path(),
             record.level(), record.args())
     };
@@ -84,7 +85,6 @@ fn init_logging() {
 }
 
 fn main() {
-    init_logging();
 
     let mut config_dir = PathBuf::from("/etc/ciruela");
     let mut db_dir = PathBuf::from("/var/lib/ciruela");
@@ -166,6 +166,7 @@ fn main() {
             }
         }
     };
+    init_logging(machine_id.clone());
 
     let mut router = RouterBuilder::new();
     router.add_default(ThreadedResolver::new(CpuPool::new(1)));

@@ -1,6 +1,6 @@
 use std::collections::{HashMap, BTreeSet};
 use std::collections::hash_map::Entry;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Instant, Duration};
 
@@ -10,10 +10,11 @@ use ciruela::proto::BaseDirState;
 use atomic::Atomic;
 use ciruela::{VPath, Hash};
 use config::Directory;
-use tracking::Subsystem;
-use metadata::{self, Meta};
 use disk::{self, Disk};
+use metadata::{self, Meta};
+use named_mutex::{Mutex, MutexGuard};
 use peers::config::get_hash;
+use tracking::Subsystem;
 
 
 /// Time hashes are kept in cache so we can skip checking if some peer sends
@@ -60,7 +61,7 @@ impl BaseDir {
         self.last_scan.load(Ordering::SeqCst)
     }
     fn recon_table(&self) -> MutexGuard<HashMap<Hash, Instant>> {
-        self.recon_table.lock().expect("recon table is okay")
+        self.recon_table.lock()
     }
     pub fn commit_scan(dir_data: BaseDirState, config: &Arc<Directory>,
         scan_time: Instant, sys: &Subsystem)
@@ -80,7 +81,7 @@ impl BaseDir {
                     last_scan: Atomic::new(scan_time),
                     num_subdirs: AtomicUsize::new(dir_data.dirs.len()),
                     num_downloading: AtomicUsize::new(down.into()),
-                    recon_table: Mutex::new(HashMap::new()),
+                    recon_table: Mutex::new(HashMap::new(), "base_dir"),
                 });
                 lst.push(new.clone());
                 e.insert(new);
