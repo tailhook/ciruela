@@ -92,7 +92,7 @@ pub fn start_append(params: AppendDir, meta: &Meta)
                     append_signatures(&mut state, signatures);
                     let state = Arc::new(state);
                     e.insert(state.clone());
-                    (state, false)
+                    (state, true)
                 } else {
                     return Ok(Upload { accepted: false, new: false });
                 }
@@ -163,7 +163,7 @@ pub fn start_replace(params: ReplaceDir, meta: &Meta)
                     append_signatures(&mut state, signatures);
                     let state = Arc::new(state);
                     e.insert(state.clone());
-                    (state, false)
+                    (state, true)
                 } else {
                     let state = Arc::new(State {
                         image: params.image.clone(),

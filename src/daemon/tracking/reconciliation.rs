@@ -50,7 +50,7 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
                             keep_list_hash: dir.keep_list_hash,
                             dirs: dir.dirs,
                         };
-                        let dir_hash = Hash::for_object(&dir_state);
+                        let dir_hash = Hash::for_object(&dir_state.dirs);
                         if dir_hash == hash {
                             return Ok(Loop::Break((addr, dir_state)))
                         } else {

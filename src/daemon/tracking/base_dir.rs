@@ -68,12 +68,13 @@ impl BaseDir {
     {
         let mut state = &mut *sys.state();
         let ref mut lst = state.base_dir_list;
-        let hash = Hash::for_object(&dir_data);
+        let hash = Hash::for_object(&dir_data.dirs);
         let down = state.in_progress.iter()
             .filter(|x| x.virtual_path.parent() == dir_data.path)
             .count();
         match state.base_dirs.entry(dir_data.path.clone()) {
             Entry::Vacant(e) => {
+                debug!("New base dir {:?}: {}", dir_data.path, hash);
                 let new = Arc::new(BaseDir {
                     config: config.clone(),
                     path: dir_data.path,
@@ -92,6 +93,8 @@ impl BaseDir {
                 val.last_scan.store(scan_time, Ordering::SeqCst);
                 let old_hash = val.hash();
                 if old_hash != hash {
+                    debug!("Updated base dir {:?}: {}",
+                        dir_data.path, hash);
                     val.hash.store(hash, Ordering::SeqCst);
                     val.num_subdirs.store(dir_data.dirs.len(),
                         Ordering::SeqCst);
