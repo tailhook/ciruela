@@ -69,6 +69,7 @@ impl StateMachine for FetchBlock {
                                     s.in_progress -= 1;
                                 }
                             }
+                            ctx.downloading.report_block(&data);
                             Writing(ctx.sys.disk.write_block(
                                 ctx.image.clone(),
                                 blk.path.clone(),
@@ -149,7 +150,12 @@ impl Future for FetchBlocks {
             }
             let mut new = 0;
             self.downloading.slices().retain(|s| {
-                s.in_progress > 0 || s.blocks.len() > 0
+                if s.in_progress > 0 || s.blocks.len() > 0 {
+                    true
+                } else {
+                    self.downloading.report_block(s.index as usize);
+                    false
+                }
             });
             for s in self.downloading.slices().iter_mut() {
                 while let Some(blk) = s.blocks.pop_front() {

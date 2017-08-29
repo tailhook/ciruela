@@ -28,7 +28,7 @@ pub fn start(sys: &Subsystem, cmd: Downloading) {
                     Ok(img) => {
                         let img = Arc::new(img);
                         debug!("Created dir");
-                        cmd.slices.start(&img.index);
+                        cmd.index_fetched(&img.index);
                         fetch_blocks(sys.clone(), img, cmd);
                     }
                     Err(disk::Error::AlreadyExists) => {

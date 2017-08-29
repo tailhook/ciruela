@@ -12,7 +12,7 @@ use rand::{thread_rng, Rng};
 use ciruela::Hash;
 use ciruela::{ImageId, VPath};
 use config::Directory;
-use mask::AtomicMask;
+use mask::{AtomicMask, Mask};
 use named_mutex::{Mutex, MutexGuard};
 use remote::PeerId;
 use tracking::fetch_index::Index;
@@ -82,41 +82,6 @@ impl Slices {
             slices: Mutex::new(VecDeque::new(), "downloading_slices"),
         }
     }
-    pub fn start(&self, index: &Index) {
-        let blocks = index.entries.iter()
-            .flat_map(|entry| {
-                use dir_signature::v1::Entry::*;
-                match *entry {
-                    Dir(..) => Vec::new(),
-                    Link(..) => Vec::new(),
-                    File { ref hashes, ref path, .. } => {
-                        let arc = Arc::new(path.clone());
-                        let mut result = Vec::new();
-                        for (i, hash) in hashes.iter().enumerate() {
-                            let hash = Hash::new(hash);
-                            result.push(Block {
-                                hash: hash,
-                                path: arc.clone(),
-                                offset: (i as u64)*index.block_size,
-                            });
-                        }
-                        result
-                    }
-                }
-            }).collect::<Vec<_>>();
-
-        let mut slices = Vec::new();
-        for (idx, chunk) in blocks.chunks(100).enumerate() {
-            let s = idx % MAX_SLICES;
-            while slices.len() <= s {
-                let cur = slices.len();
-                slices.push(Slice::new(cur as u8));
-            }
-            slices[s].add_blocks(chunk.iter().cloned());
-        }
-        thread_rng().shuffle(&mut slices);
-        self.slices().extend(slices);
-    }
     fn slices(&self) -> MutexGuard<VecDeque<Slice>> {
         self.slices.lock()
     }
@@ -152,10 +117,49 @@ impl Downloading {
         self.bytes_total.store(index.bytes_total as usize, Relaxed);
         self.blocks_total.store(index.blocks_total as usize, Relaxed);
         self.index_fetched.store(true, Relaxed);
+        let blocks = index.entries.iter()
+            .flat_map(|entry| {
+                use dir_signature::v1::Entry::*;
+                match *entry {
+                    Dir(..) => Vec::new(),
+                    Link(..) => Vec::new(),
+                    File { ref hashes, ref path, .. } => {
+                        let arc = Arc::new(path.clone());
+                        let mut result = Vec::new();
+                        for (i, hash) in hashes.iter().enumerate() {
+                            let hash = Hash::new(hash);
+                            result.push(Block {
+                                hash: hash,
+                                path: arc.clone(),
+                                offset: (i as u64)*index.block_size,
+                            });
+                        }
+                        result
+                    }
+                }
+            }).collect::<Vec<_>>();
+
+        let mut slices = Vec::new();
+        let mut mask = Mask::full();
+        for (idx, chunk) in blocks.chunks(100).enumerate() {
+            let s = idx % MAX_SLICES;
+            while slices.len() <= s {
+                let cur = slices.len();
+                slices.push(Slice::new(cur as u8));
+            }
+            mask.clear_bit(s);
+            slices[s].add_blocks(chunk.iter().cloned());
+        }
+        thread_rng().shuffle(&mut slices);
+        self.slices().extend(slices);
+        self.mask.set(mask);
     }
     pub fn report_block(&self, block: &BlockData) {
         self.bytes_fetched.fetch_add(block.len(), Relaxed);
         self.blocks_fetched.fetch_add(1, Relaxed);
+    }
+    pub fn report_slice(&self, slice: usize) {
+        self.mask.set_bit(slice)
     }
     pub fn slices(&self) -> MutexGuard<VecDeque<Slice>> {
         self.slices.slices()

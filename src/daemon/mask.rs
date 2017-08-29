@@ -1,3 +1,4 @@
+use std::u16;
 use std::fmt;
 
 use atomic::{Atomic, Ordering};
@@ -14,11 +15,23 @@ impl Mask {
     pub fn new() -> Mask {
         Mask(0)
     }
+    pub fn full() -> Mask {
+        Mask(u16::MAX)
+    }
+    pub fn clear_bit(&mut self, idx: usize) {
+        self.0 &= !(1u16 << idx as u32);
+    }
 }
 
 impl AtomicMask {
     pub fn new() -> AtomicMask {
         AtomicMask(Atomic::new(0))
+    }
+    pub fn set(&self, value: Mask) {
+        self.0.store(value.0, Ordering::SeqCst);
+    }
+    pub fn set_bit(&self, idx: usize) {
+        self.0.fetch_or(1u16 << idx as u32, Ordering::SeqCst);
     }
 }
 
