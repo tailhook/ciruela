@@ -42,8 +42,6 @@ pub type BlockData = Arc<Vec<u8>>;
 type BlockFuture = Shared<Receiver<BlockData>>;
 
 pub struct State {
-    block_futures: HashMap<Hash, BlockFuture>,
-
     in_progress: HashSet<Arc<Downloading>>,
 
     base_dirs: HashMap<VPath, Arc<BaseDir>>,
@@ -104,7 +102,6 @@ impl Tracking {
             config: config.clone(),
             images: fetch_index::Indexes::new(),
             state: Arc::new(Mutex::new(State {
-                block_futures: HashMap::new(),
                 in_progress: HashSet::new(),
                 base_dirs: HashMap::new(),
                 base_dir_list: Vec::new(),
