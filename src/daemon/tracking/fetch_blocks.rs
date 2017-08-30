@@ -69,12 +69,13 @@ impl StateMachine for FetchBlock {
                                     s.in_progress -= 1;
                                 }
                             }
+                            let data = Arc::new(data.data);
                             ctx.downloading.report_block(&data);
                             Writing(ctx.sys.disk.write_block(
                                 ctx.image.clone(),
                                 blk.path.clone(),
                                 blk.offset,
-                                Arc::new(data.data)))
+                                data))
                         }
                         Ok(Async::NotReady) => {
                             return Ok(VAsync::NotReady(
@@ -153,7 +154,7 @@ impl Future for FetchBlocks {
                 if s.in_progress > 0 || s.blocks.len() > 0 {
                     true
                 } else {
-                    self.downloading.report_block(s.index as usize);
+                    self.downloading.report_slice(s.index as usize);
                     false
                 }
             });
