@@ -2,7 +2,7 @@ use std::io;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
-use std::collections::{HashSet, HashMap};
+use std::collections::{HashSet, HashMap, BTreeMap};
 
 use crossbeam::sync::ArcCell;
 use futures::{Future, Stream, Async};
@@ -13,24 +13,21 @@ use tokio_core::reactor::Interval;
 use serde::Deserialize;
 use serde_cbor::de::Deserializer;
 
-use machine_id::MachineId;
-use ciruela::VPath;
 use ciruela::proto::Hash;
+use ciruela::{VPath, ImageId};
+use machine_id::MachineId;
+use mask::Mask;
+use named_mutex::Mutex;
 use peers::Peer;
-use tracking::Tracking;
+use peers::packets::{Packet, Message, PacketRef, MessageRef};
 use serde_cbor::ser::to_writer;
+use tracking::Tracking;
 
+/// Size of the buffer for sending packet
+pub const MAX_GOSSIP_PACKET: usize = 4096;
 
-/// Maximum size of gossip packet
-///
-/// Larger packets allow to carry more timestamps of directories at once,
-/// which efficiently makes probability of syncing new directory erlier
-/// much bigger.
-///
-/// Making it less than MTU, makes probability of loss much smaller. On
-/// other hand 1500 MTU is on WAN and slower networks. Hopefully, we are
-/// efficient enough with this packet size anyway.
-pub const MAX_GOSSIP_PACKET: usize = 1400;
+/// Maximum number of base dirs in single packet
+pub const MAX_BASE_DIRS: usize = 10;
 
 /// Interval at which send gossip packets
 pub const GOSSIP_INTERVAL: u64 = 1000;
@@ -39,11 +36,6 @@ pub const GOSSIP_INTERVAL: u64 = 1000;
 pub const PACKETS_AT_ONCE: usize = 4;
 
 
-#[derive(Serialize, Deserialize)]
-pub struct Head {
-    pub id: MachineId,
-}
-
 struct Gossip {
     socket: UdpSocket,
     tracking: Tracking,
@@ -51,6 +43,8 @@ struct Gossip {
     machine_id: MachineId,
     peers: Arc<ArcCell<HashMap<MachineId, Peer>>>,
     dir_peers: HashMap<String, HashSet<MachineId>>,
+    downloading: Arc<Mutex<
+        HashMap<MachineId, BTreeMap<VPath, (ImageId, Mask)>>>>,
     /// A list of peers with unknown ids, read from file
     /// only used if we use `peers.txt` (not `--cantal`)
     future_peers: HashMap<SocketAddr, String>,
@@ -69,7 +63,7 @@ impl Gossip {
         loop {
             while let Ok((len, addr)) = self.socket.recv_from(&mut buf) {
                 let mut buf = io::Cursor::new(&buf[..len]);
-                let head: Head = match Deserialize::deserialize(
+                let pkt: Packet = match Deserialize::deserialize(
                     &mut Deserializer::new(&mut buf))
                 {
                     Ok(x) => x,
@@ -80,30 +74,36 @@ impl Gossip {
                 };
                 if let Some(name) = self.future_peers.remove(&addr) {
                     let mut peers = self.peers.get();
-                    Arc::make_mut(&mut peers).insert(head.id.clone(), Peer {
-                        id: head.id.clone(),
-                        addr: addr,
-                        hostname: name.clone(),
-                        name: name.clone(),
-                    });
+                    Arc::make_mut(&mut peers)
+                        .insert(pkt.machine_id.clone(), Peer {
+                            id: pkt.machine_id.clone(),
+                            addr: addr,
+                            hostname: name.clone(),
+                            name: name.clone(),
+                        });
                 }
-                while buf.position() < len as u64 {
-                    let pair = match Deserialize::deserialize(&mut
-                        Deserializer::new(&mut buf))
-                    {
-                        Ok(x) => x,
-                        Err(e) => {
-                            info!("Bad dir in gossip packet from {:?}: {}",
-                                addr, e);
-                            break;
+                match pkt.message {
+                    Message::BaseDirs { in_progress, base_dirs } => {
+                        for (vpath, hash) in base_dirs {
+                            self.dir_peers.entry(vpath.key().to_string())
+                                .or_insert_with(HashSet::new)
+                                .insert(pkt.machine_id.clone());
+                            self.tracking.reconcile_dir(vpath, hash, addr,
+                                pkt.machine_id.clone());
                         }
-                    };
-                    let (vpath, hash): (VPath, Hash) = pair;
-                    self.dir_peers.entry(vpath.key().to_string())
-                        .or_insert_with(HashSet::new)
-                        .insert(head.id.clone());
-                    self.tracking.reconcile_dir(vpath, hash, addr,
-                        self.machine_id.clone());
+                        if in_progress.len() == 0 {
+                            self.downloading.lock().remove(&pkt.machine_id);
+                        } else {
+                            self.downloading.lock()
+                                .insert(pkt.machine_id.clone(), in_progress);
+                        }
+                    }
+                    Message::Downloading { path, image, mask } => {
+                        self.downloading.lock()
+                            .entry(pkt.machine_id.clone())
+                            .or_insert_with(BTreeMap::new)
+                            .insert(path, (image, mask));
+                    }
                 }
             }
             if !self.socket.poll_read().is_ready() {
@@ -114,40 +114,40 @@ impl Gossip {
     fn send_gossips(&mut self) {
         // Need to ping future peers to find out addresses
         // We ping them until they respond, and are removed from future
+        let ipr = self.tracking.get_in_progress();
         for (addr, _) in &self.future_peers {
-            self.send_gossip(*addr);
+            self.send_gossip(*addr, &ipr);
         }
         let lst = self.peers.get();
         let hosts = sample(&mut thread_rng(), lst.values(), PACKETS_AT_ONCE);
         for host in hosts {
-            self.send_gossip(host.addr);
+            self.send_gossip(host.addr, &ipr);
         }
     }
-    fn send_gossip(&self, addr: SocketAddr) {
-        let mut buf = [0u8; MAX_GOSSIP_PACKET];
-        let mut num = 0;
-        let packet_len = {
-            let mut cur = io::Cursor::new(&mut buf[..]);
-            to_writer(&mut cur, &Head {
-                id: self.machine_id.clone(),
-            }).expect("can serialize head");
-
-            while let Some((vpath, hash)) = self.tracking.pick_random_dir() {
-                let pos = cur.position();
-                match to_writer(&mut cur, &(vpath, hash)) {
-                    Ok(()) => {}
-                    Err(_) => {
-                        cur.set_position(pos);
-                        break;
-                    }
+    fn send_gossip(&self, addr: SocketAddr,
+        in_progress: &BTreeMap<VPath, (ImageId, Mask)>)
+    {
+        let mut buf = Vec::with_capacity(1400);
+        let mut base_dirs = BTreeMap::new();
+        for _ in 0..MAX_BASE_DIRS {
+            match self.tracking.pick_random_dir() {
+                Some((vpath, hash)) => {
+                    base_dirs.insert(vpath.clone(), hash.clone());
                 }
-                num += 1;
+                None => break,
             }
-            cur.position() as usize
+        }
+
+        let packet = PacketRef {
+            machine_id: &self.machine_id,
+            message: MessageRef::BaseDirs {
+                in_progress: &in_progress,
+                base_dirs: &base_dirs,
+            }
         };
-        debug!("Sending ping to {} [{}/{}]", addr,
-            num, packet_len);
-        self.socket.send_to(&buf[..packet_len], &addr)
+        to_writer(&mut buf, &packet).expect("can serialize head");
+        debug!("Sending ping to {} [{}]", addr, buf.len());
+        self.socket.send_to(&buf, &addr)
             .map_err(|e| {
                 warn!("Error sending message to {:?}: {}", addr, e)
             }).ok();
@@ -164,7 +164,10 @@ impl Future for Gossip {
 }
 
 pub fn start(addr: SocketAddr,
-    peers: Arc<ArcCell<HashMap<MachineId, Peer>>>, machine_id: MachineId,
+    peers: Arc<ArcCell<HashMap<MachineId, Peer>>>,
+    downloading: Arc<Mutex<
+        HashMap<MachineId, BTreeMap<VPath, (ImageId, Mask)>>>>,
+    machine_id: MachineId,
     tracking: &Tracking, future_peers: HashMap<SocketAddr, String>)
     -> Result<(), io::Error>
 {
@@ -173,7 +176,7 @@ pub fn start(addr: SocketAddr,
         socket: UdpSocket::bind(&addr, &handle())?,
         tracking: tracking.clone(),
         dir_peers: HashMap::new(),
-        peers, machine_id, future_peers,
+        peers, machine_id, future_peers, downloading,
     });
     Ok(())
 }

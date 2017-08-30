@@ -7,7 +7,7 @@ mod progress;
 mod reconciliation;
 mod rpc;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, BTreeMap};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -26,7 +26,7 @@ use ciruela::{ImageId, Hash, VPath};
 use config::{Config};
 use disk::Disk;
 use machine_id::MachineId;
-use mask::AtomicMask;
+use mask::{AtomicMask, Mask};
 use metadata::{Meta};
 use named_mutex::{Mutex, MutexGuard};
 use rand::{thread_rng, Rng};
@@ -186,6 +186,14 @@ impl Tracking {
     }
     pub fn remote(&self) -> &Remote {
         &self.0.remote
+    }
+    pub fn get_in_progress(&self) -> BTreeMap<VPath, (ImageId, Mask)> {
+        let mut res = BTreeMap::new();
+        for inp in &self.state().in_progress {
+            res.insert(inp.virtual_path.clone(),
+                       (inp.image_id.clone(), inp.mask.get()));
+        }
+        return res;
     }
 }
 

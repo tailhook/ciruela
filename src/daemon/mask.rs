@@ -33,11 +33,14 @@ impl AtomicMask {
     pub fn set_bit(&self, idx: usize) {
         self.0.fetch_or(1u16 << idx as u32, Ordering::SeqCst);
     }
+    pub fn get(&self) -> Mask {
+        Mask(self.0.load(Ordering::SeqCst))
+    }
 }
 
 impl Into<Mask> for AtomicMask {
     fn into(self) -> Mask {
-        Mask(self.0.load(Ordering::SeqCst))
+        self.get()
     }
 }
 
