@@ -129,9 +129,12 @@ fn poll_state(mut state: State, id: &ImageId, tracking: &Tracking,
                         Start
                     }
                     Ok(futures::Async::Ready(v)) => {
-                        let res = IndexData::parse(id, Cursor::new(v.data));
+                        let res = IndexData::parse(id, Cursor::new(&v.data));
                         match res {
-                            Ok(x) => return Ok(Async::Ready(x)),
+                            Ok(x) => {
+                                tracking.0.meta.store_index(id, v.data);
+                                return Ok(Async::Ready(x))
+                            }
                             Err(e) => {
                                 error!("Error parsing index: {}",
                                     e);
