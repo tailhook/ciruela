@@ -164,7 +164,6 @@ impl Gossip {
             self.send_gossip(*addr, &ipr);
         }
         let lst = self.peers.get();
-        debug!("PEERS {:?}", lst);
         let hosts = sample(&mut thread_rng(), lst.values(), PACKETS_AT_ONCE);
         for host in hosts {
             self.send_gossip(host.addr, &ipr);
