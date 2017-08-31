@@ -19,7 +19,7 @@ use tracking::fetch_index::Index;
 use tracking::{BlockData};
 
 
-pub const MAX_SLICES: usize = 16;
+pub const MAX_SLICES: usize = 15;
 
 
 #[derive(Debug, Clone)]
@@ -147,7 +147,7 @@ impl Downloading {
                 let cur = slices.len();
                 slices.push(Slice::new(cur as u8));
             }
-            mask.clear_bit(s);
+            mask.slice_unfetched(s);
             slices[s].add_blocks(chunk.iter().cloned());
         }
         thread_rng().shuffle(&mut slices);
@@ -159,7 +159,7 @@ impl Downloading {
         self.blocks_fetched.fetch_add(1, Relaxed);
     }
     pub fn report_slice(&self, slice: usize) {
-        self.mask.set_bit(slice)
+        self.mask.set_fetched(slice)
     }
     pub fn slices(&self) -> MutexGuard<VecDeque<Slice>> {
         self.slices.slices()

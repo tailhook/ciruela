@@ -5,6 +5,8 @@ use atomic::{Atomic, Ordering};
 use serde::de::{Deserialize, Deserializer};
 use serde::ser::{Serialize, Serializer};
 
+const INDEX_BIT: u16 = 1 << 15;
+
 #[derive(Clone, Copy)]
 pub struct Mask(u16);
 
@@ -12,14 +14,14 @@ pub struct AtomicMask(Atomic<u16>);
 
 
 impl Mask {
-    pub fn new() -> Mask {
-        Mask(0)
-    }
     pub fn full() -> Mask {
         Mask(u16::MAX)
     }
-    pub fn clear_bit(&mut self, idx: usize) {
+    pub fn slice_unfetched(&mut self, idx: usize) {
         self.0 &= !(1u16 << idx as u32);
+    }
+    pub fn has_index(&self) -> bool {
+        self.0 & INDEX_BIT == INDEX_BIT
     }
 }
 
@@ -30,7 +32,7 @@ impl AtomicMask {
     pub fn set(&self, value: Mask) {
         self.0.store(value.0, Ordering::SeqCst);
     }
-    pub fn set_bit(&self, idx: usize) {
+    pub fn set_fetched(&self, idx: usize) {
         self.0.fetch_or(1u16 << idx as u32, Ordering::SeqCst);
     }
     pub fn get(&self) -> Mask {
