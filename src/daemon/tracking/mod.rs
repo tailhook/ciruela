@@ -15,10 +15,9 @@ use std::sync::{Arc};
 use std::time::{Instant, Duration};
 
 use futures::{Future, Stream};
-use futures::future::{Shared, Either, ok};
-use futures::stream::iter;
+use futures::future::{Either, ok};
+use futures::stream::iter_ok;
 use futures::sync::mpsc::{unbounded, UnboundedSender, UnboundedReceiver};
-use futures::sync::oneshot::{Receiver};
 use tk_easyloop::{spawn, timeout};
 
 use ciruela::proto::{AppendDir};
@@ -40,7 +39,6 @@ pub use self::base_dir::BaseDir;
 
 
 pub type BlockData = Arc<Vec<u8>>;
-type BlockFuture = Shared<Receiver<BlockData>>;
 
 pub struct State {
     in_progress: HashSet<Arc<Downloading>>,
@@ -176,14 +174,14 @@ impl Tracking {
             .map(|d| (d.path.clone(), d.hash()))
     }
     fn send(&self, command: Command) {
-        self.0.cmd_chan.send(command)
+        self.0.cmd_chan.unbounded_send(command)
             .expect("image tracking subsystem is alive")
     }
     fn state(&self) -> MutexGuard<State> {
         self.0.state.lock()
     }
     fn scan_dir(&self, path: VPath) {
-        self.0.rescan_chan.send((path, Instant::now(), true))
+        self.0.rescan_chan.unbounded_send((path, Instant::now(), true))
             .expect("rescan thread is alive");
     }
     pub fn remote(&self) -> &Remote {
@@ -211,7 +209,7 @@ impl Subsystem {
         self.state.lock()
     }
     fn start_cleanup(&self) {
-        self.cleanup.send(cleanup::Command::Reschedule)
+        self.cleanup.unbounded_send(cleanup::Command::Reschedule)
             .expect("can always send in cleanup channel");
     }
     fn undry_cleanup(&self) {
@@ -222,7 +220,7 @@ impl Subsystem {
         self.0.dry_cleanup.load(Ordering::Relaxed)
     }
     fn rescan_dir(&self, path: VPath) {
-        self.0.scan.send((path, Instant::now(), false))
+        self.0.scan.unbounded_send((path, Instant::now(), false))
             .expect("can always send in rescan channel");
     }
 }
@@ -284,7 +282,7 @@ pub fn start(init: TrackingInit, disk: &Disk, peers: &Peers)
                         if first_time {
                             let dirs = bdir.dirs.clone();
                             BaseDir::commit_scan(bdir, &config, scan_time, &sys);
-                            Either::B(iter(
+                            Either::B(iter_ok(
                                     dirs.into_iter()
                                     .filter(|&(ref dir, ref state)| {
                                         if state.signatures.len() < 1 {
@@ -294,8 +292,7 @@ pub fn start(init: TrackingInit, disk: &Disk, peers: &Peers)
                                         } else {
                                             true
                                         }
-                                    })
-                                    .map(Ok))
+                                    }))
                                 .for_each(move |(dir, mut state)| {
                                     // TODO(tailhook) also check if replace
                                     // is done (tmp directory exists)

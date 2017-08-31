@@ -5,7 +5,7 @@ use std::time::{Duration, SystemTime};
 
 use futures::{Future, Stream};
 use futures::future::{Either, ok};
-use futures::stream::iter;
+use futures::stream::iter_ok;
 use futures::sync::mpsc::{UnboundedReceiver};
 use tk_easyloop::{timeout, spawn};
 
@@ -72,7 +72,7 @@ pub fn spawn_loop(rx: UnboundedReceiver<Command>, sys: &Subsystem) {
                               .map_err(boxerr))
                         .and_then(move |(lst, keep_list)| {
                             let u = find_unused(&sys1, &dir1, lst, keep_list);
-                            iter(u.into_iter().map(Ok))
+                            iter_ok(u.into_iter())
                             .for_each(move |img| {
                                 let vpath = dir1.path.join(
                                         &img.path.file_name()
@@ -105,11 +105,12 @@ pub fn spawn_loop(rx: UnboundedReceiver<Command>, sys: &Subsystem) {
                     debug!("Rescheduling {} base dirs", state.base_dirs.len());
                     for dir in state.base_dirs.values() {
                         if dir.config.auto_clean {
-                            sys.cleanup.send(Command::Base(dir.clone()))
+                            sys.cleanup
+                                .unbounded_send(Command::Base(dir.clone()))
                                 .expect("can always send in cleanup channel");
                         }
                     }
-                    sys.cleanup.send(Command::Reschedule)
+                    sys.cleanup.unbounded_send(Command::Reschedule)
                         .expect("can always send in cleanup channel");
                     Either::B(ok(()))
                 }

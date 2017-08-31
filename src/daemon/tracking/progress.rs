@@ -1,11 +1,10 @@
 use std::borrow;
-use std::collections::{VecDeque, HashMap};
+use std::collections::{VecDeque};
 use std::hash;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc};
 use std::sync::atomic::Ordering::Relaxed;
 use std::sync::atomic::{AtomicBool, AtomicUsize};
-use std::time::Instant;
 
 use rand::{thread_rng, Rng};
 
@@ -14,7 +13,6 @@ use ciruela::{ImageId, VPath};
 use config::Directory;
 use mask::{AtomicMask, Mask};
 use named_mutex::{Mutex, MutexGuard};
-use remote::PeerId;
 use tracking::fetch_index::Index;
 use tracking::{BlockData};
 
@@ -34,7 +32,6 @@ pub struct Slice {
     pub index: u8,
     pub in_progress: usize,
     pub blocks: VecDeque<Block>,
-    pub failures: HashMap<PeerId, Instant>,
 }
 
 #[derive(Debug)]
@@ -63,15 +60,11 @@ impl Slice {
             index: index,
             blocks: VecDeque::new(),
             in_progress: 0,
-            failures: HashMap::new(),
         }
     }
     fn add_blocks<I: Iterator<Item=Block>>(&mut self, blocks: I) {
         // TODO(tailhook) optimize the clone
         self.blocks.extend(blocks);
-    }
-    fn add_block(&mut self, b: Block) {
-        self.blocks.push_back(b);
     }
 }
 

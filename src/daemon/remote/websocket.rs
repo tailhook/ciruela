@@ -19,12 +19,10 @@ use tokio_core::net::TcpStream;
 
 use named_mutex::{Mutex, MutexGuard};
 use ciruela::proto::message::{Message};
-use ciruela::proto::{GetIndex, GetIndexResponse};
-use ciruela::proto::{GetBlock, GetBlockResponse};
 use ciruela::proto::{RequestClient, RequestDispatcher, Sender};
-use ciruela::proto::{RequestFuture, Registry, StreamExt, PacketStream};
+use ciruela::proto::{Registry, StreamExt, PacketStream};
 use ciruela::proto::{Response, WrapTrait, Notification};
-use ciruela::{ImageId, Hash};
+use ciruela::{ImageId};
 use remote::Remote;
 use tracking::Tracking;
 
@@ -137,21 +135,6 @@ impl Connection {
 
     pub fn has_image(&self, id: &ImageId) -> bool {
         self.images().contains(id)
-    }
-
-    pub fn fetch_index(&self, id: &ImageId) -> RequestFuture<GetIndexResponse>
-    {
-        debug!("Fetching index {}", id);
-        self.request(GetIndex {
-            id: id.clone()
-        })
-    }
-    pub fn fetch_block(&self, hash: &Hash) -> RequestFuture<GetBlockResponse>
-    {
-        debug!("Fetching block {}", hash);
-        self.request(GetBlock {
-            hash: hash.clone()
-        })
     }
     pub fn notification<N: Notification>(&self, n: N) {
         self.0.sender.notification(n)

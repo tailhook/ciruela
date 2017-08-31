@@ -26,6 +26,7 @@ pub struct PacketRef<'a> {
 }
 
 #[derive(Serialize, Debug)]
+#[allow(dead_code)]
 pub enum MessageRef<'a> {
     BaseDirs {
         in_progress: &'a BTreeMap<VPath, (ImageId, Mask)>,

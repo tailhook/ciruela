@@ -6,7 +6,7 @@ use disk::Disk;
 
 use abstract_ns::{Router, Resolver};
 use futures::{Future, Stream};
-use futures::stream::iter;
+use futures::stream::iter_ok;
 
 
 pub fn read_peers(peer_file: PathBuf, disk: &Disk,
@@ -22,7 +22,7 @@ pub fn read_peers(peer_file: PathBuf, disk: &Disk,
             } else {
                 debug!("Read {} peers.", lst.len());
             }
-            iter(lst.into_iter().map(Ok))
+            iter_ok(lst.into_iter())
                 .map(move |host|
                     router.resolve(&format!("{}:{}", host, port))
                     .then(move |res| {

@@ -1,5 +1,3 @@
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-
 use futures::Future;
 
 use ciruela::proto::{AppendDir, AppendDirAck};

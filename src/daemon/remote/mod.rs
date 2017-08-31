@@ -3,7 +3,6 @@ pub mod websocket;
 
 use std::net::SocketAddr;
 use std::collections::{HashSet, HashMap};
-use std::collections::hash_map::Entry;
 use std::sync::{Arc};
 use std::time::{Duration, Instant};
 
@@ -15,13 +14,6 @@ use remote::outgoing::connect;
 use remote::websocket::Connection;
 use tk_http::websocket::{Config as WsConfig};
 use tracking::Tracking;
-
-
-#[derive(PartialEq, Eq, Hash, Debug, Clone, Copy)]
-pub enum PeerId {
-    Incoming(usize),
-    Outgoing(SocketAddr),
-}
 
 
 pub struct Failure {

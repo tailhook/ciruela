@@ -109,7 +109,7 @@ impl StateMachine for FetchBlock {
                             // TODO(tailhook) sleep and retry?
                             // or is it fatal?
                             unimplemented!();
-                            return Err(());
+                            // return Err(());
                         }
                     }
                 }
