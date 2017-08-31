@@ -1,11 +1,8 @@
 use std::sync::Arc;
 
-use futures::{Future, Stream};
-use futures::stream::iter;
-use futures::sync::oneshot::channel;
+use futures::{Future};
 use tk_easyloop::spawn;
 
-use ciruela::Hash;
 use disk::{self, Image};
 use tracking::{Subsystem, Downloading};
 use tracking::fetch_blocks::FetchBlocks;
@@ -15,6 +12,8 @@ pub fn start(sys: &Subsystem, cmd: Downloading) {
     let cmd = Arc::new(cmd);
     sys.rescan_dir(cmd.virtual_path.parent());
     sys.state().in_progress.insert(cmd.clone());
+    sys.peers.notify_progress(
+        &cmd.virtual_path, &cmd.image_id, cmd.mask.get());
     let sys = sys.clone();
     spawn(sys.images.get(&sys.tracking, &cmd.image_id).and_then(|index| {
         debug!("Got index {:?}", cmd.image_id);
@@ -29,6 +28,8 @@ pub fn start(sys: &Subsystem, cmd: Downloading) {
                         let img = Arc::new(img);
                         debug!("Created dir");
                         cmd.index_fetched(&img.index);
+                        sys.peers.notify_progress(&cmd.virtual_path,
+                            &cmd.image_id, cmd.mask.get());
                         fetch_blocks(sys.clone(), img, cmd);
                     }
                     Err(disk::Error::AlreadyExists) => {

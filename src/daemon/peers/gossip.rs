@@ -6,6 +6,7 @@ use std::collections::{HashSet, HashMap, BTreeMap};
 
 use crossbeam::sync::ArcCell;
 use futures::{Future, Stream, Async};
+use futures::sync::mpsc::UnboundedReceiver;
 use rand::{thread_rng, sample};
 use tk_easyloop::{handle, spawn, interval};
 use tokio_core::net::UdpSocket;
@@ -13,7 +14,6 @@ use tokio_core::reactor::Interval;
 use serde::Deserialize;
 use serde_cbor::de::Deserializer;
 
-use ciruela::proto::Hash;
 use ciruela::{VPath, ImageId};
 use machine_id::MachineId;
 use mask::Mask;
@@ -41,8 +41,9 @@ struct Gossip {
     tracking: Tracking,
     interval: Interval,
     machine_id: MachineId,
+    messages: UnboundedReceiver<Message>,
     peers: Arc<ArcCell<HashMap<MachineId, Peer>>>,
-    dir_peers: HashMap<String, HashSet<MachineId>>,
+    dir_peers: HashMap<VPath, HashSet<MachineId>>,
     downloading: Arc<Mutex<
         HashMap<MachineId, BTreeMap<VPath, (ImageId, Mask)>>>>,
     /// A list of peers with unknown ids, read from file
@@ -52,6 +53,7 @@ struct Gossip {
 
 impl Gossip {
     fn poll_forever(&mut self) {
+        self.write_messages();
         self.read_messages();
         while self.interval.poll().expect("interval never fails").is_ready()
         {
@@ -72,6 +74,9 @@ impl Gossip {
                         continue;
                     }
                 };
+                if pkt.machine_id == self.machine_id {
+                    continue;
+                }
                 if let Some(name) = self.future_peers.remove(&addr) {
                     let mut peers = self.peers.get();
                     Arc::make_mut(&mut peers)
@@ -81,11 +86,12 @@ impl Gossip {
                             hostname: name.clone(),
                             name: name.clone(),
                         });
+                    self.peers.set(peers);
                 }
                 match pkt.message {
                     Message::BaseDirs { in_progress, base_dirs } => {
                         for (vpath, hash) in base_dirs {
-                            self.dir_peers.entry(vpath.key().to_string())
+                            self.dir_peers.entry(vpath.clone())
                                 .or_insert_with(HashSet::new)
                                 .insert(pkt.machine_id.clone());
                             self.tracking.reconcile_dir(vpath, hash, addr,
@@ -111,6 +117,45 @@ impl Gossip {
             }
         }
     }
+    fn write_messages(&mut self) {
+        while let Ok(Async::Ready(Some(msg))) = self.messages.poll() {
+            let peers = match msg {
+                Message::BaseDirs {..} => unreachable!(),
+                Message::Downloading { ref path, .. } => {
+                    let all = self.peers.get();
+                    let mut peers = match self.dir_peers.get(&path.parent()) {
+                        Some(peers) => {
+                            sample(&mut thread_rng(), peers, PACKETS_AT_ONCE)
+                            .into_iter()
+                            .filter_map(|id| all.get(id).map(|p| p.addr))
+                            .collect()
+                        }
+                        None => Vec::new(),
+                    };
+                    if peers.len() < PACKETS_AT_ONCE {
+                        peers.extend(sample(&mut thread_rng(),
+                            all.values(), PACKETS_AT_ONCE)
+                            .into_iter().map(|p| p.addr));
+                    }
+                    peers
+                }
+            };
+            let packet = Packet {
+                machine_id: self.machine_id.clone(),
+                message: msg,
+            };
+            let mut buf = Vec::with_capacity(1400);
+            to_writer(&mut buf, &packet).expect("can serialize packet");
+            for addr in &peers {
+                debug!("Sending progress to {}: {:?}",
+                    addr, packet.message);
+                self.socket.send_to(&buf, &addr)
+                    .map_err(|e| {
+                        warn!("Error sending message to {:?}: {}", addr, e)
+                    }).ok();
+            }
+        }
+    }
     fn send_gossips(&mut self) {
         // Need to ping future peers to find out addresses
         // We ping them until they respond, and are removed from future
@@ -119,6 +164,7 @@ impl Gossip {
             self.send_gossip(*addr, &ipr);
         }
         let lst = self.peers.get();
+        debug!("PEERS {:?}", lst);
         let hosts = sample(&mut thread_rng(), lst.values(), PACKETS_AT_ONCE);
         for host in hosts {
             self.send_gossip(host.addr, &ipr);
@@ -145,7 +191,7 @@ impl Gossip {
                 base_dirs: &base_dirs,
             }
         };
-        to_writer(&mut buf, &packet).expect("can serialize head");
+        to_writer(&mut buf, &packet).expect("can serialize packet");
         debug!("Sending ping to {} [{}]", addr, buf.len());
         self.socket.send_to(&buf, &addr)
             .map_err(|e| {
@@ -167,6 +213,7 @@ pub fn start(addr: SocketAddr,
     peers: Arc<ArcCell<HashMap<MachineId, Peer>>>,
     downloading: Arc<Mutex<
         HashMap<MachineId, BTreeMap<VPath, (ImageId, Mask)>>>>,
+    messages: UnboundedReceiver<Message>,
     machine_id: MachineId,
     tracking: &Tracking, future_peers: HashMap<SocketAddr, String>)
     -> Result<(), io::Error>
@@ -176,7 +223,7 @@ pub fn start(addr: SocketAddr,
         socket: UdpSocket::bind(&addr, &handle())?,
         tracking: tracking.clone(),
         dir_peers: HashMap::new(),
-        peers, machine_id, future_peers, downloading,
+        peers, machine_id, future_peers, downloading, messages,
     });
     Ok(())
 }

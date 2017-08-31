@@ -54,13 +54,13 @@ impl Into<AtomicMask> for Mask {
 
 impl fmt::Debug for Mask {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:16b}", self.0)
+        write!(f, "{:016b}", self.0)
     }
 }
 
 impl fmt::Debug for AtomicMask {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:16b}", self.0.load(Ordering::SeqCst))
+        write!(f, "{:016b}", self.0.load(Ordering::SeqCst))
     }
 }
 

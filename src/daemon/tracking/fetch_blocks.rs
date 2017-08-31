@@ -154,7 +154,10 @@ impl Future for FetchBlocks {
                 if s.in_progress > 0 || s.blocks.len() > 0 {
                     true
                 } else {
-                    self.downloading.report_slice(s.index as usize);
+                    let ref dw = self.downloading;
+                    dw.report_slice(s.index as usize);
+                    self.sys.peers.notify_progress(&dw.virtual_path,
+                        &dw.image_id, dw.mask.get());
                     false
                 }
             });

@@ -29,6 +29,7 @@ use machine_id::MachineId;
 use mask::{AtomicMask, Mask};
 use metadata::{Meta};
 use named_mutex::{Mutex, MutexGuard};
+use peers::Peers;
 use rand::{thread_rng, Rng};
 use remote::Remote;
 use tracking::reconciliation::ReconPush;
@@ -77,6 +78,7 @@ pub struct Data {
     disk: Disk,
     remote: Remote,
     tracking: Tracking,
+    peers: Peers,
     dry_cleanup: AtomicBool,
 }
 
@@ -225,7 +227,7 @@ impl Subsystem {
     }
 }
 
-pub fn start(init: TrackingInit, disk: &Disk)
+pub fn start(init: TrackingInit, disk: &Disk, peers: &Peers)
     -> Result<(), String> // actually void
 {
     let (ctx, crx) = unbounded();
@@ -238,6 +240,7 @@ pub fn start(init: TrackingInit, disk: &Disk)
         state: tracking.0.state.clone(),
         remote: tracking.0.remote.clone(),
         tracking: tracking.clone(),
+        peers: peers.clone(),
         cleanup: ctx,
         scan: tracking.0.rescan_chan.clone(),
         dry_cleanup: AtomicBool::new(true),  // start with no cleanup

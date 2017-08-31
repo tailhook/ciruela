@@ -303,7 +303,7 @@ impl futures::Future for IndexFuture {
         match *self {
             IndexFuture::Ready(ref idx) => Ok(Async::Ready(idx.clone())),
             IndexFuture::Future(ref mut sh) => match sh.poll() {
-                Ok(Async::Ready(val)) => Ok(Async::Ready(val.clone())),
+                Ok(Async::Ready(val)) => Ok(Async::Ready((*val).clone())),
                 Ok(Async::NotReady) => Ok(Async::NotReady),
                 // TODO(tailhook) should we log this error
                 Err(_) => Err(Error::FutureClosed),

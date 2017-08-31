@@ -203,7 +203,7 @@ fn main() {
     tk_easyloop::run_forever(|| -> Result<(), Box<Error>> {
         http::start(addr, &remote, &tracking)?;
         disk::start(disk_init, &meta)?;
-        tracking::start(tracking_init, &disk)?;
+        tracking::start(tracking_init, &disk, &peers)?;
         peers::start(peers_init, addr, &config, &disk, &router, &tracking)?;
         Ok(())
     }).map_err(|e| {
