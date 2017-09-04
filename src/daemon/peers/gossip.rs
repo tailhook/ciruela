@@ -43,7 +43,7 @@ struct Gossip {
     machine_id: MachineId,
     messages: UnboundedReceiver<Message>,
     peers: Arc<ArcCell<HashMap<MachineId, Peer>>>,
-    dir_peers: HashMap<VPath, HashSet<MachineId>>,
+    dir_peers: Arc<Mutex<HashMap<VPath, HashSet<MachineId>>>>,
     downloading: Arc<Mutex<
         HashMap<MachineId, BTreeMap<VPath, (ImageId, Mask)>>>>,
     /// A list of peers with unknown ids, read from file
@@ -91,7 +91,7 @@ impl Gossip {
                 match pkt.message {
                     Message::BaseDirs { in_progress, base_dirs } => {
                         for (vpath, hash) in base_dirs {
-                            self.dir_peers.entry(vpath.clone())
+                            self.dir_peers.lock().entry(vpath.clone())
                                 .or_insert_with(HashSet::new)
                                 .insert(pkt.machine_id.clone());
                             self.tracking.reconcile_dir(vpath, hash, addr,
@@ -123,7 +123,7 @@ impl Gossip {
                 Message::BaseDirs {..} => unreachable!(),
                 Message::Downloading { ref path, .. } => {
                     let all = self.peers.get();
-                    let mut peers = match self.dir_peers.get(&path.parent()) {
+                    let mut peers = match self.dir_peers.lock().get(&path.parent()) {
                         Some(peers) => {
                             sample(&mut thread_rng(), peers, PACKETS_AT_ONCE)
                             .into_iter()
@@ -212,6 +212,7 @@ pub fn start(addr: SocketAddr,
     peers: Arc<ArcCell<HashMap<MachineId, Peer>>>,
     downloading: Arc<Mutex<
         HashMap<MachineId, BTreeMap<VPath, (ImageId, Mask)>>>>,
+    dir_peers: Arc<Mutex<HashMap<VPath, HashSet<MachineId>>>>,
     messages: UnboundedReceiver<Message>,
     machine_id: MachineId,
     tracking: &Tracking, future_peers: HashMap<SocketAddr, String>)
@@ -221,8 +222,7 @@ pub fn start(addr: SocketAddr,
         interval: interval(Duration::from_millis(GOSSIP_INTERVAL)),
         socket: UdpSocket::bind(&addr, &handle())?,
         tracking: tracking.clone(),
-        dir_peers: HashMap::new(),
-        peers, machine_id, future_peers, downloading, messages,
+        peers, machine_id, future_peers, downloading, dir_peers, messages,
     });
     Ok(())
 }

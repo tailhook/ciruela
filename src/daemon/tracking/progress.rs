@@ -2,15 +2,16 @@ use std::borrow;
 use std::collections::{VecDeque};
 use std::hash;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc};
 use std::sync::atomic::Ordering::Relaxed;
 use std::sync::atomic::{AtomicBool, AtomicUsize};
+use std::sync::{Arc};
 
 use rand::{thread_rng, Rng};
 
 use ciruela::Hash;
 use ciruela::{ImageId, VPath};
 use config::Directory;
+use failure_tracker::HostFailures;
 use mask::{AtomicMask, Mask};
 use named_mutex::{Mutex, MutexGuard};
 use tracking::fetch_index::Index;
@@ -32,6 +33,7 @@ pub struct Slice {
     pub index: u8,
     pub in_progress: usize,
     pub blocks: VecDeque<Block>,
+    pub failures: HostFailures,
 }
 
 #[derive(Debug)]
@@ -59,6 +61,7 @@ impl Slice {
         Slice {
             index: index,
             blocks: VecDeque::new(),
+            failures: HostFailures::new_default(),
             in_progress: 0,
         }
     }

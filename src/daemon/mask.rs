@@ -17,11 +17,17 @@ impl Mask {
     pub fn full() -> Mask {
         Mask(u16::MAX)
     }
+    pub fn index_bit() -> Mask {
+        Mask(INDEX_BIT)
+    }
+    pub fn slice_bit(idx: usize) -> Mask {
+        Mask(1u16 << idx as u32)
+    }
     pub fn slice_unfetched(&mut self, idx: usize) {
         self.0 &= !(1u16 << idx as u32);
     }
-    pub fn has_index(&self) -> bool {
-        self.0 & INDEX_BIT == INDEX_BIT
+    pub fn is_superset_of(&self, mask: Mask) -> bool {
+        self.0 & mask.0 == mask.0
     }
 }
 

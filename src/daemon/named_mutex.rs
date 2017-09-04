@@ -1,5 +1,6 @@
 use std::ops::{Deref, DerefMut};
 use std::sync::{Mutex as StdMutex, MutexGuard as StdGuard};
+use std::sync::{TryLockError};
 
 
 #[derive(Debug)]
@@ -52,5 +53,52 @@ impl<'a, T> Deref for MutexGuard<'a, T> {
 impl<'a, T> DerefMut for MutexGuard<'a, T> {
     fn deref_mut(&mut self) -> &mut T {
         &mut*self.guard
+    }
+}
+
+/// Obtain two locks without deadlocks conditions
+///
+/// This function can starve. But usually we call it only in main loop,
+/// so it doesn't matter too much.
+pub fn lock2<'a, 'b, A, B>(a: &'a Mutex<A>, b: &'b Mutex<B>)
+    -> (MutexGuard<'a, A>, MutexGuard<'b, B>)
+{
+    loop {
+        {
+            let aguard = a.lock();
+            match b.mutex.try_lock() {
+                Ok(bguard) => {
+                    return (
+                        aguard,
+                        MutexGuard {
+                            guard: bguard,
+                            name: b.name,
+                        },
+                    );
+                }
+                Err(TryLockError::Poisoned(_)) => {
+                    panic!("Mutex {:?} is poisoned", b.name);
+                }
+                Err(TryLockError::WouldBlock) => {}
+            }
+        }
+        {
+            let bguard = b.lock();
+            match a.mutex.try_lock() {
+                Ok(aguard) => {
+                    return (
+                        MutexGuard {
+                            guard: aguard,
+                            name: a.name,
+                        },
+                        bguard,
+                    );
+                }
+                Err(TryLockError::Poisoned(_)) => {
+                    panic!("Mutex {:?} is poisoned", a.name);
+                }
+                Err(TryLockError::WouldBlock) => {}
+            }
+        }
     }
 }

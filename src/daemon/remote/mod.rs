@@ -1,25 +1,22 @@
 mod outgoing;
 pub mod websocket;
 
+pub use remote::websocket::Connection;
+
 use std::net::SocketAddr;
 use std::collections::{HashSet, HashMap};
 use std::sync::{Arc};
-use std::time::{Duration, Instant};
+use std::time::{Duration};
 
 use ciruela::proto::{ReceivedImage};
 use ciruela::proto::{Registry};
 use ciruela::{ImageId, VPath};
+use failure_tracker::HostFailures;
 use named_mutex::{Mutex, MutexGuard};
 use remote::outgoing::connect;
-use remote::websocket::Connection;
 use tk_http::websocket::{Config as WsConfig};
 use tracking::Tracking;
 
-
-pub struct Failure {
-    subsequent_failures: u64,
-    last_connect: Instant,
-}
 
 pub struct Connections {
     // TODO(tailhook) optimize incoming and outgoing connections
@@ -28,7 +25,7 @@ pub struct Connections {
     // `ciruela-server`)
     incoming: HashSet<Connection>,
     outgoing: HashMap<SocketAddr, Connection>,
-    failures: HashMap<SocketAddr, Failure>,
+    failures: HostFailures,
     declared_images: HashMap<ImageId, HashSet<Connection>>,
 }
 
@@ -55,7 +52,7 @@ impl Remote {
             conn: Mutex::new(Connections {
                 incoming: HashSet::new(),
                 outgoing: HashMap::new(),
-                failures: HashMap::new(),
+                failures: HostFailures::new_default(),
                 declared_images: HashMap::new(),
             }, "remote_connections"),
         }))
@@ -70,14 +67,28 @@ impl Remote {
         self.inner().incoming.insert(cli.clone());
         return Token(self.clone(), cli.clone());
     }
-    pub fn get_incoming_connection_for_index(&self, id: &ImageId)
+    pub fn get_incoming_connection_for_image(&self, id: &ImageId)
         -> Option<Connection>
     {
         self.inner().declared_images.get(id)
             .and_then(|x| x.iter().cloned().next())
     }
-    pub fn get_connection(&self, addr: SocketAddr) -> Option<Connection> {
-        self.inner().outgoing.get(&addr).cloned()
+    /// Splits the list into connected/not-connected list *and* removes
+    /// recently failed addresses
+    pub fn split_connected<I: Iterator<Item=SocketAddr>>(&self, inp: I)
+        -> (Vec<Connection>, Vec<SocketAddr>)
+    {
+        let mut conn = Vec::new();
+        let mut not_conn = Vec::new();
+        let state = self.inner();
+        for sa in inp {
+            if let Some(con) = state.outgoing.get(&sa) {
+                conn.push(con.clone());
+            } else if state.failures.can_try(sa) {
+                not_conn.push(sa);
+            }
+        }
+        return (conn, not_conn);
     }
     pub fn ensure_connected(&self, tracking: &Tracking, addr: SocketAddr)
         -> Connection
@@ -111,12 +122,7 @@ impl Drop for Token {
     fn drop(&mut self) {
         let mut remote = self.0.inner();
         if self.1.hanging_requests() > 0 || !self.1.is_connected() {
-            remote.failures.entry(self.1.addr())
-                .or_insert(Failure {
-                    subsequent_failures: 0,
-                    last_connect: Instant::now(),
-                })
-                .subsequent_failures += 1;
+            remote.failures.add_failure(self.1.addr());
         }
         if remote.incoming.remove(&self.1) {
             for img in self.1.images().iter() {

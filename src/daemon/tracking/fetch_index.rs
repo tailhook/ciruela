@@ -1,8 +1,6 @@
-use std::collections::VecDeque;
 use std::collections::hash_map::Entry;
-use std::collections::{HashSet, HashMap};
+use std::collections::{HashMap};
 use std::io::Cursor;
-use std::net::SocketAddr;
 use std::ops::Deref;
 use std::sync::{Arc, Weak};
 use std::time::Duration;
@@ -11,21 +9,23 @@ use futures::{self, Future as FutureTrait};
 use futures::future::{Shared};
 use futures::sync::oneshot::{channel, Receiver, Sender};
 use valuable_futures::{Supply, Async, StateMachine};
+use rand::{thread_rng, Rng};
 
-use ciruela::ImageId;
+use ciruela::{ImageId, VPath};
 use ciruela::proto::{GetIndex, GetIndexResponse};
 use ciruela::proto::{RequestFuture, RequestClient};
 use index::{IndexData};
+use failure_tracker::HostFailures;
+use mask::Mask;
 use metadata::{Error as MetaError};
 use named_mutex::{Mutex, MutexGuard};
 use tk_easyloop::{spawn, timeout};
 use tokio_core::reactor::Timeout;
 use tracking::Tracking;
-use remote::websocket::Connection;
 
 
 const RETRY_FOR: u64 = 3600_000;  // retry no more than an hour
-const RETRY_TIMEOUT: u64 = 2000;
+const RETRY_TIMEOUT: u64 = 1000;
 
 
 type Registry = HashMap<ImageId, IndexRef>;
@@ -39,8 +39,8 @@ struct Inner {
 }
 
 struct InProgress {
-    queue: VecDeque<SocketAddr>,
-    tried: HashSet<SocketAddr>,
+    paths: Vec<VPath>,
+    failures: HostFailures,
     wakeup: Option<Sender<()>>,
     future: Shared<Receiver<Index>>,
 }
@@ -83,28 +83,6 @@ pub enum State {
     Waiting(Receiver<()>, Timeout),
 }
 
-
-fn get_conn(id: &ImageId, tracking: &Tracking, inp: &mut InProgress)
-    -> Option<Connection>
-{
-    for addr in &inp.queue {
-        if let Some(conn) = tracking.0.remote.get_connection(*addr) {
-            return Some(conn.clone());
-        }
-    }
-    if let Some(conn) = tracking.0.remote
-        .get_incoming_connection_for_index(id)
-    {
-        return Some(conn);
-    }
-    while let Some(addr) = inp.queue.pop_front() {
-        if inp.tried.insert(addr) {
-            return Some(tracking.0.remote.ensure_connected(tracking, addr))
-        }
-    }
-    return None;
-}
-
 fn poll_state(mut state: State, id: &ImageId, tracking: &Tracking,
     inp: &mut InProgress)
     -> Result<Async<IndexData, State>, ()>
@@ -113,7 +91,14 @@ fn poll_state(mut state: State, id: &ImageId, tracking: &Tracking,
     loop {
         state = match state {
             Start => {
-                if let Some(conn) = get_conn(id, tracking, inp) {
+                // TODO(tailhook) this isn't strictly good, because of
+                // failure tracking. But because of randomized nature of
+                // everything, it should work good enough
+                let path = thread_rng().choose(&inp.paths)
+                    .expect("at least one path should be there");
+                if let Some(conn) = tracking.get_connection_by_mask(path,
+                    id, Mask::index_bit(), &inp.failures)
+                {
                     inp.wakeup.take();
                     Fetching(conn.request(GetIndex { id: id.clone() }))
                 } else {
@@ -151,8 +136,6 @@ fn poll_state(mut state: State, id: &ImageId, tracking: &Tracking,
                 let res = timeo.poll()
                     .expect("timeout never fails");
                 if res.is_ready() {
-                    let ref mut inp = &mut *inp;
-                    inp.queue.extend(inp.tried.drain());
                     Start
                 } else if rx.poll().map(|x| x.is_ready())
                     .unwrap_or(true)
@@ -226,21 +209,25 @@ impl Indexes {
     fn lock(&self) -> MutexGuard<Registry> {
         self.images.lock()
     }
-    pub fn get(&self, tracking: &Tracking, index: &ImageId) -> IndexFuture
+    pub fn get(&self, tracking: &Tracking, vpath: &VPath, index: &ImageId)
+        -> IndexFuture
     {
         match self.lock().entry(index.clone()) {
             Entry::Occupied(mut e) => {
-                let (fut, inp) = match *e.get() {
+                let (fut, inp) = match *e.get_mut() {
                     IndexRef::Done(ref x) => {
                         if let Some(im) = x.upgrade() {
                             info!("Image {:?} is already cached", index);
                             return IndexFuture::Ready(Index(im.clone()));
                         } else {
-                            spawn_try_read(index, self.images.clone(),
-                                tracking)
+                            spawn_try_read(vpath.clone(), index,
+                                self.images.clone(), tracking)
                         }
                     }
-                    IndexRef::InProgress(ref x) => {
+                    IndexRef::InProgress(ref mut x) => {
+                        if !x.paths.contains(vpath) {
+                            x.paths.push(vpath.clone());
+                        }
                         return IndexFuture::Future(x.future.clone())
                     }
                 };
@@ -248,8 +235,8 @@ impl Indexes {
                 IndexFuture::Future(fut)
             }
             Entry::Vacant(e) => {
-                let (fut, inp) = spawn_try_read(index, self.images.clone(),
-                    tracking);
+                let (fut, inp) = spawn_try_read(vpath.clone(),
+                    index, self.images.clone(), tracking);
                 e.insert(IndexRef::InProgress(Box::new(inp)));
                 IndexFuture::Future(fut)
             }
@@ -257,15 +244,15 @@ impl Indexes {
     }
 }
 
-fn spawn_try_read(index: &ImageId, reg: Arc<Mutex<Registry>>,
+fn spawn_try_read(path: VPath, index: &ImageId, reg: Arc<Mutex<Registry>>,
     tracking: &Tracking)
     -> (Shared<Receiver<Index>>, InProgress)
 {
     let (tx, rx) = channel();
     let rx = rx.shared();
     let inp = InProgress {
-        queue: VecDeque::new(),
-        tried: HashSet::new(),
+        paths: vec![path],
+        failures: HostFailures::new_default(),
         wakeup: None,
         future: rx.clone(),
     };

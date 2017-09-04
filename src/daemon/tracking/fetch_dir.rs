@@ -15,7 +15,8 @@ pub fn start(sys: &Subsystem, cmd: Downloading) {
     sys.peers.notify_progress(
         &cmd.virtual_path, &cmd.image_id, cmd.mask.get());
     let sys = sys.clone();
-    spawn(sys.images.get(&sys.tracking, &cmd.image_id).and_then(|index| {
+    spawn(sys.images.get(&sys.tracking, &cmd.virtual_path, &cmd.image_id)
+    .and_then(|index| {
         debug!("Got index {:?}", cmd.image_id);
         spawn(sys.disk.start_image(
                 cmd.config.directory.clone(),

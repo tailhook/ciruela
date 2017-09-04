@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
-
+use std::net::SocketAddr;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration};
 
 use futures::{Future, Async};
 use futures_cpupool::CpuFuture;
@@ -14,6 +14,7 @@ use ciruela::proto::{RequestClient};
 use tracking::progress::{Downloading, Block};
 use tracking::Subsystem;
 use disk::{self, Image};
+use mask::Mask;
 
 
 const FETCH_DEADLINE: u64 = 3600; // one hour
@@ -31,7 +32,8 @@ pub struct FetchBlocks {
 }
 
 pub enum FetchBlock {
-    Fetching(Block, u8, RequestFuture<GetBlockResponse>),
+    // TODO(tailhook) we mix incoming and outgoing connection in addr
+    Fetching(Block, u8, SocketAddr, RequestFuture<GetBlockResponse>),
     Writing(CpuFuture<(), disk::Error>),
 }
 
@@ -61,7 +63,7 @@ impl StateMachine for FetchBlock {
         let mut state = self;
         loop {
             state = match state {
-                Fetching(blk, slice, mut f) => {
+                Fetching(blk, slice, addr, mut f) => {
                     match f.poll() {
                         Ok(Async::Ready(data)) => {
                             for s in ctx.downloading.slices().iter_mut() {
@@ -79,13 +81,14 @@ impl StateMachine for FetchBlock {
                         }
                         Ok(Async::NotReady) => {
                             return Ok(VAsync::NotReady(
-                                Fetching(blk, slice, f)));
+                                Fetching(blk, slice, addr, f)));
                         }
                         Err(e) => {
                             for s in ctx.downloading.slices().iter_mut() {
                                 if s.index == slice {
                                     s.in_progress -= 1;
                                     s.blocks.push_back(blk);
+                                    s.failures.add_failure(addr);
                                     break;
                                 }
                             }
@@ -164,14 +167,16 @@ impl Future for FetchBlocks {
             for s in self.downloading.slices().iter_mut() {
                 while let Some(blk) = s.blocks.pop_front() {
                     // TODO(tailhook) Try peer connections
-                    let conn = self.sys.remote
-                        .get_incoming_connection_for_index(
-                            &self.downloading.image_id);
+                    let conn = self.sys.tracking
+                        .get_connection_by_mask(
+                            &self.downloading.virtual_path,
+                            &self.downloading.image_id,
+                            Mask::slice_bit(s.index as usize), &s.failures);
                     if let Some(conn) = conn {
                         let req = conn.request(GetBlock {
                             hash: blk.hash,
                         });
-                        let f = Fetching(blk, s.index, req);
+                        let f = Fetching(blk, s.index, conn.addr(), req);
                         new += 1;
                         self.futures.push_back(f);
                         s.in_progress += 1;

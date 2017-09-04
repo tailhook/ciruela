@@ -24,13 +24,14 @@ use ciruela::proto::{AppendDir};
 use ciruela::{ImageId, Hash, VPath};
 use config::{Config};
 use disk::Disk;
+use failure_tracker::{Failures, Policy};
 use machine_id::MachineId;
 use mask::{AtomicMask, Mask};
 use metadata::{Meta};
 use named_mutex::{Mutex, MutexGuard};
 use peers::Peers;
 use rand::{thread_rng, Rng};
-use remote::Remote;
+use remote::{Remote, Connection};
 use tracking::reconciliation::ReconPush;
 
 pub use self::fetch_index::Index;
@@ -45,7 +46,14 @@ pub struct State {
 
     base_dirs: HashMap<VPath, Arc<BaseDir>>,
     base_dir_list: Vec<Arc<BaseDir>>,
+    // TODO(tailhook) remove SocketAddr, use gossip subsystem
     reconciling: HashMap<(VPath, Hash), HashSet<(SocketAddr, MachineId)>>,
+    /// Holds hosts that we have just received reconciliation data from.
+    /// This probably means that they have respective image. Unless their
+    /// image is currently in-progress. We know in-progress data from
+    /// gossip subsystem.
+    // TODO(tailhook) cleanup them
+    recently_received: HashMap<VPath, HashMap<SocketAddr, Instant>>,
 }
 
 #[derive(Clone)]
@@ -60,6 +68,7 @@ struct Inner {
     meta: Meta,
     disk: Disk,
     remote: Remote,
+    peers: Peers,
 }
 
 #[derive(Clone)]
@@ -93,7 +102,7 @@ pub enum Command {
 
 impl Tracking {
     pub fn new(config: &Arc<Config>, meta: &Meta, disk: &Disk,
-        remote: &Remote)
+        remote: &Remote, peers: &Peers)
         -> (Tracking, TrackingInit)
     {
         let (ctx, crx) = unbounded();
@@ -106,10 +115,12 @@ impl Tracking {
                 base_dirs: HashMap::new(),
                 base_dir_list: Vec::new(),
                 reconciling: HashMap::new(),
+                recently_received: HashMap::new(),
             }, "tracking_state")),
             meta: meta.clone(),
             disk: disk.clone(),
             remote: remote.clone(),
+            peers: peers.clone(),
             cmd_chan: ctx,
             rescan_chan: rtx,
         }));
@@ -195,6 +206,76 @@ impl Tracking {
         }
         return res;
     }
+    pub fn get_connection_by_mask<P: Policy>(&self,
+        vpath: &VPath, id: &ImageId, mask: Mask,
+        failures: &Failures<SocketAddr, P>)
+        -> Option<Connection>
+    {
+        // First try hosts we certainly know has needed bit, but in our
+        // local network
+        let items = self.0.peers.addrs_by_mask(vpath, id, mask);
+        let (conn, not_conn) = self.0.remote.split_connected(
+            items.into_iter().filter(|a| failures.can_try(*a)));
+        if conn.len() > 0 {
+            return thread_rng().choose(&conn).cloned();
+        }
+        // The find incoming connection. It's tested later because it's
+        // probably behind the slow network. Still it's already connected
+        // and certainly has the data
+        if let Some(conn) = self.0.remote.get_incoming_connection_for_image(id)
+        {
+            return Some(conn);
+        }
+        // Well then connect to a peer having data
+        if not_conn.len() > 0 {
+            return thread_rng().choose(&not_conn).map(|addr| {
+                self.0.remote.ensure_connected(self, *addr)
+            });
+        }
+        // If not such peers, get any peer that we had reconciled this path
+        // from. First connected hosts, then any one
+        if let Some(dict) = self.state().recently_received.get(vpath) {
+            let (conn, not_conn) = self.0.remote.split_connected(
+                dict.keys().filter(|addr| failures.can_try(**addr))
+                .cloned());
+            if conn.len() > 0 {
+                return thread_rng().choose(&conn).cloned();
+            }
+            if not_conn.len() > 0 {
+                return thread_rng().choose(&not_conn).map(|addr| {
+                    self.0.remote.ensure_connected(self, *addr)
+                });
+            }
+        }
+        // Finally if nothing works, just ask random host having this base
+        // dir. This works quite well, if this host was turned off for some
+        // time but others are up.
+        //
+        // It could take some time to enumerate all hosts in 1000-node cluster,
+        // (if there is only one host that needs data). Except every node
+        // in the cluster picks 1 host on each attempt. And as quick as it
+        // fetches the data it propagates that info to all the hosts. So it
+        // should take just few roundtrips to find anything.
+        //
+        // All of this to say that actual time doesn't depend on the size
+        // of the cluster (in simple words it's because the number of
+        // probes over whole cluster is proportional to cluster size).
+        //
+        // TODO(tailhook) find out whether keeping split of `conn`/`not_conn`
+        // makes sense for this specific case.
+        let items = self.0.peers.addrs_by_basedir(&vpath.parent());
+        let (conn, not_conn) = self.0.remote.split_connected(
+            items.into_iter().filter(|addr| !failures.can_try(*addr)));
+        if conn.len() > 0 {
+            return thread_rng().choose(&conn).cloned();
+        }
+        if not_conn.len() > 0 {
+            return thread_rng().choose(&not_conn).map(|addr| {
+                self.0.remote.ensure_connected(self, *addr)
+            });
+        }
+        return None;
+    }
 }
 
 impl ::std::ops::Deref for Subsystem {
@@ -225,8 +306,7 @@ impl Subsystem {
     }
 }
 
-pub fn start(init: TrackingInit, disk: &Disk, peers: &Peers)
-    -> Result<(), String> // actually void
+pub fn start(init: TrackingInit) -> Result<(), String> // actually void
 {
     let (ctx, crx) = unbounded();
     let TrackingInit { cmd_chan, rescan_chan, tracking } = init;
@@ -234,11 +314,11 @@ pub fn start(init: TrackingInit, disk: &Disk, peers: &Peers)
         images: tracking.0.images.clone(),
         config: tracking.0.config.clone(),
         meta: tracking.0.meta.clone(),
-        disk: disk.clone(),
+        disk: tracking.0.disk.clone(),
         state: tracking.0.state.clone(),
         remote: tracking.0.remote.clone(),
+        peers: tracking.0.peers.clone(),
         tracking: tracking.clone(),
-        peers: peers.clone(),
         cleanup: ctx,
         scan: tracking.0.rescan_chan.clone(),
         dry_cleanup: AtomicBool::new(true),  // start with no cleanup

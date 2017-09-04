@@ -56,6 +56,7 @@ mod cleanup;
 mod config;
 mod dir_util;
 mod disk;
+mod failure_tracker;
 mod http;
 mod index;
 mod machine_id;
@@ -191,19 +192,20 @@ fn main() {
 
     let remote = remote::Remote::new();
 
-    let (tracking, tracking_init) = tracking::Tracking::new(&config,
-        &meta, &disk, &remote);
-
     let (peers, peers_init) = peers::Peers::new(
         machine_id.clone(),
         if cantal { None } else {
             Some(config.config_dir.join("peers.txt"))
         });
 
+    let (tracking, tracking_init) = tracking::Tracking::new(&config,
+        &meta, &disk, &remote, &peers);
+
+
     tk_easyloop::run_forever(|| -> Result<(), Box<Error>> {
         http::start(addr, &remote, &tracking)?;
         disk::start(disk_init, &meta)?;
-        tracking::start(tracking_init, &disk, &peers)?;
+        tracking::start(tracking_init)?;
         peers::start(peers_init, addr, &config, &disk, &router, &tracking)?;
         Ok(())
     }).map_err(|e| {

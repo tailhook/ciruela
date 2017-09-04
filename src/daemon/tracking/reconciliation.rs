@@ -1,4 +1,6 @@
+use std::collections::{HashMap};
 use std::net::SocketAddr;
+use std::time::Instant;
 
 use ciruela::{VPath, Hash};
 use ciruela::proto::{BaseDirState, AppendDir, ReplaceDir, GetBaseDir};
@@ -8,7 +10,7 @@ use tracking::Subsystem;
 
 use futures::future::{Future, Loop, loop_fn};
 use tk_easyloop::spawn;
-use tracking::base_dir;
+use tracking::{base_dir};
 use metadata::Upload;
 
 
@@ -35,6 +37,7 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
     // TODO(tailhook) allow Remote subsystem to pick a connection, so
     // it can choose one, already available when multiple choices are there
     let pair = (path.clone(), hash);
+    let pair2 = pair.clone();
     spawn(loop_fn((addr, mid), move |(addr, mid)| {
         let sys = sys.clone();
         let pair = pair.clone(); // TODO(tailhook) optimize?
@@ -110,6 +113,18 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
             let image_id = rstate.image;
             if let Some(old_state) = local.dirs.remove(&name) {
                 debug!("Replacing {:?}", vpath);
+                {
+                    let state = &mut *sys.state();
+                    if let Some(items) = state.reconciling.get(&pair2) {
+                        state.recently_received.entry(vpath.clone())
+                            .or_insert_with(HashMap::new)
+                            .extend(
+                                items.iter()
+                                .map(|&(addr, _)| {
+                                    (addr, Instant::now())
+                                }));
+                    }
+                }
                 spawn(
                     sys.meta.replace_dir(ReplaceDir {
                         path: vpath.clone(),

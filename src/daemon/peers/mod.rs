@@ -4,7 +4,7 @@ mod gossip;
 mod packets;
 pub mod config;
 
-use std::collections::{HashMap, BTreeMap};
+use std::collections::{HashMap, BTreeMap, HashSet};
 use std::path::{PathBuf};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -37,14 +37,18 @@ pub struct Peer {
 pub struct Peers {
     downloading: Arc<Mutex<
         HashMap<MachineId, BTreeMap<VPath, (ImageId, Mask)>>>>,
+    dir_peers: Arc<Mutex<HashMap<VPath, HashSet<MachineId>>>>,
+    peers: Arc<ArcCell<HashMap<MachineId, Peer>>>,
     messages: UnboundedSender<Message>,
 }
 
 pub struct PeersInit {
     machine_id: MachineId,
+    cell: Arc<ArcCell<HashMap<MachineId, Peer>>>,
     peer_file: Option<PathBuf>,
     downloading: Arc<Mutex<
         HashMap<MachineId, BTreeMap<VPath, (ImageId, Mask)>>>>,
+    dir_peers: Arc<Mutex<HashMap<VPath, HashSet<MachineId>>>>,
     messages: UnboundedReceiver<Message>,
 }
 
@@ -55,13 +59,19 @@ impl Peers {
     {
         let dw = Arc::new(Mutex::new(HashMap::new(), "peers_downloading"));
         let (tx, rx) = unbounded();
+        let cell = Arc::new(ArcCell::new(Arc::new(HashMap::new())));
+        let dir_peers = Arc::new(Mutex::new(HashMap::new(), "dir_peers"));
         (Peers {
             downloading: dw.clone(),
             messages: tx,
+            peers: cell.clone(),
+            dir_peers: dir_peers.clone(),
         }, PeersInit {
+            cell: cell,
             peer_file: peer_file,
             machine_id,
             downloading: dw,
+            dir_peers: dir_peers,
             messages: rx,
         })
     }
@@ -73,6 +83,35 @@ impl Peers {
             mask: mask,
         }).expect("gossip subsystem crashed");
     }
+    pub fn addrs_by_mask(&self, vpath: &VPath,
+        targ_id: &ImageId, targ_mask: Mask)
+        -> Vec<SocketAddr>
+    {
+        let mut result = Vec::new();
+        let peers = self.peers.get();
+        for (mid, paths) in self.downloading.lock().iter() {
+            if let Some(&(ref id, ref mask)) = paths.get(vpath) {
+                if id == targ_id && mask.is_superset_of(targ_mask) {
+                    if let Some(peer) = peers.get(mid) {
+                        result.push(peer.addr)
+                    }
+                }
+            }
+        }
+        return result;
+    }
+    pub fn addrs_by_basedir(&self, vpath: &VPath)
+        -> Vec<SocketAddr>
+    {
+        self.dir_peers.lock().get(vpath)
+        .map(|ids| {
+            let peers = self.peers.get();
+            ids.iter()
+                .filter_map(|id| peers.get(id).map(|x| x.addr))
+                .collect()
+        })
+        .unwrap_or_else(Vec::new)
+    }
 }
 
 pub fn start(me: PeersInit, addr: SocketAddr,
@@ -80,22 +119,24 @@ pub fn start(me: PeersInit, addr: SocketAddr,
     router: &Router, tracking: &Tracking)
     -> Result<(), Box<::std::error::Error>>
 {
-    let cell = Arc::new(ArcCell::new(Arc::new(HashMap::new())));
     if let Some(peer_file) = me.peer_file {
         let tracking = tracking.clone();
         let id = me.machine_id.clone();
         let dw = me.downloading.clone();
         let tx = me.messages;
+        let dp = me.dir_peers;
+        let cell = me.cell;
         spawn(
             file::read_peers(peer_file, disk, router, config.port)
             .and_then(move |fut| {
-                gossip::start(addr, cell, dw, tx, id, &tracking, fut)
+                gossip::start(addr, cell, dw, dp, tx, id, &tracking, fut)
                     .expect("can start gossip");
                 Ok(())
             }));
     } else {
-        cantal::spawn_fetcher(&cell, config.port);
-        gossip::start(addr, cell, me.downloading, me.messages, me.machine_id,
+        cantal::spawn_fetcher(&me.cell, config.port);
+        gossip::start(addr,
+            me.cell, me.downloading, me.dir_peers, me.messages, me.machine_id,
             tracking, HashMap::new())?;
     }
     Ok(())

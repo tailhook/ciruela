@@ -1,5 +1,4 @@
 use std::net::SocketAddr;
-use std::time::Instant;
 
 use futures::{Future, Stream};
 use futures::sync::mpsc::UnboundedReceiver;
@@ -27,9 +26,6 @@ pub fn connect(sys: &Remote, tracking: &Tracking, reg: &Registry,
     let sys = sys.clone();
     let reg = reg.clone();
     let tracking = tracking.clone();
-    if let Some(failure) = sys.inner().failures.get_mut(&addr) {
-        failure.last_connect = Instant::now();
-    }
     spawn(TcpStream::connect(&addr, &handle())
         .map_err(|_| unimplemented!())
         .and_then(move |sock| {
@@ -40,7 +36,7 @@ pub fn connect(sys: &Remote, tracking: &Tracking, reg: &Registry,
         .and_then(move |(out, inp, ())| {
             debug!("Established outgoing connection to {}", addr);
             // consider connection as non-failed right after handshake
-            sys.inner().failures.remove(&addr);
+            sys.inner().failures.reset(addr);
             let disp = Dispatcher::new(cli, &reg, &tracking);
             let rx = rx.map_err(closed as fn(()) -> &'static str);
             let rx = rx.packetize(&reg);
