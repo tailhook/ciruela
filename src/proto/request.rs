@@ -108,7 +108,7 @@ pub trait RequestClient {
         where R: Request + 'static
     {
         let (tx, rx) = oneshot();
-        self.request_channel().0.send(Box::new(RequestWrap {
+        self.request_channel().0.unbounded_send(Box::new(RequestWrap {
             request: request,
             chan: Some(tx),
         })).map_err(|e| {
@@ -327,7 +327,7 @@ impl Sender {
         (Sender(tx), rx)
     }
     pub fn notification<N: Notification>(&self, n: N) {
-        self.0.send(Box::new(NotificationWrap::new(n)))
+        self.0.unbounded_send(Box::new(NotificationWrap::new(n)))
         .map_err(|e| {
             // We expect `rx` to get cancellation notice in case of error, so
             // process does not hang, after logging the message
@@ -335,7 +335,7 @@ impl Sender {
         }).ok();
     }
     pub fn response<R: Response>(&self, request_id: u64, data: R) {
-        self.0.send(Box::new(ResponseWrap {
+        self.0.unbounded_send(Box::new(ResponseWrap {
             request_id: request_id,
             data: data,
         }))
@@ -348,7 +348,7 @@ impl Sender {
     pub fn error_response<E>(&self, request_id: u64, e: E)
         where E: fmt::Display + Send + 'static
     {
-        self.0.send(Box::new(ErrorWrap {
+        self.0.unbounded_send(Box::new(ErrorWrap {
             request_id: request_id,
             error: e,
         }))
