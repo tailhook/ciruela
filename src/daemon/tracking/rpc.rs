@@ -60,7 +60,8 @@ impl Tracking {
     }
     pub fn get_index(&self, cmd: GetIndex, resp: Responder<GetIndexResponse>)
     {
-        unimplemented!();
+        resp.respond_with_future(self.0.meta.read_index_bytes(&cmd.id)
+            .map(|val| GetIndexResponse { data: val }));
     }
     pub fn get_base_dir(&self, cmd: GetBaseDir,
         resp: Responder<GetBaseDirResponse>)

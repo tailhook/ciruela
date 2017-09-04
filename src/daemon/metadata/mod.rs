@@ -111,6 +111,20 @@ impl Meta {
             Ok(())
         })
     }
+    pub fn read_index_bytes(&self, index: &ImageId)
+        -> CpuFuture<Vec<u8>, Error>
+    {
+        let meta = self.clone();
+        let index = index.clone();
+        self.0.cpu_pool.spawn_fn(move || {
+            read_index::read_bytes(&index, &meta)
+            .map_err(|e| {
+                info!("Error reading index {:?} from file: {}",
+                      index, e);
+                e
+            })
+        })
+    }
     pub fn read_index(&self, index: &ImageId)
         -> CpuFuture<IndexData, Error>
     {
