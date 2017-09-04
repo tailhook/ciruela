@@ -108,7 +108,7 @@ impl StateMachine for FetchBlock {
                         }
                         Err(e) => {
                             // TODO(tailhook) better message
-                            error!("Block fetch error: {}", e);
+                            error!("Block write error: {}", e);
                             // TODO(tailhook) sleep and retry?
                             // or is it fatal?
                             unimplemented!();

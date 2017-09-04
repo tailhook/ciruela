@@ -180,6 +180,16 @@ impl Meta {
             }
         })
     }
+    pub fn is_writing(&self, dir: &VPath)
+        -> CpuFuture<bool, Error>
+    {
+        let dir = dir.clone();
+        let meta = self.clone();
+        self.0.cpu_pool.spawn_fn(move || {
+            let wr = meta.writing();
+            Ok(wr.contains_key(&dir))
+        })
+    }
     fn signatures(&self) -> Result<Dir, Error> {
         self.0.base_dir.ensure_dir("signatures")
     }

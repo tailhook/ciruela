@@ -1,10 +1,16 @@
 use std::io;
 use std::path::{PathBuf};
 
+use ciruela::VPath;
+
 
 quick_error! {
     #[derive(Debug)]
     pub enum Error {
+        NoDir(dir: VPath) {
+            description("no config for dir")
+            display("no config for dir {:?}", dir)
+        }
         OpenBase(dir: PathBuf, e: io::Error) {
             description("can't open base dir")
             display("can't open base dir {:?}: {}", dir, e)

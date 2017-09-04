@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{self, Seek, SeekFrom, Write, BufReader, BufRead};
+use std::io::{self, Seek, SeekFrom, Write, BufReader, BufRead, Read};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -96,6 +96,52 @@ impl Disk {
                 .expect("valid path");
             remove_dir_recursive(&dir, filename)?;
             Ok(())
+        })
+    }
+    /// Fetch block at path and offset
+    ///
+    /// If `writing` is `true` then it looks in `.tmp.dirname`.
+    ///
+    /// Regardless of the `writing` flag the function is inherently racy,
+    /// because dir can be replaced at any time. But this doesn't matter,
+    /// because wrong or absend block will be tolerated on the other side.
+    pub fn read_block(&self, vpath: &VPath, path: &PathBuf, offset: u64,
+                      writing: bool)
+        -> CpuFuture<Vec<u8>, Error>
+    {
+        assert!(path.is_absolute());
+        let config = self.config.clone();
+        let vpath = vpath.clone();
+        let path = path.strip_prefix("/").expect("path is absolute")
+            .to_path_buf();
+        self.pool.spawn_fn(move || {
+            trace!("Reading block {:?}/{:?}:{}", vpath, path, offset);
+
+            let cfg = config.dirs.get(vpath.key())
+                .ok_or_else(|| Error::NoDir(vpath.clone()))?;
+            let dir = Dir::open(&cfg.directory)
+                .map_err(|e| Error::OpenBase(cfg.directory.clone(), e))?;
+            let dir = open_path(&dir, vpath.parent().suffix())?;
+            let dir = if writing {
+                let tmp_name = format!(".tmp.{}", vpath.final_name());
+                open_path(&dir, tmp_name)?
+            } else {
+                open_path(&dir, vpath.final_name())?
+            };
+            let epath = &|| cfg.directory.join(vpath.suffix()).join(&path);
+            let file = open_path(&dir,
+                &path.parent().expect("parent should exist"))?;
+            let mut file = file.open_file(
+                path.file_name().expect("file name should exist"))
+                .map_err(|e| Error::ReadFile(epath(), e))?;
+            // TODO(tailhook) use size of the block
+            let mut buf = vec![0u8; 32768];
+            file.seek(SeekFrom::Start(offset))
+                .map_err(|e| Error::ReadFile(epath(), e))?;
+            let n = file.read(&mut buf)
+                .map_err(|e| Error::ReadFile(epath(), e))?;
+            buf.truncate(n);
+            Ok(buf)
         })
     }
     pub fn write_block(&self, image: Arc<Image>,
