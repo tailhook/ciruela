@@ -213,6 +213,7 @@ if no index already exists on this host or on one of the peers.
     get-index-params = {
         id: bytes,               ; binary hashsum of the image (bottom line
                                  ; of the index file but in binary form)
+        ? hint: text             ; virtual_path where index can be found
     }
     get-index-response = {
         ? data: bytes,           ; full original index file
@@ -225,6 +226,13 @@ Note: index file can potentially be in different formats, but in any case:
 * Kind of index can be detected by inspecting data itself (i.e. first bytes of
   index file should contain a signature of some kind)
 
+Note 2: server implementation can ignore or can use ``hint`` value, client
+implementation can supply or can skip ``hint``. Current state is:
+``ciruela upload`` does not use hint, while ``ciruela-server`` always sends
+but never uses a hint value (still, the virtual path where index resides
+is used internally, so it may become useful in future if we will ever forward
+the ``GetIndex`` requests)
+
 
 GetBlock
 ````````
@@ -236,11 +244,18 @@ Fetch a block with specified hash.
     $message /= [1, "GetBlock", request-id, get-block-params]
     $message /= [2, "GetBlock", request-id, get-block-response]
     get-block-params = {
-        hash: bytes,             ; binary hashsum of the block
+        hash: bytes,                ; binary hashsum of the block
+        ? hint: [text, text, uint], ; virtual_path, path, and position where
+                                    ; the blocks can be found found
     }
     get-block-response = {
         ? data: bytes,           ; full original index file
     }
+
+Note: server implementation can ignore or can use ``hint`` value, client
+implementation can supply or can skip ``hint``. Current state is:
+``ciruela upload`` does not use hint, while ``ciruela-server`` always sends
+and uses a hint value.
 
 .. _cbor: http://cbor.io/
 .. _cddl: https://tools.ietf.org/html/draft-greevenbosch-appsawg-cbor-cddl-09

@@ -12,6 +12,6 @@ pub fn time_ms() -> u64 {
 }
 
 pub fn from_ms(ms: u64) -> SystemTime {
-    return UNIX_EPOCH + Duration::new(ms / 1000, (ms % 1000) as u32 * 1000000);
+    UNIX_EPOCH + Duration::from_millis(ms)
 }
 

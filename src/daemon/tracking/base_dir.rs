@@ -100,7 +100,7 @@ impl BaseDir {
                         Ordering::SeqCst);
                     let mut table = val.recon_table();
                     let cut_off = Instant::now() -
-                        Duration::new(RETAIN_TIME, 0);
+                        Duration::from_millis(RETAIN_TIME);
                     table.retain(|_, x| *x >= cut_off);
                     table.insert(hash, Instant::now());
                 }

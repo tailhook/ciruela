@@ -1,12 +1,15 @@
+use std::path::PathBuf;
+
 use proto::{Request, Response};
 use std::fmt;
-use {Hash};
+use {Hash, VPath};
 
 use serde_bytes;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct GetBlock {
     pub hash: Hash,
+    pub hint: Option<(VPath, PathBuf, u64)>,
 }
 
 #[derive(Serialize, Deserialize)]

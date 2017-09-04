@@ -1,3 +1,4 @@
+use std::fmt;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::hash::Hash;
@@ -24,7 +25,7 @@ pub struct Failure {
     last: Instant,
 }
 
-pub trait Policy {
+pub trait Policy: fmt::Debug {
     fn can_try(&self, entry: &Failure) -> bool;
 }
 

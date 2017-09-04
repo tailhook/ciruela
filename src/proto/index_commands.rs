@@ -35,6 +35,7 @@ impl Notification for ReceivedImage {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct GetIndex {
     pub id: ImageId,
+    pub hint: Option<VPath>,
 }
 
 #[derive(Serialize, Deserialize)]

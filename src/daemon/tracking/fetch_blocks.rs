@@ -17,7 +17,7 @@ use disk::{self, Image};
 use mask::Mask;
 
 
-const FETCH_DEADLINE: u64 = 3600; // one hour
+const FETCH_DEADLINE: u64 = 3600_000; // one hour
 const RETRY_INTERVAL: u64 = 2000; // 2 seconds
 const CONCURRENCY: usize = 10;
 
@@ -49,7 +49,7 @@ impl FetchBlocks {
             downloading: down.clone(),
             futures: VecDeque::new(),
             retry_timeout: None,
-            deadline: timeout(Duration::new(FETCH_DEADLINE, 0)),
+            deadline: timeout(Duration::from_millis(FETCH_DEADLINE)),
         }
     }
 }
@@ -175,6 +175,11 @@ impl Future for FetchBlocks {
                     if let Some(conn) = conn {
                         let req = conn.request(GetBlock {
                             hash: blk.hash,
+                            hint: Some((
+                                self.downloading.virtual_path.clone(),
+                                (*blk.path).clone(),
+                                blk.offset,
+                            )),
                         });
                         let f = Fetching(blk, s.index, conn.addr(), req);
                         new += 1;

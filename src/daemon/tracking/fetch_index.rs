@@ -100,11 +100,15 @@ fn poll_state(mut state: State, id: &ImageId, tracking: &Tracking,
                     id, Mask::index_bit(), &inp.failures)
                 {
                     inp.wakeup.take();
-                    Fetching(conn.request(GetIndex { id: id.clone() }))
+                    Fetching(conn.request(GetIndex {
+                        id: id.clone(),
+                        hint: Some(path.clone()),
+                    }))
                 } else {
                     let (tx, rx) = channel();
                     inp.wakeup = Some(tx);
-                    Waiting(rx, timeout(Duration::new(RETRY_TIMEOUT, 0)))
+                    info!("No host for {}. Waiting...", id);
+                    Waiting(rx, timeout(Duration::from_millis(RETRY_TIMEOUT)))
                 }
             }
             Fetching(mut fut) => {
@@ -303,7 +307,7 @@ impl futures::Future for IndexFuture {
 fn spawn_fetcher(id: ImageId, reg: Arc<Mutex<Registry>>, tracking: Tracking,
        tx: Sender<Index>)
 {
-    let retry_timeout = Duration::new(RETRY_FOR, 0);
+    let retry_timeout = Duration::from_millis(RETRY_FOR);
     spawn(Supply::new(FetchContext {
             id: id,
             reg: reg,

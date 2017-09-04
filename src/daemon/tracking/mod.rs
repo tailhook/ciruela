@@ -265,7 +265,7 @@ impl Tracking {
         // makes sense for this specific case.
         let items = self.0.peers.addrs_by_basedir(&vpath.parent());
         let (conn, not_conn) = self.0.remote.split_connected(
-            items.into_iter().filter(|addr| !failures.can_try(*addr)));
+            items.into_iter().filter(|addr| failures.can_try(*addr)));
         if conn.len() > 0 {
             return thread_rng().choose(&conn).cloned();
         }

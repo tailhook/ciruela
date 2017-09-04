@@ -27,7 +27,9 @@ pub fn connect(sys: &Remote, tracking: &Tracking, reg: &Registry,
     let reg = reg.clone();
     let tracking = tracking.clone();
     spawn(TcpStream::connect(&addr, &handle())
-        .map_err(|_| unimplemented!())
+        .map_err(|e| {
+            error!("Tcp connection error: {}", e);
+        })
         .and_then(move |sock| {
             HandshakeProto::new(sock, SimpleAuthorizer::new(
                 "ciruela_internal", "/"))
