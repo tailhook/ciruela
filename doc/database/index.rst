@@ -13,5 +13,3 @@ downloaded or removed due to retention policy.
 
    signatures
    indexes
-   map
-

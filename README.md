@@ -1,9 +1,10 @@
-=======
 Ciruela
 =======
 
-:Status: Alpha
-:Documentation: http://tailhook.github.io/ciruela/
+|              |                                           |
+|--------------|-------------------------------------------|
+|Documentation | http://tailhook.github.io/ciruela/        |
+|Status        | beta [¹](#1)                              |
 
 
 A peer-to-peer synchronization software for servers in datacenters.

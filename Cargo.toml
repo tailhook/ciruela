@@ -4,10 +4,16 @@ description = """
     A peer-to-peer synchronization software for servers in datacenters.
 """
 license = "MIT/Apache-2.0"
-readme = "README.rst"
+readme = "README.md"
 keywords = ["p2p", "file", "sync", "synchronization"]
+categories = [
+    "command-line-utilities",
+    "filesystem",
+    "development-tools",
+    "network-programming",
+    ]
 homepage = "http://github.com/tailhook/ciruela"
-documentation = "http://docs.rs/ciruela/"
+documentation = "https://tailhook.github.io/ciruela/"
 version = "0.1.7"
 authors = ["paul@colomiets.name"]
 
