@@ -67,11 +67,17 @@ mod peers;
 mod remote;
 mod tracking;
 
-fn init_logging(mid: machine_id::MachineId) {
+fn init_logging(mid: machine_id::MachineId, log_mid: bool) {
     let format = move |record: &log::LogRecord| {
-        format!("{} {} [{}] {}: {}", mid, time::now_utc().rfc3339(),
-            record.location().module_path(),
-            record.level(), record.args())
+        if log_mid {
+            format!("{} {} [{}] {}: {}", mid, time::now_utc().rfc3339(),
+                record.location().module_path(),
+                record.level(), record.args())
+        } else {
+            format!("{} [{}] {}: {}", time::now_utc().rfc3339(),
+                record.location().module_path(),
+                record.level(), record.args())
+        }
     };
 
     let mut builder = env_logger::LogBuilder::new();
@@ -95,6 +101,7 @@ fn main() {
     let mut metadata_threads: usize = 2;
     let mut disk_threads: usize = 8;
     let mut machine_id = None::<machine_id::MachineId>;
+    let mut log_machine_id = false;
     let mut cantal: bool = false;
     {
         let mut ap = ArgumentParser::new();
@@ -135,11 +142,28 @@ fn main() {
                 file `/etc/machine-id` instead. This should only be used
                 for tests which run multiple nodes in single filesystem
                 image");
+        ap.refer(&mut log_machine_id)
+            .add_option(&["--log-machine-id"], StoreTrue, "
+                Adds machine id to the logs, useful for local multi-node
+                testing such as `vagga trio`.");
         ap.add_option(&["--version"],
             Print(env!("CARGO_PKG_VERSION").to_string()),
             "Show version");
         ap.parse_args_or_exit();
     }
+    let machine_id = if let Some(machine_id) = machine_id {
+        machine_id
+    } else {
+        match machine_id::MachineId::read() {
+            Ok(x) => x,
+            Err(e) => {
+                eprintln!("Error reading machine-id: {}", e);
+                exit(1);
+            }
+        }
+    };
+    init_logging(machine_id.clone(), log_machine_id);
+
     let addr = (ip, port).to_socket_addrs().unwrap().next().unwrap();
     let config = match config::read_dirs(&config_dir.join("configs")) {
         Ok(configs) => {
@@ -155,19 +179,6 @@ fn main() {
             exit(1);
         }
     };
-
-    let machine_id = if let Some(machine_id) = machine_id {
-        machine_id
-    } else {
-        match machine_id::MachineId::read() {
-            Ok(x) => x,
-            Err(e) => {
-                eprintln!("Error reading machine-id: {}", e);
-                exit(1);
-            }
-        }
-    };
-    init_logging(machine_id.clone());
 
     let mut router = RouterBuilder::new();
     router.add_default(ThreadedResolver::new(CpuPool::new(1)));
