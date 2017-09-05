@@ -37,14 +37,16 @@ pub struct Remote(Arc<RemoteState>);
 struct RemoteState {
     websock_config: Arc<WsConfig>,
     conn: Mutex<Connections>,
+    hostname: String,
 }
 
 
 impl Remote {
-    pub fn new()
+    pub fn new(my_hostname: &str)
         -> Remote
     {
         Remote(Arc::new(RemoteState {
+            hostname: my_hostname.to_string(),
             websock_config: WsConfig::new()
                 .ping_interval(Duration::new(1200, 0)) // no pings
                 .inactivity_timeout(Duration::new(5, 0))
@@ -108,8 +110,7 @@ impl Remote {
             if conn.has_image(id) {
                 conn.notification(ReceivedImage {
                     id: id.clone(),
-                    // TODO(tailhook)
-                    hostname: String::from("localhost"),
+                    hostname: self.0.hostname.clone(),
                     forwarded: false,
                     path: path.clone(),
                 })

@@ -51,6 +51,7 @@ digest-writer = "0.1.0"
 atomic = "0.3.4"
 rand = "0.3.16"
 valuable_futures ="0.1.0"
+hostname = "0.1.3"
 
 [dev-dependencies]
 humantime = "1.0.0"

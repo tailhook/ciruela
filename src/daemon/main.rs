@@ -11,6 +11,7 @@ extern crate env_logger;
 extern crate futures;
 extern crate futures_cpupool;
 extern crate hex;
+extern crate hostname;
 extern crate ns_std_threaded;
 extern crate openat;
 extern crate quire;
@@ -101,6 +102,7 @@ fn main() {
     let mut metadata_threads: usize = 2;
     let mut disk_threads: usize = 8;
     let mut machine_id = None::<machine_id::MachineId>;
+    let mut hostname = hostname::get_hostname();
     let mut log_machine_id = false;
     let mut cantal: bool = false;
     {
@@ -142,6 +144,9 @@ fn main() {
                 file `/etc/machine-id` instead. This should only be used
                 for tests which run multiple nodes in single filesystem
                 image");
+        ap.refer(&mut hostname)
+            .add_option(&["--override-hostname"], StoreOption, "
+                Overrides host name, instead of one provided by the system");
         ap.refer(&mut log_machine_id)
             .add_option(&["--log-machine-id"], StoreTrue, "
                 Adds machine id to the logs, useful for local multi-node
@@ -162,6 +167,7 @@ fn main() {
             }
         }
     };
+    let hostname = hostname.unwrap_or_else(|| String::from("localhost"));
     init_logging(machine_id.clone(), log_machine_id);
 
     let addr = (ip, port).to_socket_addrs().unwrap().next().unwrap();
@@ -201,7 +207,7 @@ fn main() {
         }
     };
 
-    let remote = remote::Remote::new();
+    let remote = remote::Remote::new(&hostname);
 
     let (peers, peers_init) = peers::Peers::new(
         machine_id.clone(),

@@ -137,6 +137,7 @@ commands:
         - --config-base-dir=/work/example-configs3
         - --db-dir=/work/tmp/db1
         - --override-machine-id=77985419c732412ea38b94db00000001
+        - --override-hostname=n1
         - --log-machine-id
       n2: !Command
         container: xenial
@@ -150,6 +151,7 @@ commands:
         - --config-base-dir=/work/example-configs3
         - --db-dir=/work/tmp/db2
         - --override-machine-id=77985419c732412ea38b94db00000002
+        - --override-hostname=n2
         - --log-machine-id
       n3: !Command
         container: xenial
@@ -163,6 +165,7 @@ commands:
         - --config-base-dir=/work/example-configs3
         - --db-dir=/work/tmp/db3
         - --override-machine-id=77985419c732412ea38b94db00000003
+        - --override-hostname=n3
         - --log-machine-id
 
 containers:
