@@ -15,10 +15,9 @@ use futures::Future;
 use futures::sync::mpsc::{unbounded, UnboundedSender, UnboundedReceiver};
 use tk_easyloop::spawn;
 
-use ciruela::{ImageId, VPath};
+use ciruela::{ImageId, VPath, MachineId};
 use config::{Config};
 use disk::Disk;
-use machine_id::MachineId;
 use mask::Mask;
 use named_mutex::Mutex;
 use self::packets::Message;

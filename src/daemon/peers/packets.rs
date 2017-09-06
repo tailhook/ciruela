@@ -1,5 +1,4 @@
-use ciruela::{ImageId, VPath, Hash};
-use machine_id::MachineId;
+use ciruela::{ImageId, VPath, Hash, MachineId};
 use mask::Mask;
 use std::collections::BTreeMap;
 

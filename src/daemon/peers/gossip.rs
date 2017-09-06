@@ -14,8 +14,7 @@ use tokio_core::reactor::Interval;
 use serde::Deserialize;
 use serde_cbor::de::Deserializer;
 
-use ciruela::{VPath, ImageId};
-use machine_id::MachineId;
+use ciruela::{VPath, ImageId, MachineId};
 use mask::Mask;
 use named_mutex::Mutex;
 use peers::Peer;

@@ -22,6 +22,7 @@ extern crate tokio_core;
 #[macro_use] extern crate serde_derive;
 
 mod id;
+mod machine_id;
 mod virtual_path;
 pub mod proto;
 pub mod database;
@@ -29,5 +30,6 @@ pub mod time;
 pub mod serialize;
 
 pub use id::ImageId;
+pub use machine_id::MachineId;
 pub use proto::{Hash, HashBuilder};
 pub use virtual_path::VPath;

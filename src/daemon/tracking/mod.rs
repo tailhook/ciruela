@@ -21,11 +21,10 @@ use futures::sync::mpsc::{unbounded, UnboundedSender, UnboundedReceiver};
 use tk_easyloop::{spawn, timeout};
 
 use ciruela::proto::{AppendDir};
-use ciruela::{ImageId, Hash, VPath};
+use ciruela::{ImageId, Hash, VPath, MachineId};
 use config::{Config};
 use disk::Disk;
 use failure_tracker::{Failures, Policy};
-use machine_id::MachineId;
 use mask::{AtomicMask, Mask};
 use metadata::{Meta};
 use named_mutex::{Mutex, MutexGuard};

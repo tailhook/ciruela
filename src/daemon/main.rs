@@ -49,6 +49,7 @@ use std::sync::Arc;
 
 use abstract_ns::RouterBuilder;
 use argparse::{ArgumentParser, Parse, Store, Print, StoreTrue, StoreOption};
+use ciruela::MachineId;
 use futures_cpupool::CpuPool;
 use ns_std_threaded::ThreadedResolver;
 
@@ -60,7 +61,6 @@ mod disk;
 mod failure_tracker;
 mod http;
 mod index;
-mod machine_id;
 mod mask;
 mod metadata;
 mod named_mutex;
@@ -68,7 +68,7 @@ mod peers;
 mod remote;
 mod tracking;
 
-fn init_logging(mid: machine_id::MachineId, log_mid: bool) {
+fn init_logging(mid: MachineId, log_mid: bool) {
     let format = move |record: &log::LogRecord| {
         if log_mid {
             format!("{} {} [{}] {}: {}", mid, time::now_utc().rfc3339(),
@@ -101,7 +101,7 @@ fn main() {
     let mut ip: IpAddr = "0.0.0.0".parse().unwrap();
     let mut metadata_threads: usize = 2;
     let mut disk_threads: usize = 8;
-    let mut machine_id = None::<machine_id::MachineId>;
+    let mut machine_id = None::<MachineId>;
     let mut hostname = hostname::get_hostname();
     let mut log_machine_id = false;
     let mut cantal: bool = false;
@@ -159,7 +159,7 @@ fn main() {
     let machine_id = if let Some(machine_id) = machine_id {
         machine_id
     } else {
-        match machine_id::MachineId::read() {
+        match MachineId::read() {
             Ok(x) => x,
             Err(e) => {
                 eprintln!("Error reading machine-id: {}", e);
