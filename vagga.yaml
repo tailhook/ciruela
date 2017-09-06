@@ -40,7 +40,8 @@ commands:
     environ: &exenv
       RUST_LOG: "debug,tokio_core=warn,\
         ciruela_server::peers::gossip=info,\
-        ciruela_server::named_mutex=info"
+        ciruela_server::named_mutex=info,\
+        tk_http::websocket::dispatcher=info"
     run:
     - ./target/debug/ciruela-server
     - --config-base-dir=./example-configs

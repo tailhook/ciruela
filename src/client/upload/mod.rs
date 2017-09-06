@@ -16,7 +16,7 @@ use tk_easyloop;
 mod options;
 
 use name;
-use ciruela::{Hash, VPath};
+use ciruela::{Hash, VPath, MachineId};
 use ciruela::time::to_ms;
 use ciruela::proto::{SigData, sign};
 use global_options::GlobalOptions;
@@ -27,13 +27,28 @@ use ciruela::proto::message::Notification;
 
 struct Progress {
     started: SystemTime,
-    hosts_done: Vec<String>,
-    hosts_needed: HashSet<SocketAddr>,
+    hosts_done: HashMap<MachineId, String>,
+    ips_needed: HashSet<SocketAddr>,
+    ids_needed: HashMap<MachineId, String>,
     hosts_errored: HashSet<SocketAddr>,
     done: Option<Sender<()>>,
 }
 
 struct Tracker(SocketAddr, Arc<Mutex<Progress>>);
+
+
+impl Progress {
+    fn hosts_done(&self) -> String {
+        self.hosts_done.values().map(|x| &x[..]).collect::<Vec<_>>().join(", ")
+    }
+    fn add_ids(&mut self, hosts: HashMap<MachineId, String>) {
+        for (id, hostname) in hosts {
+            if !self.hosts_done.contains_key(&id) {
+                self.ids_needed.insert(id, hostname);
+            }
+        }
+    }
+}
 
 impl Listener for Tracker {
     fn notification(&self, n: Notification) {
@@ -42,12 +57,12 @@ impl Listener for Tracker {
             ReceivedImage(img) => {
                 // TODO(tailhook) check image id and path
                 let mut pro = self.1.lock().expect("progress is not poisoned");
-                pro.hosts_done.push(img.hostname);
+                pro.hosts_done.insert(img.machine_id, img.hostname);
                 if !img.forwarded {
-                    pro.hosts_needed.remove(&self.0);
+                    pro.ips_needed.remove(&self.0);
                 }
-                if pro.hosts_needed.len() == 0 {
-                    info!("Fetched from {}", pro.hosts_done.join(", "));
+                if pro.ips_needed.len() == 0 {
+                    info!("Fetched from {}", pro.hosts_done());
                     eprintln!("Fetched from all required hosts. {} total. \
                         Done in {} seconds.",
                         pro.hosts_done.len(),
@@ -57,8 +72,11 @@ impl Listener for Tracker {
                         chan.send(()).expect("sending done");
                     });
                 } else {
-                    eprint!("Fetched from {}\r",
-                        pro.hosts_done.join(", "));
+                    eprint!("Fetched from ({}/{}) {}\r",
+                        pro.hosts_done.len(),
+                        pro.hosts_done.len() +
+                            pro.ids_needed.len() + pro.ips_needed.len(),
+                        pro.hosts_done());
                 }
             }
             _ => {}
@@ -69,9 +87,9 @@ impl Listener for Tracker {
         let mut pro = self.1.lock().expect("progress is not poisoted");
         if pro.done.is_some() {
             error!("Connection to {} is closed", self.0);
-            pro.hosts_needed.remove(&self.0);
+            pro.ips_needed.remove(&self.0);
             pro.hosts_errored.insert(self.0);
-            if pro.hosts_needed.len() == 0 {
+            if pro.ips_needed.len() == 0 {
                 pro.done.take().map(|chan| {
                     chan.send(()).ok();
                 });
@@ -149,8 +167,9 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
     let done_rx = done_rx.shared();
     let progress = Arc::new(Mutex::new(Progress {
         started: SystemTime::now(),
-        hosts_done: Vec::new(),
-        hosts_needed: HashSet::new(),
+        hosts_done: HashMap::new(),
+        ips_needed: HashSet::new(),
+        ids_needed: HashMap::new(),
         hosts_errored: HashSet::new(),
         done: Some(done_tx),
     }));
@@ -189,10 +208,11 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                             let pool = pool.clone();
                             let progress = progress.clone();
                             let progress2 = progress.clone();
+                            let progress3 = progress.clone();
                             let tracker = Tracker(addr,
                                                   progress.clone());
                             progress.lock().expect("progress is ok")
-                                .hosts_needed.insert(addr);
+                                .ips_needed.insert(addr);
                             let done_rx = done_rx.clone();
                             Client::spawn(addr, &host, &pool, tracker)
                             .and_then(move |mut cli| {
@@ -210,7 +230,10 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                                     })
                                     .map(move |resp| {
                                         info!("Response from {}: {:?}",
-                                            addr, resp);
+                                            addr, resp.accepted);
+                                        progress3.lock()
+                                            .expect("progress is ok")
+                                            .add_ids(resp.hosts);
                                         resp.accepted
                                     })
                                     .map_err(|e|
@@ -226,7 +249,10 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                                     })
                                     .map(move |resp| {
                                         info!("Response from {}: {:?}",
-                                            addr, resp);
+                                            addr, resp.accepted);
+                                        progress3.lock()
+                                            .expect("progress is ok")
+                                            .add_ids(resp.hosts);
                                         resp.accepted
                                     })
                                     .map_err(|e|
@@ -236,7 +262,7 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                             .and_then(move |accepted| {
                                 if !accepted {
                                     progress.lock().expect("progress is ok")
-                                        .hosts_needed.remove(&addr);
+                                        .ips_needed.remove(&addr);
                                     error!("Upload rejected by {} / {}",
                                         host, addr);
                                     Either::A(ok(false))
@@ -258,7 +284,7 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                                 Ok(x) => Ok(x),
                                 Err(()) => {
                                     progress2.lock().expect("progress is ok")
-                                        .hosts_needed.remove(&addr);
+                                        .ips_needed.remove(&addr);
                                     // Always succeed, for now, so join will
                                     // drive all the futures, even if one
                                     // failed

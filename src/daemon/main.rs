@@ -207,7 +207,7 @@ fn main() {
         }
     };
 
-    let remote = remote::Remote::new(&hostname);
+    let remote = remote::Remote::new(&hostname, &machine_id);
 
     let (peers, peers_init) = peers::Peers::new(
         machine_id.clone(),

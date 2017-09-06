@@ -1,6 +1,7 @@
+use std::collections::HashMap;
 use std::time::SystemTime;
 
-use {ImageId, VPath};
+use {ImageId, VPath, MachineId};
 use proto::{Signature, SigData, Request, Response};
 use serialize::timestamp;
 use time::to_ms;
@@ -28,11 +29,13 @@ pub struct ReplaceDir {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AppendDirAck {
     pub accepted: bool,
+    pub hosts: HashMap<MachineId, String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ReplaceDirAck {
     pub accepted: bool,
+    pub hosts: HashMap<MachineId, String>,
 }
 
 impl AppendDir {

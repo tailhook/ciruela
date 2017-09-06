@@ -3,8 +3,8 @@ use std::fmt;
 use serde_bytes;
 
 use proto::request::Notification;
-use {ImageId, VPath};
 use proto::{Request, Response};
+use {ImageId, VPath, MachineId};
 
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -22,6 +22,7 @@ impl Notification for PublishImage {
 pub struct ReceivedImage {
     pub id: ImageId,
     pub path: VPath,
+    pub machine_id: MachineId,
     pub hostname: String,
     pub forwarded: bool,
 }

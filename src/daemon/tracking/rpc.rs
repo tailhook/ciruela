@@ -35,6 +35,7 @@ impl Tracking {
         if !self.0.config.dirs.contains_key(cmd.path.key()) {
             resp.respond_now(AppendDirAck {
                 accepted: false,
+                hosts: self.0.peers.servers_by_basedir(&cmd.path.parent()),
             });
             return;
         };
@@ -43,19 +44,22 @@ impl Tracking {
         let image_id = cmd.image.clone();
         resp.respond_with_future(self.0.meta.append_dir(cmd)
             .map(move |result| {
-            if result.new {
-                tracking.fetch_dir(path, image_id, false);
-            }
-            AppendDirAck {
-                accepted: result.accepted,
-            }
-        }));
+                let parent = path.parent();
+                if result.new {
+                    tracking.fetch_dir(path, image_id, false);
+                }
+                AppendDirAck {
+                    accepted: result.accepted,
+                    hosts: tracking.0.peers.servers_by_basedir(&parent),
+                }
+            }));
     }
     pub fn replace_dir(&self, cmd: ReplaceDir, resp: Responder<ReplaceDirAck>)
     {
         if !self.0.config.dirs.contains_key(cmd.path.key()) {
             resp.respond_now(ReplaceDirAck {
                 accepted: false,
+                hosts: self.0.peers.servers_by_basedir(&cmd.path.parent()),
             });
             return;
         };
@@ -64,13 +68,15 @@ impl Tracking {
         let image_id = cmd.image.clone();
         resp.respond_with_future(self.0.meta.replace_dir(cmd)
             .map(move |result| {
-            if result.new {
-                tracking.fetch_dir(path, image_id, true);
-            }
-            ReplaceDirAck {
-                accepted: result.accepted,
-            }
-        }));
+                let parent = path.parent();
+                if result.new {
+                    tracking.fetch_dir(path, image_id, true);
+                }
+                ReplaceDirAck {
+                    accepted: result.accepted,
+                    hosts: tracking.0.peers.servers_by_basedir(&parent),
+                }
+            }));
     }
     pub fn get_block(&self, cmd: GetBlock, resp: Responder<GetBlockResponse>)
 

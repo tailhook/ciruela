@@ -10,7 +10,7 @@ use std::time::{Duration};
 
 use ciruela::proto::{ReceivedImage};
 use ciruela::proto::{Registry};
-use ciruela::{ImageId, VPath};
+use ciruela::{ImageId, VPath, MachineId};
 use failure_tracker::HostFailures;
 use named_mutex::{Mutex, MutexGuard};
 use remote::outgoing::connect;
@@ -38,15 +38,17 @@ struct RemoteState {
     websock_config: Arc<WsConfig>,
     conn: Mutex<Connections>,
     hostname: String,
+    machine_id: MachineId,
 }
 
 
 impl Remote {
-    pub fn new(my_hostname: &str)
+    pub fn new(my_hostname: &str, my_id: &MachineId)
         -> Remote
     {
         Remote(Arc::new(RemoteState {
             hostname: my_hostname.to_string(),
+            machine_id: my_id.clone(),
             websock_config: WsConfig::new()
                 .ping_interval(Duration::new(1200, 0)) // no pings
                 .inactivity_timeout(Duration::new(5, 0))
@@ -111,6 +113,7 @@ impl Remote {
                 conn.notification(ReceivedImage {
                     id: id.clone(),
                     hostname: self.0.hostname.clone(),
+                    machine_id: self.0.machine_id.clone(),
                     forwarded: false,
                     path: path.clone(),
                 })

@@ -110,12 +110,23 @@ Content of the message is a dictionary (CBOR object):
     }
     append-dir-response = {
         accepted: bool,             ; whether directory accepted or not
+        ? hosts: {* bytes => text}, ; hosts that will probably accept the
+                                    ; directory
     }
 
 Note: *accepted* response here doesn't mean that this is new directory (i.e.
 same directory might already be in place or might still be downloaded). Also
 it doesn't mean that download is already complete. Most probably it isn't,
 and you should wait for a completion notification.
+
+The ``hosts`` field may or may be not sent both in case of ``accepted`` is
+true or not. In the latter case, it might be useful to reconnect to one of
+these hosts. In the former case, we can track ``ReceiveImage`` messages from
+all these hosts. Note: we transmit machine ids (key in mapping) and host
+names. Client should track notifications by machine_id, but may use name for
+human-readable output. Note2: while in most cases ``hosts`` will be exhaustive
+list for all clusters it may be not so, if not is just restarted and has not
+picked up all the data in gossip subsystem.
 
 
 ReplaceDir
@@ -145,11 +156,16 @@ connection for the index data itself and subsequently asks for missing chunks
         signatures: [+ signature],  ; one or more signatures
     }
     replace-dir-response = {
-        ; TODO(tailhook) figure out
+        accepted: bool,             ; whether directory accepted or not
+        ? hosts: {* bytes => text}, ; hosts that will probably accept the
+                                    ; directory
     }
 
 Note: if no ``old_image`` is specified the destination directory is not
 checked. Use ``AppendDir`` to atomically update first image.
+
+
+See :ref:`AppendDir` for the explanation of ``hosts`` usage.
 
 
 PublishImage
@@ -190,6 +206,7 @@ disconnect from the network and also to display progress.
         id: bytes,               ; binary hashsum of the image (bottom line
                                  ; of the index file but in binary form)
         path: text,              ; path where image was stored
+        machine_id: bytes,       ; machine-id of the receiver
         hostname: string,        ; hostname of the receiver
         forwarded: bool,         ; whether message originated from this host
                                  ; or forwarded

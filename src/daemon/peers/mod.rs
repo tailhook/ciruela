@@ -111,6 +111,19 @@ impl Peers {
         })
         .unwrap_or_else(Vec::new)
     }
+    pub fn servers_by_basedir(&self, vpath: &VPath)
+        -> HashMap<MachineId, String>
+    {
+        self.dir_peers.lock().get(vpath)
+        .map(|ids| {
+            let peers = self.peers.get();
+            ids.iter()
+                .filter_map(|id| peers.get(id)
+                    .map(|x| (id.clone(), x.name.clone())))
+                .collect()
+        })
+        .unwrap_or_else(HashMap::new)
+    }
 }
 
 pub fn start(me: PeersInit, addr: SocketAddr,
