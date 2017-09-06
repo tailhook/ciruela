@@ -1,6 +1,5 @@
 use std::ops::{Deref, DerefMut};
 use std::sync::{Mutex as StdMutex, MutexGuard as StdGuard};
-use std::sync::{TryLockError};
 
 
 #[derive(Debug)]
