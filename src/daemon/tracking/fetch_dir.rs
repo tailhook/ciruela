@@ -61,7 +61,10 @@ fn fetch_blocks(sys: Subsystem, image: Arc<Image>, cmd: Arc<Downloading>)
             sys1.disk.commit_image(image)
             .map_err(|e| {
                 error!("Error commiting image: {}", e);
-                unimplemented!();
+                // TODO(tailhook) drop image and start over?
+                //                find out which error?
+                //                wait and retry?
+                ::std::process::exit(104);
             })
         })
         .map(move |()| {

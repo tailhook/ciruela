@@ -49,7 +49,9 @@ pub fn sign(src: SigData, keys: &[PrivateKey]) -> Vec<Signature> {
                 Signature::SshEd25519(ed25519::signature(&buf[..], &bytes[..]))
             }
             _ => {
-                unimplemented!();
+                // TODO(tailhook) propagate error somehow
+                error!("Unimplemented signature kind {:?}", key);
+                ::std::process::exit(101);
             }
         };
         res.push(signature);

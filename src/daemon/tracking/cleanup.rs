@@ -116,8 +116,11 @@ pub fn spawn_loop(rx: UnboundedReceiver<Command>, sys: &Subsystem) {
                 }
             }
         })
-        .map_err(|_| {
-            unimplemented!();
+        .map_err(|()| {
+            error!("Cleanup fatal error");
+            // TODO(tailhook) sleep and retry?
+            // or is it fatal?
+            ::std::process::exit(103);
         })
         .for_each(|f|
             f.and_then(|()| timeout(Duration::new(10, 0))

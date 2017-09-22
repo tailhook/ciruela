@@ -111,7 +111,7 @@ impl StateMachine for FetchBlock {
                             error!("Block write error: {}", e);
                             // TODO(tailhook) sleep and retry?
                             // or is it fatal?
-                            unimplemented!();
+                            ::std::process::exit(102);
                             // return Err(());
                         }
                     }
