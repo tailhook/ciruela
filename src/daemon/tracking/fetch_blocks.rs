@@ -128,7 +128,15 @@ impl Future for FetchBlocks {
     fn poll(&mut self) -> Result<Async<()>, ()> {
         use self::FetchBlock::Fetching;
 
-        self.retry_timeout.take();
+        if let Some(mut timeout) = self.retry_timeout.take() {
+            match timeout.poll().expect("timeout never fails") {
+                Async::Ready(()) => {},
+                Async::NotReady => {
+                    self.retry_timeout = Some(timeout);
+                    return Ok(Async::NotReady);
+                }
+            }
+        }
         'outer: loop {
             for _ in 0 .. self.futures.len() {
                 match self.futures.pop_front() {
