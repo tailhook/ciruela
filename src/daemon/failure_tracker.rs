@@ -52,7 +52,7 @@ impl<K: Copy + Eq + Hash, P: Policy> Failures<K, P> {
                 subsequent: 0,
                 last: Instant::now(),
             });
-        entry.subsequent.saturating_add(1);
+        entry.subsequent = entry.subsequent.saturating_add(1);
         entry.last = Instant::now();
     }
     pub fn reset(&mut self, name: K) {
