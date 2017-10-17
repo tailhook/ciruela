@@ -111,6 +111,12 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
             // TODO(tailhook) consume multiple signatures
             let image_id = rstate.image;
             if let Some(old_state) = local.dirs.remove(&name) {
+                if old_state.signatures.iter()
+                    .any(|s| s.timestamp < sig.timestamp)
+                {
+                    trace!("Peer image {} is older than ours", image_id);
+                    continue;
+                }
                 debug!("Replacing {:?}", vpath);
                 {
                     let state = &mut *sys.state();
