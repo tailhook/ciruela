@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use scan_dir::ScanDir;
 use quire::validate::{Directory as Dir, Structure, Numeric, Scalar, Sequence};
-use quire::{parse_config, Options, ErrorList, De};
+use quire::{parse_config, Options, ErrorList};
 
 
 pub struct Config {
@@ -16,7 +16,7 @@ pub struct Config {
 }
 
 
-#[derive(Debug, RustcDecodable)]
+#[derive(Debug, Deserialize)]
 pub struct Directory {
     pub directory: PathBuf,
     pub append_only: bool,
@@ -27,7 +27,8 @@ pub struct Directory {
     pub keep_list_file: Option<PathBuf>,
     pub keep_min_directories: usize,
     pub keep_max_directories: usize,
-    pub keep_recent: De<Duration>,
+    #[serde(with="::quire::duration")]
+    pub keep_recent: Duration,
 }
 
 fn directory_validator<'x>() -> Structure<'x> {
@@ -60,7 +61,7 @@ pub fn read_dirs(path: &Path)
             let name = fname[..fname.len() - 5].to_string();
             let config = parse_config(entry.path(),
                 &validator, &Options::default())?;
-            res.insert(name, config);
+            res.insert(name, Arc::new(config));
         }
         Ok::<_, ErrorList>(res)
     }).map_err(|e| e.to_string()).and_then(|v| v.map_err(|e| e.to_string()))

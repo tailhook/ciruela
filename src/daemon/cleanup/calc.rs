@@ -48,7 +48,7 @@ pub fn sort_out(config: &Arc<Directory>, items: Vec<Image>,
         return result;
     }
     let mut candidates = vec![];
-    let min_time = SystemTime::now() - *config.keep_recent;
+    let min_time = SystemTime::now() - config.keep_recent;
     for img in items.into_iter() {
         if biggest_timestamp(&img) >= min_time {
             result.used.push(img);
@@ -95,7 +95,6 @@ mod test {
     use std::sync::Arc;
     use std::time::SystemTime;
     use humantime::parse_duration;
-    use quire::De;
     use rand::{thread_rng, Rng};
     use config::Directory;
     use super::{sort_out, Image, Sorted};
@@ -114,7 +113,7 @@ mod test {
             keep_list_file: None,  // doesn't matter
             keep_min_directories: min,
             keep_max_directories: max,
-            keep_recent: De::from(parse_duration(rec).unwrap()),
+            keep_recent: parse_duration(rec).unwrap(),
         })
     }
 
@@ -139,8 +138,7 @@ mod test {
     }
 
     fn state_at(from_now: &str) -> State {
-        let time = SystemTime::now() -
-            *De::from(parse_duration(from_now).unwrap());
+        let time = SystemTime::now() - parse_duration(from_now).unwrap();
         State {
             image: id(),
             signatures: vec![SignatureEntry {

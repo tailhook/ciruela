@@ -17,7 +17,6 @@ extern crate openat;
 extern crate quire;
 extern crate rand;
 extern crate regex;
-extern crate rustc_serialize;
 extern crate scan_dir;
 extern crate serde;
 extern crate serde_cbor;

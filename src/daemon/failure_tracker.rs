@@ -47,7 +47,7 @@ impl<K: Copy + Eq + Hash> Failures<K, DefaultPolicy> {
 
 impl<K: Copy + Eq + Hash, P: Policy> Failures<K, P> {
     pub fn add_failure(&mut self, name: K) {
-        let mut entry = self.items.entry(name)
+        let entry = self.items.entry(name)
             .or_insert(Failure {
                 subsequent: 0,
                 last: Instant::now(),

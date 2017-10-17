@@ -66,7 +66,7 @@ impl BaseDir {
     pub fn commit_scan(dir_data: BaseDirState, config: &Arc<Directory>,
         scan_time: Instant, sys: &Subsystem)
     {
-        let mut state = &mut *sys.state();
+        let state = &mut *sys.state();
         let ref mut lst = state.base_dir_list;
         let hash = Hash::for_object(&dir_data.dirs);
         let down = state.in_progress.iter()

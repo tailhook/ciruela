@@ -22,6 +22,6 @@ pub fn get_hash(cfg: &Arc<Directory>) -> Hash {
         auto_clean: cfg.auto_clean,
         keep_min_directories: cfg.keep_min_directories,
         keep_max_directories: cfg.keep_max_directories,
-        keep_recent: *cfg.keep_recent,
+        keep_recent: cfg.keep_recent,
     })
 }
