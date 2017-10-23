@@ -120,6 +120,7 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
     let image_id = get_hash(&mut io::Cursor::new(&indexbuf))
         .expect("hash valid in just created index")
         .into();
+    println!("Uploading image {}", image_id);
     let (blocks, block_size) = {
         let ref mut cur = io::Cursor::new(&indexbuf);
         let mut parser = v1::Parser::new(cur)
