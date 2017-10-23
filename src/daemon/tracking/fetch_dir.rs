@@ -42,6 +42,9 @@ pub fn start(sys: &Subsystem, cmd: Downloading) {
                     Err(e) => {
                         error!("Can't start image {:?}: {}",
                             cmd.virtual_path, e);
+                        // TODO(tailhook) should we crash here?
+                        //                the problem is we're
+                        //                still occuping entry in `writing`
                     }
                 }
                 Ok(())
@@ -49,6 +52,9 @@ pub fn start(sys: &Subsystem, cmd: Downloading) {
         Ok(())
     }).map_err(|e| {
         error!("Error fetching index: {}", e);
+        // TODO(tailhook) should we crash here?
+        //                the problem is we're still
+        //                occuping entry in `writing`
     }));
 }
 
