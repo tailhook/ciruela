@@ -168,6 +168,8 @@ fn main() {
     };
     let hostname = hostname.unwrap_or_else(|| String::from("localhost"));
     init_logging(machine_id.clone(), log_machine_id);
+    warn!("Starting version {}, id {}",
+        env!("CARGO_PKG_VERSION"), machine_id);
 
     let addr = (ip, port).to_socket_addrs().unwrap().next().unwrap();
     let config = match config::read_dirs(&config_dir.join("configs")) {
@@ -216,7 +218,6 @@ fn main() {
 
     let (tracking, tracking_init) = tracking::Tracking::new(&config,
         &meta, &disk, &remote, &peers);
-
 
     tk_easyloop::run_forever(|| -> Result<(), Box<Error>> {
         http::start(addr, &remote, &tracking)?;
