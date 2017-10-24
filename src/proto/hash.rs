@@ -32,6 +32,11 @@ impl Hash {
         dig.object(obj);
         return dig.done();
     }
+    pub fn for_bytes(bytes: &[u8]) -> Hash {
+        let mut dig = Hash::builder();
+        dig.input(bytes);
+        return dig.done();
+    }
 }
 
 pub trait Builder: io::Write {

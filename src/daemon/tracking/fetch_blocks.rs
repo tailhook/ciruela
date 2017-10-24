@@ -9,6 +9,7 @@ use valuable_futures::{StateMachine, Async as VAsync};
 use tokio_core::reactor::Timeout;
 use tk_easyloop::timeout;
 
+use ciruela::Hash;
 use ciruela::proto::{RequestFuture, GetBlock, GetBlockResponse};
 use ciruela::proto::{RequestClient};
 use tracking::progress::{Downloading, Block};
@@ -65,23 +66,38 @@ impl StateMachine for FetchBlock {
             state = match state {
                 Fetching(blk, slice, addr, mut f) => {
                     match f.poll() {
-                        Ok(Async::Ready(data)) => {
-                            for s in ctx.downloading.slices().iter_mut() {
-                                if s.index == slice {
-                                    s.in_progress -= 1;
-                                }
-                            }
-                            let data = Arc::new(data.data);
-                            ctx.downloading.report_block(&data);
-                            Writing(ctx.sys.disk.write_block(
-                                ctx.image.clone(),
-                                blk.path.clone(),
-                                blk.offset,
-                                data))
-                        }
                         Ok(Async::NotReady) => {
                             return Ok(VAsync::NotReady(
                                 Fetching(blk, slice, addr, f)));
+                        }
+                        Ok(Async::Ready(data)) => {
+                            if Hash::for_bytes(&data.data) == blk.hash {
+                                for s in ctx.downloading.slices().iter_mut() {
+                                    if s.index == slice {
+                                        s.in_progress -= 1;
+                                    }
+                                }
+                                let data = Arc::new(data.data);
+                                ctx.downloading.report_block(&data);
+                                Writing(ctx.sys.disk.write_block(
+                                    ctx.image.clone(),
+                                    blk.path.clone(),
+                                    blk.offset,
+                                    data))
+                            } else {
+                                error!("Wrong checksum \
+                                    when reading block {:?}",
+                                    blk);
+                                for s in ctx.downloading.slices().iter_mut() {
+                                    if s.index == slice {
+                                        s.in_progress -= 1;
+                                        s.blocks.push_back(blk);
+                                        s.failures.add_failure(addr);
+                                        break;
+                                    }
+                                }
+                                return Err(());
+                            }
                         }
                         Err(e) => {
                             for s in ctx.downloading.slices().iter_mut() {
