@@ -139,11 +139,14 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
                         signatures: vec![sig.signature],
                     }).then(move |result| {
                         match result {
-                            Ok(Upload { accepted: true, new: true }) => {
+                            Ok(Upload { accepted: true, new: true, .. }) => {
                                 sys.tracking.fetch_dir(
                                     vpath, image_id, true);
                             }
-                            Ok(Upload {..}) => {} // TODO(tailhook) log?
+                            Ok(Upload { reject_reason, ..}) => {
+                                error!("Error reconciling {:?}: {}",
+                                    vpath, reject_reason.unwrap_or("(???)"));
+                            }
                             Err(e) => {
                                 error!("Error reconciling {:?}: {}",
                                     vpath, e);
@@ -161,11 +164,14 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
                         signatures: vec![sig.signature],
                     }).then(move |result| {
                         match result {
-                            Ok(Upload { accepted: true, new: true }) => {
+                            Ok(Upload { accepted: true, new: true, .. }) => {
                                 sys.tracking.fetch_dir(
                                     vpath, image_id, false);
                             }
-                            Ok(Upload {..}) => {} // TODO(tailhook) log?
+                            Ok(Upload { reject_reason, ..}) => {
+                                error!("Error reconciling {:?}: {}",
+                                    vpath, reject_reason.unwrap_or("(???)"));
+                            }
                             Err(e) => {
                                 error!("Error reconciling {:?}: {}",
                                     vpath, e);

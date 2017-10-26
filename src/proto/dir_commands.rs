@@ -29,12 +29,14 @@ pub struct ReplaceDir {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AppendDirAck {
     pub accepted: bool,
+    pub reject_reason: Option<String>,
     pub hosts: HashMap<MachineId, String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ReplaceDirAck {
     pub accepted: bool,
+    pub reject_reason: Option<String>,
     pub hosts: HashMap<MachineId, String>,
 }
 

@@ -20,6 +20,7 @@ use metadata::{Meta, Error};
 #[derive(Debug, Clone, Copy)]
 pub struct Upload {
     pub accepted: bool,
+    pub reject_reason: Option<&'static str>,
     /// set to true to singal `tracking` that it should start a directory
     pub new: bool,
 }
@@ -69,7 +70,11 @@ pub fn start_append(params: AppendDir, meta: &Meta)
     if !check_keys(&params.sig_data(), &params.signatures, config, meta)? {
         warn!("{:?} has no valid signatures. Upload-keys: {:?}",
               params, config.upload_keys);
-        return Ok(Upload { accepted: false, new: false });
+        return Ok(Upload {
+            accepted: false,
+            reject_reason: Some("signature_mismatch"),
+            new: false,
+        });
     }
 
     let dir = meta.signatures()?.ensure_dir(vpath.parent_rel())?;
@@ -94,7 +99,12 @@ pub fn start_append(params: AppendDir, meta: &Meta)
                     e.insert(state.clone());
                     (state, true)
                 } else {
-                    return Ok(Upload { accepted: false, new: false });
+                    return Ok(Upload {
+                        accepted: false,
+                        reject_reason:
+                            Some("already_uploading_different_version"),
+                        new: false,
+                    });
                 }
             } else {
                 let state = Arc::new(State {
@@ -114,14 +124,18 @@ pub fn start_append(params: AppendDir, meta: &Meta)
                 }
                 (old_state.clone(), false)
             } else {
-                return Ok(Upload { accepted: false, new: false });
+                return Ok(Upload {
+                    accepted: false,
+                    reject_reason: Some("already_exists"),
+                    new: false,
+                });
             }
         }
     };
     dir.replace_file(&state_file, |file| {
         state.serialize(&mut Cbor::new(BufWriter::new(file)))
     })?;
-    Ok(Upload { accepted: true, new: new })
+    Ok(Upload { accepted: true, reject_reason: None, new: new })
 }
 
 pub fn start_replace(params: ReplaceDir, meta: &Meta)
@@ -137,11 +151,19 @@ pub fn start_replace(params: ReplaceDir, meta: &Meta)
         return Err(Error::PathNotFound(vpath));
     };
     if config.append_only {
-        return Ok(Upload { accepted: false, new: false});
+        return Ok(Upload {
+            accepted: false,
+            reject_reason: Some("dir_is_append_only"),
+            new: false,
+        });
     }
 
     if !check_keys(&params.sig_data(), &params.signatures, config, meta)? {
-        return Ok(Upload { accepted: false, new: false});
+        return Ok(Upload {
+            accepted: false,
+            reject_reason: Some("signature_mismatch"),
+            new: false,
+        });
     }
 
     let dir = meta.signatures()?.ensure_dir(vpath.parent_rel())?;
@@ -193,12 +215,17 @@ pub fn start_replace(params: ReplaceDir, meta: &Meta)
                 // TODO(tailhook) stop fetching image, delete and
                 // start replacing
                 warn!("Replace is rejected because already in progress");
-                return Ok(Upload { accepted: false, new: false});
+                return Ok(Upload {
+                    accepted: false,
+                    reject_reason:
+                        Some("already_uploading_different_version"),
+                    new: false,
+                });
             }
         }
     };
     dir.replace_file(&state_file, |file| {
         state.serialize(&mut Cbor::new(BufWriter::new(file)))
     })?;
-    Ok(Upload { accepted: true, new: new })
+    Ok(Upload { accepted: true, reject_reason: None, new: new })
 }

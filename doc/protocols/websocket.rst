@@ -110,6 +110,7 @@ Content of the message is a dictionary (CBOR object):
     }
     append-dir-response = {
         accepted: bool,             ; whether directory accepted or not
+        ? reject_reason: text,      ; a machine-parseable reason for rejection
         ? hosts: {* bytes => text}, ; hosts that will probably accept the
                                     ; directory
     }
@@ -157,6 +158,7 @@ connection for the index data itself and subsequently asks for missing chunks
     }
     replace-dir-response = {
         accepted: bool,             ; whether directory accepted or not
+        ? reject_reason: text,      ; a machine-parseable reason for rejection
         ? hosts: {* bytes => text}, ; hosts that will probably accept the
                                     ; directory
     }

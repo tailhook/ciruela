@@ -35,6 +35,7 @@ impl Tracking {
         if !self.0.config.dirs.contains_key(cmd.path.key()) {
             resp.respond_now(AppendDirAck {
                 accepted: false,
+                reject_reason: Some("no_config".into()),
                 hosts: self.0.peers.servers_by_basedir(&cmd.path.parent()),
             });
             return;
@@ -50,6 +51,7 @@ impl Tracking {
                 }
                 AppendDirAck {
                     accepted: result.accepted,
+                    reject_reason: result.reject_reason.map(Into::into),
                     hosts: tracking.0.peers.servers_by_basedir(&parent),
                 }
             }));
@@ -59,6 +61,7 @@ impl Tracking {
         if !self.0.config.dirs.contains_key(cmd.path.key()) {
             resp.respond_now(ReplaceDirAck {
                 accepted: false,
+                reject_reason: Some("no_config".into()),
                 hosts: self.0.peers.servers_by_basedir(&cmd.path.parent()),
             });
             return;
@@ -74,6 +77,7 @@ impl Tracking {
                 }
                 ReplaceDirAck {
                     accepted: result.accepted,
+                    reject_reason: result.reject_reason.map(Into::into),
                     hosts: tracking.0.peers.servers_by_basedir(&parent),
                 }
             }));

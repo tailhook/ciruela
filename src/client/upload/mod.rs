@@ -235,7 +235,7 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                                         progress3.lock()
                                             .expect("progress is ok")
                                             .add_ids(resp.hosts);
-                                        resp.accepted
+                                        (resp.accepted, resp.reject_reason)
                                     })
                                     .map_err(|e|
                                         error!("Request error: {}", e)))
@@ -254,18 +254,20 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                                         progress3.lock()
                                             .expect("progress is ok")
                                             .add_ids(resp.hosts);
-                                        resp.accepted
+                                        (resp.accepted, resp.reject_reason)
                                     })
                                     .map_err(|e|
                                         error!("Request error: {}", e)))
                                 }
                             })
-                            .and_then(move |accepted| {
+                            .and_then(move |(accepted, reason)| {
                                 if !accepted {
                                     progress.lock().expect("progress is ok")
                                         .ips_needed.remove(&addr);
-                                    error!("Upload rejected by {} / {}",
-                                        host, addr);
+                                    error!("Upload rejected by {} / {}: {}",
+                                        host, addr,
+                                        reason.as_ref().map(|x| &x[..])
+                                            .unwrap_or("(???)"));
                                     Either::A(ok(false))
                                 } else {
                                     Either::B(done_rx.clone()
