@@ -14,7 +14,7 @@ categories = [
     ]
 homepage = "http://github.com/tailhook/ciruela"
 documentation = "https://tailhook.github.io/ciruela/"
-version = "0.2.4"
+version = "0.2.5"
 authors = ["paul@colomiets.name"]
 
 [dependencies]
