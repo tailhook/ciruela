@@ -4,7 +4,7 @@ use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
-use argparse::{ArgumentParser, ParseOption, Collect, StoreTrue};
+use argparse::{ArgumentParser, ParseOption, Collect, StoreTrue, StoreFalse};
 use ssh_keys::PrivateKey;
 use ssh_keys::openssh::parse_private_key;
 
@@ -22,6 +22,7 @@ pub struct UploadOptions {
     pub key_vars: Vec<String>,
     pub private_keys: Vec<PrivateKey>,
     pub replace: bool,
+    pub fail_on_conflict: bool,
 }
 
 fn keys_from_file(filename: &Path, allow_non_existent: bool,
@@ -74,6 +75,7 @@ impl UploadOptions {
             private_keys: Vec::new(),
             target_urls: Vec::new(),
             replace: false,
+            fail_on_conflict: true,
         }
     }
     pub fn define<'x, 'y>(&'x mut self, ap: &'y mut ArgumentParser<'x>) {
@@ -107,6 +109,19 @@ impl UploadOptions {
                 If neither `-i` nor `-k` options present, default ssh keys
                 and `CIRUELA_KEY` environment variable are used if present.
                 Useful for CI systems.
+            ");
+        ap.refer(&mut self.fail_on_conflict)
+            .add_option(&["-x", "--no-fail-on-confict"], StoreFalse, "
+                If reason of rejection is `already_exists` or
+                `already_uploading_different_version` treat this reason as
+                successful upload rather than error. This is mean for the
+                cases where you rebuild images with right version (directory
+                name) but it has different hash of contents (build is not
+                entirely reproducible). Usually it's fine having any of the
+                version for this directory (instead of failing).
+
+                Note: this should not be used if you don't have version
+                number/hash in directory name, this is why it's not default.
             ");
     }
     pub fn finalize(mut self) -> Result<UploadOptions, i32> {

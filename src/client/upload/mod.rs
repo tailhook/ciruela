@@ -102,6 +102,14 @@ fn is_ok(pro: &Arc<Mutex<Progress>>) -> bool {
     pro.lock().expect("progress is ok").hosts_errored.len() == 0
 }
 
+fn is_conflict_reason(reason: &Option<String>) -> bool {
+    match reason.as_ref().map(|x| &x[..]) {
+        Some("already_exists") => true,
+        Some("already_uploading_different_version") => true,
+        _ => false,
+    }
+}
+
 fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
     -> Result<bool, ()>
 {
@@ -175,6 +183,7 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
         done: Some(done_tx),
     }));
     let replace = opt.replace;
+    let fail_on_conflict = opt.fail_on_conflict;
 
     tk_easyloop::run(|| {
         let resolver = name::resolver();
@@ -264,11 +273,22 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                                 if !accepted {
                                     progress.lock().expect("progress is ok")
                                         .ips_needed.remove(&addr);
-                                    error!("Upload rejected by {} / {}: {}",
-                                        host, addr,
-                                        reason.as_ref().map(|x| &x[..])
-                                            .unwrap_or("(???)"));
-                                    Either::A(ok(false))
+                                    if !fail_on_conflict &&
+                                       is_conflict_reason(&reason)
+                                    {
+                                        info!("Upload rejected by {} / {}: \
+                                            {}, but that's okay.",
+                                            host, addr,
+                                            reason.as_ref().map(|x| &x[..])
+                                                .unwrap_or("(???)"));
+                                        Either::A(ok(true))
+                                    } else {
+                                        error!("Upload rejected by {} / {}: {}",
+                                            host, addr,
+                                            reason.as_ref().map(|x| &x[..])
+                                                .unwrap_or("(???)"));
+                                        Either::A(ok(false))
+                                    }
                                 } else {
                                     Either::B(done_rx.clone()
                                         .then(move |v| match v {
