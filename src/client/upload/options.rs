@@ -111,7 +111,7 @@ impl UploadOptions {
                 Useful for CI systems.
             ");
         ap.refer(&mut self.fail_on_conflict)
-            .add_option(&["-x", "--no-fail-on-confict"], StoreFalse, "
+            .add_option(&["-x", "--no-fail-on-conflict"], StoreFalse, "
                 If reason of rejection is `already_exists` or
                 `already_uploading_different_version` treat this reason as
                 successful upload rather than error. This is mean for the
