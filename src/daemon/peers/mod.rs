@@ -9,10 +9,10 @@ use std::path::{PathBuf};
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use abstract_ns::{Router};
 use crossbeam::sync::ArcCell;
 use futures::Future;
 use futures::sync::mpsc::{unbounded, UnboundedSender, UnboundedReceiver};
+use ns_router::Router;
 use tk_easyloop::spawn;
 
 use ciruela::{ImageId, VPath, MachineId};

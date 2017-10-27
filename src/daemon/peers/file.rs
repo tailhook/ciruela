@@ -4,9 +4,9 @@ use std::collections::HashMap;
 
 use disk::Disk;
 
-use abstract_ns::{Router, Resolver};
 use futures::{Future, Stream};
 use futures::stream::iter_ok;
+use ns_router::Router;
 
 
 pub fn read_peers(peer_file: PathBuf, disk: &Disk,
@@ -24,7 +24,7 @@ pub fn read_peers(peer_file: PathBuf, disk: &Disk,
             }
             iter_ok(lst.into_iter())
                 .map(move |host|
-                    router.resolve(&format!("{}:{}", host, port))
+                    router.resolve_auto(&host, port)
                     .then(move |res| {
                     match res {
                         Ok(addr) => match addr.pick_one() {

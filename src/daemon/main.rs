@@ -13,6 +13,7 @@ extern crate futures_cpupool;
 extern crate hex;
 extern crate hostname;
 extern crate ns_std_threaded;
+extern crate ns_router;
 extern crate openat;
 extern crate quire;
 extern crate rand;
@@ -46,11 +47,12 @@ use std::path::PathBuf;
 use std::process::exit;
 use std::sync::Arc;
 
-use abstract_ns::RouterBuilder;
+use abstract_ns::{HostResolve, Resolve};
 use argparse::{ArgumentParser, Parse, Store, Print, StoreTrue, StoreOption};
 use ciruela::MachineId;
 use futures_cpupool::CpuPool;
 use ns_std_threaded::ThreadedResolver;
+use ns_router::{Router, Config};
 
 
 mod cleanup;
@@ -187,10 +189,6 @@ fn main() {
         }
     };
 
-    let mut router = RouterBuilder::new();
-    router.add_default(ThreadedResolver::new(CpuPool::new(1)));
-    let router = router.into_resolver();
-
     let (disk, disk_init) = match disk::Disk::new(disk_threads, &config) {
         Ok(pair) => pair,
         Err(e) => {
@@ -220,10 +218,18 @@ fn main() {
         &meta, &disk, &remote, &peers);
 
     tk_easyloop::run_forever(|| -> Result<(), Box<Error>> {
+
+        let router = Router::from_config(&Config::new()
+            .set_fallthrough(ThreadedResolver::use_pool(CpuPool::new(1))
+                .null_service_resolver()
+                .frozen_subscriber())
+            .done(), &tk_easyloop::handle());
+
         http::start(addr, &remote, &tracking)?;
         disk::start(disk_init, &meta)?;
         tracking::start(tracking_init)?;
         peers::start(peers_init, addr, &config, &disk, &router, &tracking)?;
+
         Ok(())
     }).map_err(|e| {
         error!("Startup error: {}", e);

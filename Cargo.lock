@@ -2,7 +2,7 @@
 name = "ciruela"
 version = "0.2.5"
 dependencies = [
- "abstract-ns 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "abstract-ns 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "argparse 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "atomic 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "base64 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -20,7 +20,8 @@ dependencies = [
  "log 0.3.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "matches 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "mopa 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "ns-std-threaded 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ns-router 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ns-std-threaded 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "openat 0.1.11 (registry+https://github.com/rust-lang/crates.io-index)",
  "quick-error 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "quire 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -52,6 +53,17 @@ dependencies = [
  "futures 0.1.16 (registry+https://github.com/rust-lang/crates.io-index)",
  "quick-error 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.3.17 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "abstract-ns"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "futures 0.1.16 (registry+https://github.com/rust-lang/crates.io-index)",
+ "quick-error 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rand 0.3.17 (registry+https://github.com/rust-lang/crates.io-index)",
+ "void 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -466,11 +478,24 @@ dependencies = [
 ]
 
 [[package]]
-name = "ns-std-threaded"
-version = "0.2.0"
+name = "ns-router"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "abstract-ns 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "abstract-ns 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "futures 0.1.16 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.3.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "quick-error 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio-core 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)",
+ "void 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "ns-std-threaded"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "abstract-ns 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.16 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-cpupool 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -942,6 +967,7 @@ dependencies = [
 
 [metadata]
 "checksum abstract-ns 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)" = "2f451afbdf8ed8c8f8a98433055bb9a6b7a72aef4baff16227d2a43dd547f43b"
+"checksum abstract-ns 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)" = "7806d5946c6598131a9eda59411c66fc4cd0847aed89e45fe5d9a186f5f1a40a"
 "checksum advapi32-sys 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "307c92332867e586720c0222ee9d890bbe8431711efed8a1b06bc5b40fc66bd7"
 "checksum aho-corasick 0.6.3 (registry+https://github.com/rust-lang/crates.io-index)" = "500909c4f87a9e52355b26626d890833e9e1d53ac566db76c36faa984b889699"
 "checksum argparse 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "37bb99f5e39ee8b23b6e227f5b8f024207e8616f44aa4b8c76ecd828011667ef"
@@ -996,7 +1022,8 @@ dependencies = [
 "checksum net2 0.2.31 (registry+https://github.com/rust-lang/crates.io-index)" = "3a80f842784ef6c9a958b68b7516bc7e35883c614004dd94959a4dca1b716c09"
 "checksum netbuf 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "55e207462a9ce32b17e5ee075e2739dc689d392ce15b67e9a1c1065f0dc14b1b"
 "checksum nodrop 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)" = "c20f62cbc112bb5beabe96e420b34b17cb627edb03039930a37351520efc69ee"
-"checksum ns-std-threaded 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "fce2e49dd898b78ee2e5f37305f31786c7ea72faf262fd2076a2fd8f1d2de95d"
+"checksum ns-router 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "bfd3477a30c1721a0605b830ef7a3f809353d2828b0d2c74e6e51efe2b777fc4"
+"checksum ns-std-threaded 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "a72bcde7b05f8bdbf01e070e94fd2368539dd62aa86acf0fae99571cb1c8e706"
 "checksum num-traits 0.1.40 (registry+https://github.com/rust-lang/crates.io-index)" = "99843c856d68d8b4313b03a17e33c4bb42ae8f6610ea81b28abe076ac721b9b0"
 "checksum num_cpus 1.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "514f0d73e64be53ff320680ca671b64fe3fb91da01e1ae2ddc99eb51d453b20d"
 "checksum odds 0.2.25 (registry+https://github.com/rust-lang/crates.io-index)" = "c3df9b730298cea3a1c3faa90b7e2f9df3a9c400d0936d6015e6165734eefcba"

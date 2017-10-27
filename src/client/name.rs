@@ -1,17 +1,22 @@
 use std::net::SocketAddr;
 
-use abstract_ns::{Address, Router, RouterBuilder};
+use abstract_ns::{Name, Address, Resolve, HostResolve};
+use ns_router::{Router, Config};
 use futures_cpupool::CpuPool;
 use ns_std_threaded::ThreadedResolver;
 
+use tokio_core::reactor::Handle;
 
-pub fn resolver() -> Router {
-    let mut router = RouterBuilder::new();
-    router.add_default(ThreadedResolver::new(CpuPool::new(1)));
-    return router.into_resolver();
+
+pub fn resolver(h: &Handle) -> Router {
+    return Router::from_config(&Config::new()
+        .set_fallthrough(ThreadedResolver::use_pool(CpuPool::new(1))
+            .null_service_resolver()
+            .frozen_subscriber())
+        .done(), h)
 }
 
-pub fn pick_hosts(name: &str, addr: Address) -> Result<Vec<SocketAddr>, ()> {
+pub fn pick_hosts(name: &Name, addr: Address) -> Result<Vec<SocketAddr>, ()> {
     let set = addr.at(0);
     // TODO(tailhook)
     let num = set.addresses().count();
@@ -26,13 +31,13 @@ pub fn pick_hosts(name: &str, addr: Address) -> Result<Vec<SocketAddr>, ()> {
             .collect::<Vec<_>>();
         addresses.dedup();
 
-        println!("Host {:?} resolves to {} addresses, \
+        println!("Host {} resolves to {} addresses, \
             picking: {:?}", name, num, addresses);
         Ok(addresses)
     } else {
         let addresses = set.addresses()
             .collect::<Vec<_>>();
-        println!("Host {:?} resolves to {:?}",
+        println!("Host {} resolves to {:?}",
             name, addresses);
         Ok(addresses)
     }

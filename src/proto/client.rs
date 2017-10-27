@@ -155,12 +155,11 @@ impl RequestClient for Client {
 }
 
 impl Client {
-    pub fn spawn<L>(addr: SocketAddr, host: &Arc<String>,
+    pub fn spawn<L>(addr: SocketAddr, host: String,
         pool: &CpuPool, listener: L)
         -> ClientFuture
         where L: Listener + 'static
     {
-        let host = host.to_string();
         let (tx, rx) = oneshot();
         let (ctx, crx) = Sender::channel();
         let wcfg = Config::new().done();
@@ -172,7 +171,7 @@ impl Client {
                 error!("Error connecting to {}: {}", addr, e);
             })
             .and_then(move |sock| {
-                HandshakeProto::new(sock, SimpleAuthorizer::new(&*host, "/"))
+                HandshakeProto::new(sock, SimpleAuthorizer::new(host, "/"))
                 .map_err(move |e| {
                     error!("Error connecting to {}: {}", addr, e);
                 })

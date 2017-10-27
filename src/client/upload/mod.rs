@@ -5,7 +5,7 @@ use std::process::exit;
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 
-use abstract_ns::Resolver;
+use abstract_ns::HostResolve;
 use argparse::{ArgumentParser};
 use dir_signature::{ScannerConfig, HashType, v1, get_hash};
 use futures::future::{Future, Either, join_all, ok};
@@ -184,27 +184,32 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
     }));
     let replace = opt.replace;
     let fail_on_conflict = opt.fail_on_conflict;
+    let mut keep_resolver = None;
+    let port = gopt.destination_port;
 
     tk_easyloop::run(|| {
-        let resolver = name::resolver();
+        let resolver = name::resolver(&tk_easyloop::handle());
+        keep_resolver = Some(resolver.clone());
+
         join_all(
             opt.target_urls.iter()
             .map(move |turl| {
-                let host = Arc::new(
-                    format!("{}:{}", turl.host, gopt.destination_port));
-                let host2 = host.clone();
-                let host3 = host.clone();
-                let host4 = host.clone();
+                let host2 = turl.host.clone();
+                let host3 = turl.host.clone();
+                let host4 = turl.host.clone();
                 let image_info = image_info.clone();
                 let pool = pool.clone();
                 let signatures = signatures.clone();
                 let done_rx = done_rx.clone();
                 let progress = progress.clone();
-                resolver.resolve(&host)
+                resolver.resolve_host(&turl.host)
                 .map_err(move |e| {
                     error!("Error resolving host {}: {}", host2, e);
                 })
-                .and_then(move |addr| name::pick_hosts(&*host3, addr))
+                .and_then(move |addr| {
+                    let addr = addr.with_port(port);
+                    name::pick_hosts(&host3, addr)
+                })
                 .and_then(move |names| {
                     let done_rx = done_rx.clone();
                     let progress = progress.clone();
@@ -212,8 +217,8 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                         names.iter()
                         .map(move |&addr| {
                             let turl = turl.clone();
-                            let signatures = signatures.clone();
                             let host = host4.clone();
+                            let signatures = signatures.clone();
                             let image_info = image_info.clone();
                             let pool = pool.clone();
                             let progress = progress.clone();
@@ -224,7 +229,8 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                             progress.lock().expect("progress is ok")
                                 .ips_needed.insert(addr);
                             let done_rx = done_rx.clone();
-                            Client::spawn(addr, &host, &pool, tracker)
+                            let host_port = format!("{}:{}", host4, port);
+                            Client::spawn(addr, host_port, &pool, tracker)
                             .and_then(move |mut cli| {
                                 info!("Connected to {}", addr);
                                 cli.register_index(&image_info);
