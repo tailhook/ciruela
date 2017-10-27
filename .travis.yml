@@ -29,7 +29,7 @@ jobs:
   - rust: nightly
 
   # deploy
-  - stage: publish docs
+  - stage: deploy
     env:
       secure: "Raag+BMLr0kqp06YTGcdU5TYl1xZRdzEkzlJx43C5zQz9Vj/AeeulIen27GP4sM9qizu5HwitN/yAAaXvcQirjcAzaFAHrjAO+/LdhzT7U7B/rfGlRxKS6myrT+tGQ2fNTNY/UlRY+kSrHpgXReSem/VNivk8lNDEVrFJcbtz39qIWj6szEs+xJUA2D9+y44vlKJNKAv2fTJcehCAbBbQDsLIWEwCGFPja7GBjVD9g1LIQ0HmErs2E8UhUHor+wtwh8uZByIt9TIm0UWUqGF6ZN5UIIiI3SNQQKZAxzRgNvjSsZ5KHr9NHR73TbsCNCZ3ypMMi2dVK1nRYitRIPOEdVm+yBf1m++opqxelNJM2Yi2xmOiNWII0LMYsZDKqhcWqV8HZorUWX27JxW6V65bjDhIJbtu6rpsTpCIx1CNI5KF6DUZWLso89S4U1m1J4mt+fST1q6TyVq501QL17PDT8YXGMNGjjbUE7Nh7Ei13fX3pAwiQHbxPe7qvIEEnbinF7lmRoHci65/0mTlu7bc0FK13roEMZMHD3E/exfhvn495nLSEeDZ0KiO+r+BtFoXgG1ko3zK9JStVVZ7TZ3ebGI4jzk/5mOKBHna6SEl7Bt8S3fXvJ3w4Dn2xo9wAHPxf3N3nZudMToePlAEi8+BfgHIgPBjLLQ6sgVfwtDMNk="
     install: true
@@ -53,5 +53,20 @@ jobs:
         secure: "QQGliCpgr3/Go5dJ9H8KfdrSCEZgz/tIIv3Wo78G+UEDst8Ww0QtQ0823Iok2jp3D1/sAM1d8ZkomuuBcTzPnfQIC6FqTXangMxmAHy05eb25swavHQ6i9XClGkIYN5CzofcwYHS7tt42qpMGmxAtwfnvsXz1bv0CN7VemF2BYt5dWd0rSxiu/HmHZVYt5U4Ygx0X6JdrgpLNN5RgxZgjrneDZP44QwFXIs98tupyds4R1lgYzxEvhKR9h7X9sIHWASUvDQbxpyGYSKTRL+/Sl7YrzGUPvRwCaCgDNBASQiemYGGFQCvPXskFYgr6fAdOadOd3dclzXM7REMiaavNZdAbZEti2lSHiWJ3VMV6BobIBFTNYdYzEumayHpvBKD5yR5bFeQdR4bje+JIr7SP1PPEqQv0HNxIrtiUt2ec4pmUjdc91UQ80atEwDiLiPEeCOC0EyAUHCS/yfL6yMaMSyhN3N6nHzrkqqfA2y3WGToXPLsH5JyFz0pQNfARriCbvONdLkxXahbZuNeVFNnrs6ZlCtjTri6JevLhhSKlMqq3PCp/vRXoujInYje7sG6STAKW0FCD5PN0rAbnZWBxycyFi5t56rEfV8X8d+RKfeki8T1UmbzBOPdtO0VFEO5ieFlh1PwXuJGYs96MdOcUP8SvjBldnrM1kVMONYTugs="
       file: "dist/ciruela-static-$TRAVIS_TAG.tar.gz"
       skip_cleanup: true
+      on:
+        tags: true
+
+  - stage: deploy
+    os: linux
+    rust: stable
+    env:
+    # CARGO_TOKEN
+    - secure: "I7OO1RBTRYk+oAZ6n/dhRMCDXwgW5xxxgHogN0TzniAXcYHH/bh8TZ1PIri+rxRpXqLI++orO4RC8qNVR1f1/Q2IB4dW2aZgFUGSjn0VhbAEfKedB8eYxAX3hdKynU9ZJgmYyRyoFOzwvgTAH/h9+7nOzeWYtLr5D7bKetSRrFdI67GraZnKWCVQ+QegOcnahSLur0ohFLBgRRwvWLsqhsHABPUOGDj7yjs+btDkhzPKAbZ6BeQFfQukSNi8NrhfwVY8Wklmi+2iSrdVVHKo/o6gGQ8ocq6n975E8p4ABJOdGpBYKE2b1uUfcx51Dd2PtODZ98Wxxcz8gVtTrS9tM4P9J3Ir+6W6svmiU8kl8AAaEbesS7Ou99mQsNylAsBIwdSrEl7iZ3ZVo2FB/8+qi6LreMdJtNLnvRZfOrrEm8XVXHvIvmwJWx5YX4XnRqHxOpxz8uEg58blPo2SCWl8zNeI32XjwnePBYIwCTirx6vEDy3FHnqRZjvGZ4gkCV946/RfVdfcLXuXFLq4qehSq/9V0gXdQBBXf6BJuvMNzn4zYte655mNwvD58rXHDCHNvqGiycWI9eIH3INv6ePLodSda/+Wj71AecUp0ZbuzWiqbliXGjr7wRu9ewfFYRZvIHu7BsUkVkEB7RIgphYtiuLkTGICNO7MUvpPv9xWWLE="
+    install: true
+    script: true
+
+    deploy:
+    - provider: script
+      script: 'cargo publish --verbose --token=$CARGO_TOKEN'
       on:
         tags: true
