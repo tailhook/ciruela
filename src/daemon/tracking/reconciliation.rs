@@ -117,7 +117,7 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
                     trace!("Peer image {} is older than ours", image_id);
                     continue;
                 }
-                debug!("Replacing {:?}", vpath);
+                info!("Replacing {:?}", vpath);
                 {
                     let state = &mut *sys.state();
                     if let Some(items) = state.reconciling.get(&pair2) {
@@ -155,7 +155,7 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
                         Ok(())
                     }));
             } else {
-                debug!("Appending {:?}", vpath);
+                info!("Appending {:?}", vpath);
                 spawn(
                     sys.meta.append_dir(AppendDir {
                         path: vpath.clone(),
