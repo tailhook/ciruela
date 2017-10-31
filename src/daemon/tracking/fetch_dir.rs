@@ -59,9 +59,9 @@ pub fn start(sys: &Subsystem, cmd: Downloading) {
 }
 
 fn hardlink_blocks(sys: Subsystem, image: Arc<Image>, cmd: Arc<Downloading>) {
-    spawn(sys.meta.fetch_hardlink_sources(&cmd.virtual_path)
+    spawn(sys.meta.files_to_hardlink(&cmd.virtual_path, &image.index)
         .map(move |sources| {
-            println!("Sources {:?}", sources);
+            println!("Files {:#?}", sources);
             cmd.fill_blocks(&image.index);
             fetch_blocks(sys.clone(), image, cmd);
         })

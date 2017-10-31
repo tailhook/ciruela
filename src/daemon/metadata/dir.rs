@@ -138,6 +138,15 @@ impl Dir {
             .map_err(|e| Error::WriteMeta(self.path(name), e))?;
         Ok(())
     }
+    pub fn open_file(&self, name: &str) -> Result<Option<File>, Error> {
+        match self.0.open_file(name) {
+            Ok(f) => Ok(Some(f)),
+            Err(ref e) if e.kind() == io::ErrorKind::NotFound => {
+                Ok(None)
+            }
+            Err(e) => Err(Error::Read(self.path(name), e)),
+        }
+    }
     pub fn read_file<R, E, F>(&self, name: &str, f: F)
         -> Result<Option<R>, Error>
         where F: FnOnce(File) -> Result<R, E>,

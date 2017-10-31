@@ -9,18 +9,20 @@ mod store_index;
 mod hardlink_sources;
 
 use std::io;
+use std::path::PathBuf;
 use std::collections::{HashMap, BTreeMap};
 use std::sync::{Arc};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use openat::Metadata;
 use futures_cpupool::{CpuPool, CpuFuture};
 
-use openat::Metadata;
 use ciruela::database::signatures::State;
 use ciruela::proto::{AppendDir};
 use ciruela::proto::{ReplaceDir};
 use ciruela::{ImageId, VPath};
 use config::Config;
+use tracking::Index;
 use index::IndexData;
 use named_mutex::{Mutex, MutexGuard};
 
@@ -181,13 +183,14 @@ impl Meta {
             }
         })
     }
-    pub fn fetch_hardlink_sources(&self, dir: &VPath)
-        -> CpuFuture<Vec<(VPath, IndexData)>, Error>
+    pub fn files_to_hardlink(&self, dir: &VPath, index: &Index)
+        -> CpuFuture<Vec<(VPath, PathBuf)>, Error>
     {
         let dir = dir.parent();
         let meta = self.clone();
+        let index = index.clone();
         self.0.cpu_pool.spawn_fn(move || {
-            hardlink_sources::read_indexes(dir, meta)
+            hardlink_sources::files_to_link(index, dir, meta)
         })
     }
     pub fn is_writing(&self, dir: &VPath)

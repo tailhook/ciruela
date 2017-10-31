@@ -3,6 +3,8 @@ use std::path::{PathBuf};
 use serde_cbor;
 
 use ciruela::VPath;
+use dir_signature::v1::{ParseError as IndexError};
+use dir_signature::v1::merge::MergeError;
 
 
 quick_error! {
@@ -95,6 +97,16 @@ quick_error! {
         }
         IndexNotFound {
             description("index not found")
+        }
+        IndexError(e: IndexError) {
+            description("failed to read index")
+            display("failed to read index: {}", e)
+            from()
+        }
+        MergeError(e: MergeError) {
+            description("failed to find hardlinks")
+            display("failed to find hardlinks: {}", e)
+            from()
         }
     }
 }
