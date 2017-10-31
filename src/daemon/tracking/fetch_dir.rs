@@ -29,10 +29,9 @@ pub fn start(sys: &Subsystem, cmd: Downloading) {
                         let img = Arc::new(img);
                         debug!("Created dir");
                         cmd.index_fetched(&img.index);
-                        cmd.fill_blocks(&img.index);
                         sys.peers.notify_progress(&cmd.virtual_path,
                             &cmd.image_id, cmd.mask.get());
-                        fetch_blocks(sys.clone(), img, cmd);
+                        hardlink_blocks(sys.clone(), img, cmd);
                     }
                     Err(disk::Error::AlreadyExists) => {
                         sys.meta.dir_committed(&cmd.virtual_path);
@@ -57,6 +56,19 @@ pub fn start(sys: &Subsystem, cmd: Downloading) {
         //                the problem is we're still
         //                occuping entry in `writing`
     }));
+}
+
+fn hardlink_blocks(sys: Subsystem, image: Arc<Image>, cmd: Arc<Downloading>) {
+    spawn(sys.meta.fetch_hardlink_sources(&cmd.virtual_path)
+        .map(move |sources| {
+            println!("Sources {:?}", sources);
+            cmd.fill_blocks(&image.index);
+            fetch_blocks(sys.clone(), image, cmd);
+        })
+        .map_err(|e| {
+            error!("Error fetching hardlink sources: {}", e);
+            panic!("Hardlink sources fetch error")
+        }));
 }
 
 fn fetch_blocks(sys: Subsystem, image: Arc<Image>, cmd: Arc<Downloading>)

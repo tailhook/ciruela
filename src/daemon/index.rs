@@ -1,3 +1,4 @@
+use std::fmt;
 use std::io::BufRead;
 
 
@@ -17,6 +18,15 @@ pub struct IndexData {
     pub blocks_total: u64,
 }
 
+impl fmt::Debug for IndexData {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Index")
+        .field("id", &self.id)
+        .field("bytes", &self.bytes_total)
+        .field("blocks", &self.blocks_total)
+        .finish()
+    }
+}
 
 fn bytes(e: &Entry) -> u64 {
     match *e {

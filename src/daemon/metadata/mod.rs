@@ -6,6 +6,7 @@ mod first_scan;
 mod read_index;
 mod scan;
 mod store_index;
+mod hardlink_sources;
 
 use std::io;
 use std::collections::{HashMap, BTreeMap};
@@ -178,6 +179,15 @@ impl Meta {
                 => Ok(BTreeMap::new()),
                 Err(e) => Err(e.into()),
             }
+        })
+    }
+    pub fn fetch_hardlink_sources(&self, dir: &VPath)
+        -> CpuFuture<Vec<(VPath, IndexData)>, Error>
+    {
+        let dir = dir.parent();
+        let meta = self.clone();
+        self.0.cpu_pool.spawn_fn(move || {
+            hardlink_sources::read_indexes(dir, meta)
         })
     }
     pub fn is_writing(&self, dir: &VPath)
