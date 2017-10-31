@@ -35,7 +35,7 @@ pub fn commit_image(image: Arc<Image>) -> Result<(), Error> {
                     file.set_permissions(PermissionsExt::from_mode(0o755))
                     .map_err(|e| Error::SetPermissions(
                         recover_path(dir, filename), e))?;
-                }
+                } // TODO(tailhook) else check permissions
             }
             File { ref path, exe, size, ref hashes } => {
                 debug_assert!(size != 0);

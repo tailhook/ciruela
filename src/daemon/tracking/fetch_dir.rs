@@ -29,6 +29,7 @@ pub fn start(sys: &Subsystem, cmd: Downloading) {
                         let img = Arc::new(img);
                         debug!("Created dir");
                         cmd.index_fetched(&img.index);
+                        cmd.fill_blocks(&img.index);
                         sys.peers.notify_progress(&cmd.virtual_path,
                             &cmd.image_id, cmd.mask.get());
                         fetch_blocks(sys.clone(), img, cmd);

@@ -113,6 +113,8 @@ impl Downloading {
         self.bytes_total.store(index.bytes_total as usize, Relaxed);
         self.blocks_total.store(index.blocks_total as usize, Relaxed);
         self.index_fetched.store(true, Relaxed);
+    }
+    pub fn fill_blocks(&self, index: &Index) {
         let blocks = index.entries.iter()
             .flat_map(|entry| {
                 use dir_signature::v1::Entry::*;
