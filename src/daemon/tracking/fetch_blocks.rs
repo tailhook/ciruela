@@ -223,8 +223,10 @@ impl Future for FetchBlocks {
                 continue;
             }
             if self.futures.len() == 0 {
-                info!("Nowhere to fetch some chunks of {}. Waiting...",
-                    self.downloading.image_id);
+                info!("Nowhere to fetch some chunks of {} at {:?}. \
+                    Waiting...",
+                    self.downloading.image_id,
+                    self.downloading.virtual_path);
                 let mut t = timeout(Duration::from_millis(RETRY_INTERVAL));
                 match t.poll().expect("timeout never fails") {
                     Async::Ready(()) => continue,
