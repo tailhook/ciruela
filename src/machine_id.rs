@@ -24,7 +24,7 @@ impl MachineId {
             return Err(io::Error::new(io::ErrorKind::Other,
                 "Wrong length of /etc/machine-id"));
         } else {
-            let vec: Vec<u8> = FromHex::from_hex(&buf[..])
+            let vec: Vec<u8> = FromHex::from_hex(&buf[..32])
                 .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
             let mut ar = [0u8; 16];
             ar.copy_from_slice(&vec);
