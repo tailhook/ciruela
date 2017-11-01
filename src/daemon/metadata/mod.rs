@@ -9,7 +9,6 @@ mod store_index;
 mod hardlink_sources;
 
 use std::io;
-use std::path::PathBuf;
 use std::collections::{HashMap, BTreeMap};
 use std::sync::{Arc};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -29,6 +28,7 @@ use named_mutex::{Mutex, MutexGuard};
 use self::dir::Dir;
 pub use self::upload::Upload;
 pub use self::error::Error;
+pub use self::hardlink_sources::Hardlink;
 
 
 #[derive(Clone)]
@@ -184,7 +184,7 @@ impl Meta {
         })
     }
     pub fn files_to_hardlink(&self, dir: &VPath, index: &Index)
-        -> CpuFuture<Vec<(VPath, PathBuf)>, Error>
+        -> CpuFuture<Vec<Hardlink>, Error>
     {
         let dir = dir.parent();
         let meta = self.clone();

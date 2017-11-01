@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::time::UNIX_EPOCH;
 
 use dir_signature::v1::merge::MergedSignatures;
-use dir_signature::v1::{Entry, EntryKind};
+use dir_signature::v1::{Entry, EntryKind, Hashes};
 
 use ciruela::VPath;
 use metadata::{Meta, Error};
@@ -13,8 +13,18 @@ use metadata::{read_index, scan};
 use tracking::Index;
 
 
+#[derive(Debug)]
+pub struct Hardlink {
+    pub source: VPath,
+    pub path: PathBuf,
+    pub exe: bool,
+    pub size: u64,
+    pub hashes: Hashes,
+}
+
+
 pub fn files_to_link(index: Index, dir: VPath, meta: Meta)
-    -> Result<Vec<(VPath, PathBuf)>, Error>
+    -> Result<Vec<Hardlink>, Error>
 {
     let all_states = match meta.signatures()?.open_vpath(&dir) {
         Ok(dir) => scan::all_states(&dir)?,
@@ -83,7 +93,13 @@ pub fn files_to_link(index: Index, dir: VPath, meta: Meta)
                             lnk_hashes == tgt_hashes
                         => {
                             debug_assert_eq!(tgt_path, lnk_path);
-                            result.push((vpath.clone(), lnk_path.clone()));
+                            result.push(Hardlink {
+                                source: vpath.clone(),
+                                path: lnk_path.clone(),
+                                exe: lnk_exe,
+                                size: lnk_size,
+                                hashes: lnk_hashes.clone(),
+                            });
                             break;
                         },
                         _ => continue,
