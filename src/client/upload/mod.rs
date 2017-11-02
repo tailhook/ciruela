@@ -210,11 +210,11 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                     let addr = addr.with_port(port);
                     name::pick_hosts(&host3, addr)
                 })
-                .and_then(move |names| {
+                .and_then(move |addrs| {
                     let done_rx = done_rx.clone();
                     let progress = progress.clone();
                     join_all(
-                        names.iter()
+                        addrs.iter()
                         .map(move |&addr| {
                             let turl = turl.clone();
                             let host = host4.clone();
