@@ -23,7 +23,9 @@ use serde_cbor::ser::to_writer;
 use tracking::Tracking;
 
 /// Size of the buffer for sending packet
-pub const MAX_GOSSIP_PACKET: usize = 4096;
+/// TODO(tailhook) it's now absolute maximum for UDP packets, we need to figure
+/// out a way to make it smaller (i.e. to guarantee making it smaller)
+pub const MAX_GOSSIP_PACKET: usize = 65536;
 
 /// Maximum number of base dirs in single packet
 pub const MAX_BASE_DIRS: usize = 10;
