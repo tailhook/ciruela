@@ -223,6 +223,7 @@ impl Future for FetchBlocks {
                 continue;
             }
             if self.futures.len() == 0 {
+                self.downloading.notify_stalled();
                 info!("Nowhere to fetch some chunks of {} at {:?}. \
                     Waiting...",
                     self.downloading.image_id,

@@ -28,7 +28,7 @@ pub struct PacketRef<'a> {
 #[allow(dead_code)]
 pub enum MessageRef<'a> {
     BaseDirs {
-        in_progress: &'a BTreeMap<VPath, (ImageId, Mask)>,
+        in_progress: BTreeMap<&'a VPath, (&'a ImageId, &'a Mask)>,
         base_dirs: &'a BTreeMap<VPath, Hash>,
     },
     Downloading { path: &'a VPath, image: &'a ImageId, mask: &'a Mask },

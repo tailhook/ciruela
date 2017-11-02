@@ -20,7 +20,7 @@ use named_mutex::Mutex;
 use peers::Peer;
 use peers::packets::{Packet, Message, PacketRef, MessageRef};
 use serde_cbor::ser::to_writer;
-use tracking::Tracking;
+use tracking::{Tracking, ShortProgress};
 
 /// Size of the buffer for sending packet
 /// TODO(tailhook) it's now absolute maximum for UDP packets, we need to figure
@@ -171,7 +171,7 @@ impl Gossip {
         }
     }
     fn send_gossip(&self, addr: SocketAddr,
-        in_progress: &BTreeMap<VPath, (ImageId, Mask)>)
+        in_progress: &BTreeMap<VPath, ShortProgress>)
     {
         let mut buf = Vec::with_capacity(1400);
         let mut base_dirs = BTreeMap::new();
@@ -187,7 +187,9 @@ impl Gossip {
         let packet = PacketRef {
             machine_id: &self.machine_id,
             message: MessageRef::BaseDirs {
-                in_progress: &in_progress,
+                in_progress: in_progress.iter()
+                    .map(|(k, s)| (k, (&s.image_id, &s.mask)))
+                    .collect::<BTreeMap<_, _>>(),
                 base_dirs: &base_dirs,
             }
         };

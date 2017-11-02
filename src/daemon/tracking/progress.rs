@@ -54,6 +54,7 @@ pub struct Downloading {
     pub bytes_fetched: AtomicUsize,
     pub blocks_total: AtomicUsize,
     pub blocks_fetched: AtomicUsize,
+    pub stalled: AtomicBool,
 }
 
 impl Slice {
@@ -109,7 +110,17 @@ impl PartialEq for Downloading {
 impl Eq for Downloading {}
 
 impl Downloading {
+    pub fn is_stalled(&self) -> bool {
+        self.stalled.load(Relaxed)
+    }
+    pub fn notify_stalled(&self) {
+        self.stalled.store(true, Relaxed);
+    }
+    pub fn notify_unstalled(&self) {
+        self.stalled.store(false, Relaxed);
+    }
     pub fn index_fetched(&self, index: &Index) {
+        self.notify_unstalled();
         self.bytes_total.store(index.bytes_total as usize, Relaxed);
         self.blocks_total.store(index.blocks_total as usize, Relaxed);
         self.index_fetched.store(true, Relaxed);
@@ -153,6 +164,7 @@ impl Downloading {
         self.mask.set(mask);
     }
     pub fn report_block(&self, block: &BlockData) {
+        self.notify_unstalled();
         self.bytes_fetched.fetch_add(block.len(), Relaxed);
         self.blocks_fetched.fetch_add(1, Relaxed);
     }

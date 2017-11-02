@@ -55,6 +55,12 @@ pub struct State {
     recently_received: HashMap<VPath, HashMap<SocketAddr, Instant>>,
 }
 
+pub struct ShortProgress {
+    pub image_id: ImageId,
+    pub mask: Mask,
+    pub stalled: bool,
+}
+
 #[derive(Clone)]
 pub struct Tracking(Arc<Inner>);
 
@@ -176,6 +182,7 @@ impl Tracking {
             bytes_total: AtomicUsize::new(0),
             blocks_fetched: AtomicUsize::new(0),
             blocks_total: AtomicUsize::new(0),
+            stalled: AtomicBool::new(false),
         }));
     }
     pub fn pick_random_dir(&self) -> Option<(VPath, Hash)> {
@@ -197,11 +204,14 @@ impl Tracking {
     pub fn remote(&self) -> &Remote {
         &self.0.remote
     }
-    pub fn get_in_progress(&self) -> BTreeMap<VPath, (ImageId, Mask)> {
+    pub fn get_in_progress(&self) -> BTreeMap<VPath, ShortProgress> {
         let mut res = BTreeMap::new();
         for inp in &self.state().in_progress {
-            res.insert(inp.virtual_path.clone(),
-                       (inp.image_id.clone(), inp.mask.get()));
+            res.insert(inp.virtual_path.clone(), ShortProgress {
+                image_id: inp.image_id.clone(),
+                mask: inp.mask.get(),
+                stalled: inp.is_stalled(),
+            });
         }
         return res;
     }
