@@ -29,7 +29,7 @@ tokio-core = "0.1.10"
 futures = "0.1.16"
 time = "0.1.37"
 tk-bufstream = "0.3.0"
-tk-http = "0.3.0"
+tk-http = { version="0.3.0", default-features=false }
 ssh-keys = "0.1.0"
 dir-signature = "0.2.2"
 tk-easyloop = "0.1.1"
