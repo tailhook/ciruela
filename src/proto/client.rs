@@ -196,7 +196,7 @@ impl Client {
                     .map_err(|_| Error::UnexpectedTermination);
                 Loop::client(out, inp, stream, disp, &wcfg,
                     &tk_easyloop::handle())
-                .map_err(|e| println!("websocket closed: {}", e))
+                .map_err(|e| info!("websocket closed: {}", e))
             })
         );
         return ClientFuture {
