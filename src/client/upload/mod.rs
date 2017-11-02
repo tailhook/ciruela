@@ -195,7 +195,6 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
             opt.target_urls.iter()
             .map(move |turl| {
                 let host2 = turl.host.clone();
-                let host3 = turl.host.clone();
                 let host4 = turl.host.clone();
                 let image_info = image_info.clone();
                 let pool = pool.clone();
@@ -203,12 +202,16 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                 let done_rx = done_rx.clone();
                 let progress = progress.clone();
                 resolver.resolve_host(&turl.host)
-                .map_err(move |e| {
-                    error!("Error resolving host {}: {}", host2, e);
-                })
-                .and_then(move |addr| {
-                    let addr = addr.with_port(port);
-                    name::pick_hosts(&host3, addr)
+                .then(move |res| match res {
+                    Ok(addr) => {
+                        let addr = addr.with_port(port);
+                        Ok(name::pick_hosts(&host2, addr)
+                            .unwrap_or(Vec::new()))
+                    }
+                    Err(e) => {
+                        error!("Error resolving host {}: {}", host2, e);
+                        Ok(Vec::new())
+                    }
                 })
                 .and_then(move |addrs| {
                     let done_rx = done_rx.clone();
