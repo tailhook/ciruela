@@ -127,7 +127,7 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
     let image_id = get_hash(&mut io::Cursor::new(&indexbuf))
         .expect("hash valid in just created index")
         .into();
-    println!("Uploading image {}", image_id);
+    eprintln!("Uploading image {}", image_id);
     let (blocks, block_size) = {
         let ref mut cur = io::Cursor::new(&indexbuf);
         let mut parser = v1::Parser::new(cur)
@@ -284,8 +284,8 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                                     if !fail_on_conflict &&
                                        is_conflict_reason(&reason)
                                     {
-                                        info!("Upload rejected by {} / {}: \
-                                            {}, but that's okay.",
+                                        eprintln!("Upload rejected by \
+                                            {} / {}: {}, but that's okay.",
                                             host, addr,
                                             reason.as_ref().map(|x| &x[..])
                                                 .unwrap_or("(???)"));
