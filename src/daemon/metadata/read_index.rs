@@ -29,10 +29,19 @@ pub fn read(image_id: &ImageId, meta: &Meta) -> Result<IndexData, Error> {
     let base = meta.indexes()?
         .dir_if_exists(&hex_id[..2])?
         .ok_or(Error::IndexNotFound)?;
-    let index = base.read_file(&filename, |f| {
-            IndexData::parse(image_id, BufReader::new(f))
-        })?
-        .ok_or(Error::IndexNotFound)?;
+    let file_res = base.read_file(&filename, |f| {
+        IndexData::parse(image_id, BufReader::new(f))
+    });
+    let index = match file_res {
+        Ok(Some(data)) => data,
+        Ok(None) => return Err(Error::IndexNotFound),
+        Err(e @ Error::Decode(..)) => {
+            base.rename_broken_file(&filename,
+                format_args!("Error reading index: {}", e));
+            return Err(Error::IndexNotFound);
+        }
+        Err(e) => return Err(e),
+    };
     Ok(index)
 }
 
