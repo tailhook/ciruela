@@ -1,3 +1,4 @@
+use std::fmt;
 use std::ffi::OsStr;
 use std::fs::File;
 use std::io;
@@ -137,6 +138,15 @@ impl Dir {
         self.0.local_rename(&tmpname, name)
             .map_err(|e| Error::WriteMeta(self.path(name), e))?;
         Ok(())
+    }
+    pub fn rename_broken_file<E: fmt::Display>(&self, name: &str, reason: E) {
+        let bu_name = format!(".{}.backup", name);
+        error!("{}. Renaming file to {:?}", reason, bu_name);
+        self.0.local_rename(name, &bu_name)
+            .map_err(|e| {
+                error!("Can't rename broken file {:?} -> {:?}: {}",
+                    self.path(name), self.path(bu_name), e);
+            }).ok();
     }
     pub fn open_file(&self, name: &str) -> Result<Option<File>, Error> {
         match self.0.open_file(name) {

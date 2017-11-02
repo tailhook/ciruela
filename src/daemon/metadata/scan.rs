@@ -23,7 +23,8 @@ pub fn all_states(dir: &Dir)
                     Error::FileWasVanished(dir.path(&name)));
             }
             Err(e) => {
-                warn!("Scan error: {}", Error::from(e));
+                dir.rename_broken_file(&name,
+                    format_args!("Scan error: {}", e));
             }
         }
     }
