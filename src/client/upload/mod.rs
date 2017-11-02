@@ -57,7 +57,7 @@ impl Progress {
                 SystemTime::now().duration_since(self.started)
                     .unwrap().as_secs());
             self.done.take().map(|chan| {
-                chan.send(()).expect("sending done");
+                chan.send(()).ok();
             });
         } else {
             eprint!("Fetched from ({}/{}) {}\r",
@@ -87,7 +87,7 @@ impl Listener for Tracker {
     }
     fn closed(&self) {
         // TODO(tailhook) reconnect
-        let mut pro = self.1.lock().expect("progress is not poisoted");
+        let mut pro = self.1.lock().expect("progress is not poisoned");
         if pro.done.is_some() {
             error!("Connection to {} is closed", self.0);
             pro.ips_needed.remove(&self.0);
