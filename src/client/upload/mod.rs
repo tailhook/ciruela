@@ -48,6 +48,25 @@ impl Progress {
             }
         }
     }
+    fn check_status(&mut self) {
+        if self.ips_needed.len() == 0 {
+            info!("Fetched from {}", self.hosts_done());
+            eprintln!("Fetched from all required hosts. {} total. \
+                Done in {} seconds.",
+                self.hosts_done.len(),
+                SystemTime::now().duration_since(self.started)
+                    .unwrap().as_secs());
+            self.done.take().map(|chan| {
+                chan.send(()).expect("sending done");
+            });
+        } else {
+            eprint!("Fetched from ({}/{}) {}\r",
+                self.hosts_done.len(),
+                self.hosts_done.len() +
+                    self.ids_needed.len() + self.ips_needed.len(),
+                self.hosts_done());
+        }
+    }
 }
 
 impl Listener for Tracker {
@@ -61,23 +80,7 @@ impl Listener for Tracker {
                 if !img.forwarded {
                     pro.ips_needed.remove(&self.0);
                 }
-                if pro.ips_needed.len() == 0 {
-                    info!("Fetched from {}", pro.hosts_done());
-                    eprintln!("Fetched from all required hosts. {} total. \
-                        Done in {} seconds.",
-                        pro.hosts_done.len(),
-                        SystemTime::now().duration_since(pro.started)
-                            .unwrap().as_secs());
-                    pro.done.take().map(|chan| {
-                        chan.send(()).expect("sending done");
-                    });
-                } else {
-                    eprint!("Fetched from ({}/{}) {}\r",
-                        pro.hosts_done.len(),
-                        pro.hosts_done.len() +
-                            pro.ids_needed.len() + pro.ips_needed.len(),
-                        pro.hosts_done());
-                }
+                pro.check_status()
             }
             _ => {}
         }
@@ -89,11 +92,7 @@ impl Listener for Tracker {
             error!("Connection to {} is closed", self.0);
             pro.ips_needed.remove(&self.0);
             pro.hosts_errored.insert(self.0);
-            if pro.ips_needed.len() == 0 {
-                pro.done.take().map(|chan| {
-                    chan.send(()).ok();
-                });
-            }
+            pro.check_status();
         }
     }
 }
@@ -216,6 +215,8 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                 .and_then(move |addrs| {
                     let done_rx = done_rx.clone();
                     let progress = progress.clone();
+                    progress.lock().expect("progress is ok")
+                        .ips_needed.extend(&addrs);
                     join_all(
                         addrs.iter()
                         .map(move |&addr| {
@@ -229,8 +230,6 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                             let progress3 = progress.clone();
                             let tracker = Tracker(addr,
                                                   progress.clone());
-                            progress.lock().expect("progress is ok")
-                                .ips_needed.insert(addr);
                             let done_rx = done_rx.clone();
                             let host_port = format!("{}:{}", host4, port);
                             Client::spawn(addr, host_port, &pool, tracker)
