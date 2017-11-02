@@ -3,9 +3,10 @@ use std::io::{self, Seek, SeekFrom, Write, BufReader, BufRead, Read};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use futures_cpupool::{CpuPool, CpuFuture};
+use futures_cpupool::{self, CpuPool, CpuFuture};
 use openat::{Dir, SimpleType};
 use regex::Regex;
+use self_meter_http::Meter;
 
 use ciruela::VPath;
 use config::{Config, Directory};
@@ -47,11 +48,18 @@ fn check_exists(dir: &Dir, name: &str) -> Result<(), Error> {
 }
 
 impl Disk {
-    pub fn new(num_threads: usize, config: &Arc<Config>)
+    pub fn new(num_threads: usize, config: &Arc<Config>, meter: &Meter)
         -> Result<(Disk, Init), Error>
     {
+        let m1 = meter.clone();
+        let m2 = meter.clone();
         Ok((Disk {
-            pool: CpuPool::new(num_threads),
+            pool: futures_cpupool::Builder::new()
+                .pool_size(num_threads)
+                .name_prefix("disk-")
+                .after_start(move || m1.track_current_thread_by_name())
+                .before_stop(move || m2.untrack_current_thread())
+                .create(),
             config: config.clone(),
         }, Init {
         }))

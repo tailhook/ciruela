@@ -19,8 +19,10 @@ extern crate quire;
 extern crate rand;
 extern crate regex;
 extern crate scan_dir;
+extern crate self_meter_http;
 extern crate serde;
 extern crate serde_cbor;
+extern crate serde_json;
 extern crate ssh_keys;
 extern crate time;
 extern crate tk_bufstream;
@@ -50,7 +52,6 @@ use std::sync::Arc;
 use abstract_ns::{HostResolve, Resolve};
 use argparse::{ArgumentParser, Parse, Store, Print, StoreTrue, StoreOption};
 use ciruela::MachineId;
-use futures_cpupool::CpuPool;
 use ns_std_threaded::ThreadedResolver;
 use ns_router::{Router, Config};
 
@@ -189,7 +190,11 @@ fn main() {
         }
     };
 
-    let (disk, disk_init) = match disk::Disk::new(disk_threads, &config) {
+    let meter = self_meter_http::Meter::new();
+
+    let (disk, disk_init) = match
+        disk::Disk::new(disk_threads, &config, &meter)
+    {
         Ok(pair) => pair,
         Err(e) => {
             error!("Can't start disk subsystem: {}", e);
@@ -197,7 +202,9 @@ fn main() {
         }
     };
 
-    let meta = match metadata::Meta::new(metadata_threads, &config) {
+    let meta = match
+        metadata::Meta::new(metadata_threads, &config, &meter)
+    {
         Ok(meta) => meta,
         Err(e) => {
             error!("Can't open metadata directory {:?}: {}",
@@ -217,15 +224,25 @@ fn main() {
     let (tracking, tracking_init) = tracking::Tracking::new(&config,
         &meta, &disk, &remote, &peers);
 
-    tk_easyloop::run_forever(|| -> Result<(), Box<Error>> {
 
+    tk_easyloop::run_forever(|| -> Result<(), Box<Error>> {
+        meter.spawn_scanner(&tk_easyloop::handle());
+
+        let m1 = meter.clone();
+        let m2 = meter.clone();
         let router = Router::from_config(&Config::new()
-            .set_fallthrough(ThreadedResolver::use_pool(CpuPool::new(1))
+            .set_fallthrough(ThreadedResolver::use_pool(
+                    futures_cpupool::Builder::new()
+                    .pool_size(2)
+                    .name_prefix("ns-resolver-")
+                    .after_start(move || m1.track_current_thread_by_name())
+                    .before_stop(move || m2.untrack_current_thread())
+                    .create())
                 .null_service_resolver()
                 .frozen_subscriber())
             .done(), &tk_easyloop::handle());
 
-        http::start(addr, &remote, &tracking)?;
+        http::start(addr, &remote, &tracking, &meter)?;
         disk::start(disk_init, &meta)?;
         tracking::start(tracking_init)?;
         peers::start(peers_init, addr, &config, &disk, &router, &tracking)?;

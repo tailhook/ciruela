@@ -14,7 +14,8 @@ use std::sync::{Arc};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use openat::Metadata;
-use futures_cpupool::{CpuPool, CpuFuture};
+use futures_cpupool::{self, CpuPool, CpuFuture};
+use self_meter_http::Meter;
 
 use ciruela::database::signatures::State;
 use ciruela::proto::{AppendDir};
@@ -47,13 +48,20 @@ fn is_fresher(meta: &Metadata, time: SystemTime) -> bool {
 }
 
 impl Meta {
-    pub fn new(num_threads: usize, config: &Arc<Config>)
+    pub fn new(num_threads: usize, config: &Arc<Config>, meter: &Meter)
         -> Result<Meta, Error>
     {
         let dir = Dir::open_root(&config.db_dir)?;
         // TODO(tailhook) start rescanning the database for consistency
+        let m1 = meter.clone();
+        let m2 = meter.clone();
         Ok(Meta(Arc::new(Inner {
-            cpu_pool: CpuPool::new(num_threads),
+            cpu_pool: futures_cpupool::Builder::new()
+                .pool_size(num_threads)
+                .name_prefix("disk-")
+                .after_start(move || m1.track_current_thread_by_name())
+                .before_stop(move || m2.untrack_current_thread())
+                .create(),
             config: config.clone(),
             base_dir: dir,
             writing: Mutex::new(HashMap::new(), "metadata_writing"),
