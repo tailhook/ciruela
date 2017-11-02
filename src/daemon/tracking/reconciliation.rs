@@ -143,6 +143,7 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
                                 sys.tracking.fetch_dir(
                                     vpath, image_id, true);
                             }
+                            Ok(Upload { accepted: true, new: false, .. }) => {}
                             Ok(Upload { reject_reason, ..}) => {
                                 error!("Error reconciling {:?}: {}",
                                     vpath, reject_reason.unwrap_or("(???)"));
@@ -168,6 +169,7 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
                                 sys.tracking.fetch_dir(
                                     vpath, image_id, false);
                             }
+                            Ok(Upload { accepted: true, new: false, .. }) => {}
                             Ok(Upload { reject_reason, ..}) => {
                                 error!("Error reconciling {:?}: {}",
                                     vpath, reject_reason.unwrap_or("(???)"));
