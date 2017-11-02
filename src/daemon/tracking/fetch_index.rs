@@ -1,6 +1,7 @@
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap};
 use std::io::Cursor;
+use std::net::SocketAddr;
 use std::ops::Deref;
 use std::sync::{Arc, Weak};
 use std::time::Duration;
@@ -79,7 +80,7 @@ struct FetchBase(Sender<Index>, Timeout, State);
 
 pub enum State {
     Start,
-    Fetching(RequestFuture<GetIndexResponse>),
+    Fetching(SocketAddr, RequestFuture<GetIndexResponse>),
     Waiting(Receiver<()>, Timeout),
 }
 
@@ -100,7 +101,7 @@ fn poll_state(mut state: State, id: &ImageId, tracking: &Tracking,
                     id, Mask::index_bit(), &inp.failures)
                 {
                     inp.wakeup.take();
-                    Fetching(conn.request(GetIndex {
+                    Fetching(conn.addr(), conn.request(GetIndex {
                         id: id.clone(),
                         hint: Some(path.clone()),
                     }))
@@ -111,10 +112,11 @@ fn poll_state(mut state: State, id: &ImageId, tracking: &Tracking,
                     Waiting(rx, timeout(Duration::from_millis(RETRY_TIMEOUT)))
                 }
             }
-            Fetching(mut fut) => {
+            Fetching(addr, mut fut) => {
                 match fut.poll() {
                     Err(e) => {
                         info!("Failed to fetch index: {}", e);
+                        inp.failures.add_failure(addr);
                         Start
                     }
                     Ok(futures::Async::Ready(v)) => {
@@ -127,12 +129,13 @@ fn poll_state(mut state: State, id: &ImageId, tracking: &Tracking,
                             Err(e) => {
                                 error!("Error parsing index: {}",
                                     e);
+                                inp.failures.add_failure(addr);
                                 Start
                             }
                         }
                     }
                     Ok(futures::Async::NotReady) => {
-                        return Ok(Async::NotReady(Fetching(fut)));
+                        return Ok(Async::NotReady(Fetching(addr, fut)));
                     }
                 }
             }
