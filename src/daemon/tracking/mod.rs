@@ -377,23 +377,13 @@ pub fn start(init: TrackingInit) -> Result<(), String> // actually void
                         if first_time {
                             let dirs = bdir.dirs.clone();
                             BaseDir::commit_scan(bdir, &config, scan_time, &sys);
-                            Either::B(iter_ok(
-                                    dirs.into_iter()
-                                    .filter(|&(ref dir, ref state)| {
-                                        if state.signatures.len() < 1 {
-                                            error!("Wrong state for {:?}",
-                                                dir);
-                                            false
-                                        } else {
-                                            true
-                                        }
-                                    }))
+                            Either::B(iter_ok(dirs)
                                 .for_each(move |(dir, mut state)| {
                                     // TODO(tailhook) also check if replace
                                     // is done (tmp directory exists)
                                     let dir = path.join(dir);
                                     let sig = state.signatures.pop()
-                                        .expect("just checked above");
+                                        .expect("checked in metadata reader");
                                     let image_id = state.image.clone();
                                     let cmd = AppendDir {
                                         path: dir.clone(),

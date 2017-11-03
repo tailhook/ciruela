@@ -12,7 +12,13 @@ pub fn all_states(dir: &Dir)
 {
     let mut res = BTreeMap::new();
     for mut name in dir.list_files(".state")? {
-        match dir.read_file(&name, |f| read_cbor(&mut BufReader::new(f))) {
+        let read: Result<Option<State>, _>;
+        read = dir.read_file(&name, |f| read_cbor(&mut BufReader::new(f)));
+        match read {
+            Ok(Some(ref state)) if state.signatures.len() < 1 => {
+                dir.rename_broken_file(&name,
+                    format_args!("Scan error: state has no signatures"));
+            }
             Ok(Some(state)) => {
                 let nlen = name.len() - ".state".len();
                 name.truncate(nlen);
