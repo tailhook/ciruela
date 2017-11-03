@@ -59,6 +59,7 @@ pub struct ShortProgress {
     pub image_id: ImageId,
     pub mask: Mask,
     pub stalled: bool,
+    pub source: bool,
 }
 
 #[derive(Clone)]
@@ -204,6 +205,10 @@ impl Tracking {
     pub fn remote(&self) -> &Remote {
         &self.0.remote
     }
+    // only for http
+    pub fn peers(&self) -> &Peers {
+        &self.0.peers
+    }
     pub fn get_in_progress(&self) -> BTreeMap<VPath, ShortProgress> {
         let mut res = BTreeMap::new();
         for inp in &self.state().in_progress {
@@ -211,6 +216,7 @@ impl Tracking {
                 image_id: inp.image_id.clone(),
                 mask: inp.mask.get(),
                 stalled: inp.is_stalled(),
+                source: self.0.remote.has_image_source(&inp.image_id),
             });
         }
         return res;

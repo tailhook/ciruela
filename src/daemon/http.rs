@@ -76,13 +76,34 @@ fn service<S>(req: Request, mut e: Encoder<S>,
                 pub image_id: String,
                 pub mask: Mask,
                 pub stalled: bool,
+                pub source: bool,
             }
             ok(serve_json(e, &tracking.get_in_progress()
                 .iter().map(|(path, p)| (path, Progress {
                     image_id: format!("{}", p.image_id),
                     mask: p.mask,
                     stalled: p.stalled,
+                    source: p.source,
                 })).collect::<BTreeMap<_, _>>()))
+        } else if req.path().starts_with("/cluster/downloading/") {
+            #[derive(Serialize)]
+            pub struct Progress {
+                pub image_id: String,
+                pub mask: Mask,
+                pub stalled: bool,
+                pub source: bool,
+            }
+            let dl = &*tracking.peers().get_downloading();
+            ok(serve_json(e, &dl
+                .iter().map(|(machine_id, items)| {
+                    (format!("{}", machine_id), items.iter()
+                        .map(|(path, p)| (path, Progress {
+                            image_id: format!("{}", p.image),
+                            mask: p.mask,
+                            stalled: p.stalled,
+                            source: p.source,
+                        })).collect::<BTreeMap<_, _>>())
+                }).collect::<BTreeMap<_, _>>()))
         } else {
             e.status(Status::NotFound);
             e.add_length(BODY.as_bytes().len() as u64).unwrap();

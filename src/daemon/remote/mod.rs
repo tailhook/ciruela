@@ -120,6 +120,9 @@ impl Remote {
             }
         }
     }
+    pub fn has_image_source(&self, id: &ImageId) -> bool {
+        self.inner().declared_images.contains_key(id)
+    }
 }
 
 impl Drop for Token {

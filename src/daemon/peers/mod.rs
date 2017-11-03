@@ -19,9 +19,10 @@ use ciruela::{ImageId, VPath, MachineId};
 use config::{Config};
 use disk::Disk;
 use mask::Mask;
-use named_mutex::Mutex;
+use named_mutex::{Mutex, MutexGuard};
 use self::packets::Message;
 use tracking::Tracking;
+use peers::gossip::Downloading;
 
 
 #[derive(Debug, Clone)]
@@ -34,8 +35,7 @@ pub struct Peer {
 
 #[derive(Clone)]
 pub struct Peers {
-    downloading: Arc<Mutex<
-        HashMap<MachineId, BTreeMap<VPath, (ImageId, Mask)>>>>,
+    downloading: Arc<Mutex<HashMap<MachineId, BTreeMap<VPath, Downloading>>>>,
     dir_peers: Arc<Mutex<HashMap<VPath, HashSet<MachineId>>>>,
     peers: Arc<ArcCell<HashMap<MachineId, Peer>>>,
     messages: UnboundedSender<Message>,
@@ -45,8 +45,7 @@ pub struct PeersInit {
     machine_id: MachineId,
     cell: Arc<ArcCell<HashMap<MachineId, Peer>>>,
     peer_file: Option<PathBuf>,
-    downloading: Arc<Mutex<
-        HashMap<MachineId, BTreeMap<VPath, (ImageId, Mask)>>>>,
+    downloading: Arc<Mutex<HashMap<MachineId, BTreeMap<VPath, Downloading>>>>,
     dir_peers: Arc<Mutex<HashMap<VPath, HashSet<MachineId>>>>,
     messages: UnboundedReceiver<Message>,
 }
@@ -74,12 +73,13 @@ impl Peers {
             messages: rx,
         })
     }
-    pub fn notify_progress(&self, path: &VPath, image_id: &ImageId, mask: Mask)
+    pub fn notify_progress(&self, path: &VPath,
+        image_id: &ImageId, mask: Mask, source: bool)
     {
         self.messages.unbounded_send(Message::Downloading {
             path: path.clone(),
             image: image_id.clone(),
-            mask: mask,
+            mask, source,
         }).expect("gossip subsystem crashed");
     }
     pub fn addrs_by_mask(&self, vpath: &VPath,
@@ -89,8 +89,8 @@ impl Peers {
         let mut result = Vec::new();
         let peers = self.peers.get();
         for (mid, paths) in self.downloading.lock().iter() {
-            if let Some(&(ref id, ref mask)) = paths.get(vpath) {
-                if id == targ_id && mask.is_superset_of(targ_mask) {
+            if let Some(dw) = paths.get(vpath) {
+                if &dw.image == targ_id && dw.mask.is_superset_of(targ_mask) {
                     if let Some(peer) = peers.get(mid) {
                         result.push(peer.addr)
                     }
@@ -123,6 +123,12 @@ impl Peers {
                 .collect()
         })
         .unwrap_or_else(HashMap::new)
+    }
+    // this is only for calling from UI, probably not safe in different threads
+    pub fn get_downloading(&self)
+        -> MutexGuard<HashMap<MachineId, BTreeMap<VPath, Downloading>>>
+    {
+        self.downloading.lock()
     }
 }
 

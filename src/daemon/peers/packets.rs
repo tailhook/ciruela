@@ -12,10 +12,11 @@ pub struct Packet {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Message {
     BaseDirs {
-        in_progress: BTreeMap<VPath, (ImageId, Mask)>,
+        in_progress: BTreeMap<VPath, (ImageId, Mask, bool, bool)>,
         base_dirs: BTreeMap<VPath, Hash>,
     },
-    Downloading { path: VPath, image: ImageId, mask: Mask },
+    Downloading { path: VPath, image: ImageId, mask: Mask,
+                  source: bool },
 }
 
 #[derive(Serialize, Debug)]
@@ -28,8 +29,9 @@ pub struct PacketRef<'a> {
 #[allow(dead_code)]
 pub enum MessageRef<'a> {
     BaseDirs {
-        in_progress: BTreeMap<&'a VPath, (&'a ImageId, &'a Mask)>,
+        in_progress: BTreeMap<&'a VPath, (&'a ImageId, &'a Mask, bool, bool)>,
         base_dirs: &'a BTreeMap<VPath, Hash>,
     },
-    Downloading { path: &'a VPath, image: &'a ImageId, mask: &'a Mask },
+    Downloading { path: &'a VPath, image: &'a ImageId, mask: &'a Mask,
+                  source: bool},
 }

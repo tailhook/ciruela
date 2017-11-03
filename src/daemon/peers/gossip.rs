@@ -36,6 +36,12 @@ pub const GOSSIP_INTERVAL: u64 = 1000;
 /// Number of packets to send on interval and on new fresh image
 pub const PACKETS_AT_ONCE: usize = 4;
 
+pub struct Downloading {
+    pub image: ImageId,
+    pub mask: Mask,
+    pub source: bool,
+    pub stalled: bool,
+}
 
 struct Gossip {
     socket: UdpSocket,
@@ -46,7 +52,7 @@ struct Gossip {
     peers: Arc<ArcCell<HashMap<MachineId, Peer>>>,
     dir_peers: Arc<Mutex<HashMap<VPath, HashSet<MachineId>>>>,
     downloading: Arc<Mutex<
-        HashMap<MachineId, BTreeMap<VPath, (ImageId, Mask)>>>>,
+        HashMap<MachineId, BTreeMap<VPath, Downloading>>>>,
     /// A list of peers with unknown ids, read from file
     /// only used if we use `peers.txt` (not `--cantal`)
     future_peers: HashMap<SocketAddr, String>,
@@ -102,14 +108,25 @@ impl Gossip {
                             self.downloading.lock().remove(&pkt.machine_id);
                         } else {
                             self.downloading.lock()
-                                .insert(pkt.machine_id.clone(), in_progress);
+                                .insert(pkt.machine_id.clone(),
+                                    in_progress.into_iter().map(|(k, v)| {
+                                        let (image, mask, source, stalled) = v;
+                                        (k, Downloading {
+                                            image, mask, source, stalled,
+                                        })
+                                    }).collect());
                         }
                     }
-                    Message::Downloading { path, image, mask } => {
+                    Message::Downloading { path, image, mask, source } => {
                         self.downloading.lock()
                             .entry(pkt.machine_id.clone())
                             .or_insert_with(BTreeMap::new)
-                            .insert(path, (image, mask));
+                            .insert(path, Downloading {
+                                image: image,
+                                mask: mask,
+                                source: source,
+                                stalled: false,
+                            });
                     }
                 }
             }
@@ -188,7 +205,9 @@ impl Gossip {
             machine_id: &self.machine_id,
             message: MessageRef::BaseDirs {
                 in_progress: in_progress.iter()
-                    .map(|(k, s)| (k, (&s.image_id, &s.mask)))
+                    .map(|(k, s)| {
+                        (k, (&s.image_id, &s.mask, s.source, s.stalled))
+                    })
                     .collect::<BTreeMap<_, _>>(),
                 base_dirs: &base_dirs,
             }
@@ -214,7 +233,7 @@ impl Future for Gossip {
 pub fn start(addr: SocketAddr,
     peers: Arc<ArcCell<HashMap<MachineId, Peer>>>,
     downloading: Arc<Mutex<
-        HashMap<MachineId, BTreeMap<VPath, (ImageId, Mask)>>>>,
+        HashMap<MachineId, BTreeMap<VPath, Downloading>>>>,
     dir_peers: Arc<Mutex<HashMap<VPath, HashSet<MachineId>>>>,
     messages: UnboundedReceiver<Message>,
     machine_id: MachineId,

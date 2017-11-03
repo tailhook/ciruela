@@ -13,7 +13,8 @@ pub fn start(sys: &Subsystem, cmd: Downloading) {
     sys.rescan_dir(cmd.virtual_path.parent());
     sys.state().in_progress.insert(cmd.clone());
     sys.peers.notify_progress(
-        &cmd.virtual_path, &cmd.image_id, cmd.mask.get());
+        &cmd.virtual_path, &cmd.image_id, cmd.mask.get(),
+        sys.remote.has_image_source(&cmd.image_id));
     let sys = sys.clone();
     spawn(sys.images.get(&sys.tracking, &cmd.virtual_path, &cmd.image_id)
     .and_then(|index| {
@@ -30,7 +31,8 @@ pub fn start(sys: &Subsystem, cmd: Downloading) {
                         debug!("Created dir");
                         cmd.index_fetched(&img.index);
                         sys.peers.notify_progress(&cmd.virtual_path,
-                            &cmd.image_id, cmd.mask.get());
+                            &cmd.image_id, cmd.mask.get(),
+                            sys.remote.has_image_source(&cmd.image_id));
                         hardlink_blocks(sys.clone(), img, cmd);
                     }
                     Err(disk::Error::AlreadyExists) => {

@@ -184,7 +184,8 @@ impl Future for FetchBlocks {
                     let ref dw = self.downloading;
                     dw.report_slice(s.index as usize);
                     self.sys.peers.notify_progress(&dw.virtual_path,
-                        &dw.image_id, dw.mask.get());
+                        &dw.image_id, dw.mask.get(),
+                        self.sys.remote.has_image_source(&dw.image_id));
                     false
                 }
             });
