@@ -27,9 +27,25 @@ pub struct ReceivedImage {
     pub forwarded: bool,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct AbortedImage {
+    pub id: ImageId,
+    pub path: VPath,
+    pub machine_id: MachineId,
+    pub hostname: String,
+    pub forwarded: bool,
+    pub reason: String,
+}
+
 impl Notification for ReceivedImage {
     fn type_name(&self) -> &'static str {
         "ReceivedImage"
+    }
+}
+
+impl Notification for AbortedImage {
+    fn type_name(&self) -> &'static str {
+        "AbortedImage"
     }
 }
 

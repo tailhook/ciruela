@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::time::{Duration};
+use std::time::{Duration, Instant};
 
 use futures::{Future, Async};
 use futures_cpupool::CpuFuture;
@@ -18,8 +18,9 @@ use disk::{self, Image};
 use mask::Mask;
 
 
-const FETCH_DEADLINE: u64 = 3600_000; // one hour
-const RETRY_INTERVAL: u64 = 2000; // 2 seconds
+const FETCH_DEADLINE: u64 = 3600_000;  // one hour
+const RETRY_CLUSTER_FAILURE: u64 = 120_000;  // Two minutes
+const RETRY_INTERVAL: u64 = 2000;  // 2 seconds
 const CONCURRENCY: usize = 10;
 
 
@@ -29,6 +30,7 @@ pub struct FetchBlocks {
     image: Arc<Image>,
     futures: VecDeque<FetchBlock>,
     retry_timeout: Option<Timeout>,
+    last_okay: Instant,
     deadline: Timeout,
 }
 
@@ -50,6 +52,7 @@ impl FetchBlocks {
             downloading: down.clone(),
             futures: VecDeque::new(),
             retry_timeout: None,
+            last_okay: Instant::now(),
             deadline: timeout(Duration::from_millis(FETCH_DEADLINE)),
         }
     }
@@ -78,6 +81,7 @@ impl StateMachine for FetchBlock {
                                     }
                                 }
                                 let data = Arc::new(data.data);
+                                ctx.last_okay = Instant::now();
                                 ctx.downloading.report_block(&data);
                                 Writing(ctx.sys.disk.write_block(
                                     ctx.image.clone(),
@@ -229,6 +233,23 @@ impl Future for FetchBlocks {
                     Waiting...",
                     self.downloading.image_id,
                     self.downloading.virtual_path);
+                let cretry = Duration::from_millis(RETRY_CLUSTER_FAILURE);
+                if self.last_okay + cretry < Instant::now() {
+                    let cstalled = self.sys.peers.check_stalled(
+                        &self.downloading.virtual_path,
+                        &self.downloading.image_id);
+                    if cstalled {
+                        error!("Noticed that all nodes on downloading \
+                            {} to {:?} are stalled. \
+                            This probably means that all sources which \
+                            uploaded the image have been gone before \
+                            upload was done. Canceling directory sync, \
+                            so another client could initiated upload again.",
+                            self.downloading.image_id,
+                            self.downloading.virtual_path);
+                        return Err(());
+                    }
+                }
                 let mut t = timeout(Duration::from_millis(RETRY_INTERVAL));
                 match t.poll().expect("timeout never fails") {
                     Async::Ready(()) => continue,

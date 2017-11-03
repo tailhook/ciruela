@@ -130,6 +130,44 @@ impl Peers {
     {
         self.downloading.lock()
     }
+
+    // check if this image is stalled across the whole cluster
+    // Note: If there are no peers known for this directory, we consider
+    // this as this is a sole owner of the directory. In the block fetching
+    // code we don't drop the image in at least two minutes, it's expected
+    // that two minutes is enought to syncrhonize `dir_peers`.
+    pub fn check_stalled(&self, path: &VPath, image: &ImageId) -> bool {
+        let needed_peers = self.dir_peers.lock()
+            .get(&path.parent()).cloned().unwrap_or_else(HashSet::new);
+        let dw = self.downloading.lock();
+        let mut stalled = 0;
+        let mut sources = 0;
+        let mut possibly_okay = 0;
+        for pid in &needed_peers {
+            if let Some(peer) = dw.get(&pid) {
+                if let Some(dir) = peer.get(path) {
+                    if &dir.image == image {
+                        if dir.stalled {
+                            stalled += 1;
+                        } else {
+                            possibly_okay += 1;
+                        }
+                        if dir.source {
+                            sources += 1;
+                        }
+                    }
+                } else {
+                    possibly_okay += 1;
+                }
+            } else {
+                possibly_okay += 1;
+            }
+        }
+        info!("Stale check {}/{} (okay: {}, sources: {})",
+            stalled, needed_peers.len(), possibly_okay, sources);
+        return stalled >= needed_peers.len() &&
+               possibly_okay == 0 && sources == 0;
+    }
 }
 
 pub fn start(me: PeersInit, addr: SocketAddr,

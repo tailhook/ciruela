@@ -83,6 +83,19 @@ impl Meta {
             upload::start_replace(params, &meta)
         })
     }
+    pub fn dir_aborted(&self, path: &VPath) {
+        let meta = self.clone();
+        let path: VPath = path.clone();
+        self.0.cpu_pool.spawn_fn(move || -> Result<(), ()> {
+            // need to offload to disk thread because we hold ``writing`` lock
+            // in disk thread too
+            if meta.writing().remove(&path).is_none() {
+                error!("Spurious abort of writing {:?}", path);
+            }
+            ::std::process::exit(112); // debug
+            Ok(())
+        }).forget();
+    }
     pub fn dir_committed(&self, path: &VPath) {
         let meta = self.clone();
         let path: VPath = path.clone();

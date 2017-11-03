@@ -203,18 +203,48 @@ disconnect from the network and also to display progress.
 
 .. code-block:: cddl
 
-    $message /= [0, "ReceivedImage", recevied-image-params]
+    $message /= [0, "ReceivedImage", received-image-params]
     received-image-params = {
         id: bytes,               ; binary hashsum of the image (bottom line
                                  ; of the index file but in binary form)
         path: text,              ; path where image was stored
         machine_id: bytes,       ; machine-id of the receiver
-        hostname: string,        ; hostname of the receiver
+        hostname: text,        ; hostname of the receiver
         forwarded: bool,         ; whether message originated from this host
                                  ; or forwarded
     }
 
 The ``forwarded`` field might be used to skip check on ``hostname`` field.
+
+
+AbortedImage
+`````````````
+
+Notifies peer that some host (maybe this one, or other peer) have aborted
+receiving this image. The notification is usually sent after
+``PublishImage`` for the specified id.
+
+The notification can be used by cicuela command-line client to notify that
+image can't be written for some reason, or to determine when
+it's find to retry upload in case of ``already_uploading_different_version``
+(``-x`` flag of CLI).
+
+.. code-block:: cddl
+
+    $message /= [0, "AbortedImage", aborted-image-params]
+    aborted-image-params = {
+        id: bytes,               ; binary hashsum of the image (bottom line
+                                 ; of the index file but in binary form)
+        path: text,              ; path where image was stored
+        machine_id: bytes,       ; machine-id of the receiver
+        hostname: text,          ; hostname of the receiver
+        forwarded: bool,         ; whether message originated from this host
+                                 ; or forwarded
+        reason: text,            ; reason of why image was aborted
+    }
+
+The ``forwarded`` field might be used to skip check on ``hostname`` field.
+
 
 
 GetIndex

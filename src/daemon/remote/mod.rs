@@ -8,7 +8,7 @@ use std::collections::{HashSet, HashMap};
 use std::sync::{Arc};
 use std::time::{Duration};
 
-use ciruela::proto::{ReceivedImage};
+use ciruela::proto::{ReceivedImage, AbortedImage};
 use ciruela::proto::{Registry};
 use ciruela::{ImageId, VPath, MachineId};
 use failure_tracker::HostFailures;
@@ -116,6 +116,22 @@ impl Remote {
                     machine_id: self.0.machine_id.clone(),
                     forwarded: false,
                     path: path.clone(),
+                })
+            }
+        }
+    }
+    pub fn notify_aborted_image(&self, id: &ImageId, path: &VPath,
+        reason: String)
+    {
+        for conn in self.inner().incoming.iter() {
+            if conn.has_image(id) {
+                conn.notification(AbortedImage {
+                    id: id.clone(),
+                    hostname: self.0.hostname.clone(),
+                    machine_id: self.0.machine_id.clone(),
+                    forwarded: false,
+                    path: path.clone(),
+                    reason: reason.clone(),
                 })
             }
         }
