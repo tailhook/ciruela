@@ -16,7 +16,17 @@ pub fn all_states(dir: &Dir)
             Ok(Some(state)) => {
                 let nlen = name.len() - ".state".len();
                 name.truncate(nlen);
-                res.insert(name, state);
+                if name.ends_with(".new") {
+                    let nlen = nlen - 4;
+                    name.truncate(nlen);
+                    res.insert(name, state);
+                } else if !res.contains_key(&name) {
+                    // We must not replace `.new` file, if it visited earlier
+                    // Since the only way to have duplicate entries is to
+                    // have both `.new` and non-new file, we replace when
+                    // visit `.new` and insert if not exists for non-new file
+                    res.insert(name, state);
+                }
             }
             Ok(None) => {
                 warn!("Scan error: {}",

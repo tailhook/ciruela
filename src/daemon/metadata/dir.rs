@@ -139,6 +139,11 @@ impl Dir {
             .map_err(|e| Error::WriteMeta(self.path(name), e))?;
         Ok(())
     }
+    pub fn rename(&self, from: &str, to: &str) -> Result<(), Error> {
+        self.0.local_rename(from, to)
+            .map_err(|e| Error::Rename(self.path(from), self.path(to), e))?;
+        Ok(())
+    }
     pub fn rename_broken_file<E: fmt::Display>(&self, name: &str, reason: E) {
         let bu_name = format!(".{}.backup", name);
         error!("{}. Renaming file to {:?}", reason, bu_name);

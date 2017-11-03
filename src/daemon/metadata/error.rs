@@ -69,6 +69,11 @@ quick_error! {
             display("can't list metadata dir {:?}: {}", dir, e)
             cause(e)
         }
+        Rename(from: PathBuf, to: PathBuf, e: io::Error) {
+            description("can't rename file")
+            display("can't rename {:?} -> {:?}: {}", from, to, e)
+            cause(e)
+        }
         CreateDir(dir: PathBuf, e: io::Error) {
             description("can't create metadata dir")
             display("can't create metadata dir {:?}: {}", dir, e)

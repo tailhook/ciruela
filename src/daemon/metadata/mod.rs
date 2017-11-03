@@ -17,7 +17,7 @@ use openat::Metadata;
 use futures_cpupool::{self, CpuPool, CpuFuture};
 use self_meter_http::Meter;
 
-use ciruela::database::signatures::State;
+use ciruela::database::signatures::{State, SignatureEntry};
 use ciruela::proto::{AppendDir};
 use ciruela::proto::{ReplaceDir};
 use ciruela::{ImageId, VPath};
@@ -35,10 +35,16 @@ pub use self::hardlink_sources::Hardlink;
 #[derive(Clone)]
 pub struct Meta(Arc<Inner>);
 
+struct Writing {
+    pub image: ImageId,
+    pub signatures: Vec<SignatureEntry>,
+    pub replacing: bool,
+}
+
 struct Inner {
     cpu_pool: CpuPool,
     config: Arc<Config>,
-    writing: Mutex<HashMap<VPath, Arc<State>>>,
+    writing: Mutex<HashMap<VPath, Writing>>,
     base_dir: Dir,
 }
 
@@ -89,10 +95,22 @@ impl Meta {
         self.0.cpu_pool.spawn_fn(move || -> Result<(), ()> {
             // need to offload to disk thread because we hold ``writing`` lock
             // in disk thread too
-            if meta.writing().remove(&path).is_none() {
+            if let Some(wr) = meta.writing().remove(&path) {
+                let res = if wr.replacing {
+                    upload::abort_append(&path, wr, &meta)
+                } else {
+                    upload::abort_replace(&path, wr, &meta)
+                };
+                match res {
+                    Ok(()) => {}
+                    Err(e) => {
+                        error!("Error commiting abort {:?}: {}", path, e);
+                        // TODO(tailhook) die?
+                    }
+                }
+            } else {
                 error!("Spurious abort of writing {:?}", path);
             }
-            ::std::process::exit(112); // debug
             Ok(())
         }).forget();
     }
@@ -100,15 +118,25 @@ impl Meta {
         let meta = self.clone();
         let path: VPath = path.clone();
         self.0.cpu_pool.spawn_fn(move || -> Result<(), ()> {
-            // need to offload to disk thread because we hold ``writing`` lock
-            // in disk thread too
-            if meta.writing().remove(&path).is_none() {
+            if let Some(wr) = meta.writing().remove(&path) {
+                if wr.replacing {
+                    match upload::commit_replace(&path, wr, &meta) {
+                        Ok(()) => {}
+                        Err(e) => {
+                            error!("Error commiting state {:?}: {}",
+                                path, e);
+                            // TODO(tailhook) die?
+                        }
+                    }
+                }
+            } else {
                 error!("Spurious ack of writing {:?}", path);
+                // TODO(tailhook) die?
             }
             Ok(())
         }).forget();
     }
-    fn writing(&self) -> MutexGuard<HashMap<VPath, Arc<State>>> {
+    fn writing(&self) -> MutexGuard<HashMap<VPath, Writing>> {
         self.0.writing.lock()
     }
     pub fn remove_state_file(&self, path: VPath, at: SystemTime)
