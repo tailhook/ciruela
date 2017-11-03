@@ -163,7 +163,8 @@ impl Peers {
                 possibly_okay += 1;
             }
         }
-        info!("Stale check {}/{} (okay: {}, sources: {})",
+        info!("Stale check {} -> {:?}: {}/{} (okay: {}, sources: {})",
+            image, path,
             stalled, needed_peers.len(), possibly_okay, sources);
         return stalled >= needed_peers.len() &&
                possibly_okay == 0 && sources == 0;
