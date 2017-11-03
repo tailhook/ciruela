@@ -23,6 +23,7 @@ pub fn start(sys: &Subsystem, cmd: Downloading) {
         error!("Error fetching index: {}. \
             We abort downloading of {} to {:?}", e,
             &cmd2.image_id, &cmd2.virtual_path);
+        sys2.dir_deleted(&cmd2.virtual_path, &cmd2.image_id);
         sys2.meta.dir_aborted(&cmd2.virtual_path);
         sys2.remote.notify_aborted_image(
             &cmd2.image_id, &cmd2.virtual_path,
@@ -55,6 +56,7 @@ pub fn start(sys: &Subsystem, cmd: Downloading) {
                     Err(e) => {
                         error!("Can't start image {:?}: {}",
                             cmd.virtual_path, e);
+                        sys.dir_deleted(&cmd.virtual_path, &cmd.image_id);
                         sys.meta.dir_aborted(&cmd.virtual_path);
                         sys.remote.notify_aborted_image(
                             &cmd.image_id, &cmd.virtual_path,
@@ -79,6 +81,7 @@ fn hardlink_blocks(sys: Subsystem, image: Arc<Image>, cmd: Arc<Downloading>) {
         .map_err(move |e| {
             error!("Error fetching hardlink sources: {}", e);
             // TODO(tailhook) remove temporary directory
+            sys2.dir_deleted(&cmd2.virtual_path, &cmd2.image_id);
             sys2.meta.dir_aborted(&cmd2.virtual_path);
             sys2.remote.notify_aborted_image(
                 &cmd2.image_id, &cmd2.virtual_path,
@@ -96,6 +99,7 @@ fn fetch_blocks(sys: Subsystem, image: Arc<Image>, cmd: Arc<Downloading>)
     spawn(FetchBlocks::new(&image, &cmd, &sys)
         .map_err(move |()| {
             // TODO(tailhook) remove temporary directory
+            sys3.dir_deleted(&cmd3.virtual_path, &cmd3.image_id);
             sys3.meta.dir_aborted(&cmd3.virtual_path);
             sys3.remote.notify_aborted_image(
                 &cmd3.image_id, &cmd3.virtual_path,
@@ -106,6 +110,7 @@ fn fetch_blocks(sys: Subsystem, image: Arc<Image>, cmd: Arc<Downloading>)
             .map_err(move |e| {
                 error!("Error commiting image: {}", e);
                 // TODO(tailhook) remove temporary directory
+                sys1.dir_deleted(&cmd1.virtual_path, &cmd1.image_id);
                 sys1.meta.dir_aborted(&cmd1.virtual_path);
                 sys1.remote.notify_aborted_image(
                     &cmd1.image_id, &cmd1.virtual_path,

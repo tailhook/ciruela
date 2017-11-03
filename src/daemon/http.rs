@@ -85,6 +85,11 @@ fn service<S>(req: Request, mut e: Encoder<S>,
                     stalled: p.stalled,
                     source: p.source,
                 })).collect::<BTreeMap<_, _>>()))
+        } else if req.path().starts_with("/deleted/") {
+            ok(serve_json(e, &tracking.get_deleted()
+                .iter()
+                .map(|&(ref vpath, ref id)| (vpath.clone(), id.to_string()))
+                .collect::<Vec<_>>()))
         } else if req.path().starts_with("/cluster/downloading/") {
             #[derive(Serialize)]
             pub struct Progress {
@@ -93,16 +98,26 @@ fn service<S>(req: Request, mut e: Encoder<S>,
                 pub stalled: bool,
                 pub source: bool,
             }
-            let dl = &*tracking.peers().get_downloading();
+            let dl = &*tracking.peers().get_host_data();
             ok(serve_json(e, &dl
-                .iter().map(|(machine_id, items)| {
-                    (format!("{}", machine_id), items.iter()
+                .iter().map(|(machine_id, data)| {
+                    (format!("{}", machine_id), data.downloading.iter()
                         .map(|(path, p)| (path, Progress {
                             image_id: format!("{}", p.image),
                             mask: p.mask,
                             stalled: p.stalled,
                             source: p.source,
                         })).collect::<BTreeMap<_, _>>())
+                }).collect::<BTreeMap<_, _>>()))
+        } else if req.path().starts_with("/cluster/deleted/") {
+            let dl = &*tracking.peers().get_host_data();
+            ok(serve_json(e, &dl
+                .iter().map(|(machine_id, data)| {
+                    (format!("{}", machine_id), data.deleted.iter()
+                        .map(|&(ref vpath, ref id)| {
+                            (vpath.clone(), id.to_string())
+                        })
+                        .collect::<Vec<_>>())
                 }).collect::<BTreeMap<_, _>>()))
         } else {
             e.status(Status::NotFound);

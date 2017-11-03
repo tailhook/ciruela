@@ -43,6 +43,11 @@ pub struct Downloading {
     pub stalled: bool,
 }
 
+pub struct HostData {
+    pub downloading: HashMap<VPath, Downloading>,
+    pub deleted: HashSet<(VPath, ImageId)>,
+}
+
 struct Gossip {
     socket: UdpSocket,
     tracking: Tracking,
@@ -51,8 +56,7 @@ struct Gossip {
     messages: UnboundedReceiver<Message>,
     peers: Arc<ArcCell<HashMap<MachineId, Peer>>>,
     dir_peers: Arc<Mutex<HashMap<VPath, HashSet<MachineId>>>>,
-    downloading: Arc<Mutex<
-        HashMap<MachineId, BTreeMap<VPath, Downloading>>>>,
+    by_host: Arc<Mutex<HashMap<MachineId, HostData>>>,
     /// A list of peers with unknown ids, read from file
     /// only used if we use `peers.txt` (not `--cantal`)
     future_peers: HashMap<SocketAddr, String>,
@@ -96,7 +100,7 @@ impl Gossip {
                     self.peers.set(peers);
                 }
                 match pkt.message {
-                    Message::BaseDirs { in_progress, base_dirs } => {
+                    Message::BaseDirs { in_progress, deleted, base_dirs } => {
                         for (vpath, hash) in base_dirs {
                             self.dir_peers.lock().entry(vpath.clone())
                                 .or_insert_with(HashSet::new)
@@ -104,24 +108,32 @@ impl Gossip {
                             self.tracking.reconcile_dir(vpath, hash, addr,
                                 pkt.machine_id.clone());
                         }
-                        if in_progress.len() == 0 {
-                            self.downloading.lock().remove(&pkt.machine_id);
+                        if in_progress.len() == 0 && deleted.len() == 0 {
+                            self.by_host.lock().remove(&pkt.machine_id);
                         } else {
-                            self.downloading.lock()
-                                .insert(pkt.machine_id.clone(),
-                                    in_progress.into_iter().map(|(k, v)| {
-                                        let (image, mask, source, stalled) = v;
-                                        (k, Downloading {
-                                            image, mask, source, stalled,
-                                        })
-                                    }).collect());
+                            self.by_host.lock()
+                                .insert(pkt.machine_id.clone(), HostData {
+                                    deleted,
+                                    downloading:
+                                        in_progress.into_iter().map(|(k, v)| {
+                                            let (
+                                                image, mask, source, stalled
+                                            ) = v;
+                                            (k, Downloading {
+                                                image, mask, source, stalled,
+                                            })
+                                        }).collect(),
+                                });
                         }
                     }
                     Message::Downloading { path, image, mask, source } => {
-                        self.downloading.lock()
+                        self.by_host.lock()
                             .entry(pkt.machine_id.clone())
-                            .or_insert_with(BTreeMap::new)
-                            .insert(path, Downloading {
+                            .or_insert_with(|| HostData {
+                                downloading: HashMap::new(),
+                                deleted: HashSet::new(),
+                            })
+                            .downloading.insert(path, Downloading {
                                 image: image,
                                 mask: mask,
                                 source: source,
@@ -178,17 +190,19 @@ impl Gossip {
         // Need to ping future peers to find out addresses
         // We ping them until they respond, and are removed from future
         let ipr = self.tracking.get_in_progress();
+        let deleted = self.tracking.get_deleted();
         for (addr, _) in &self.future_peers {
-            self.send_gossip(*addr, &ipr);
+            self.send_gossip(*addr, &ipr, &deleted);
         }
         let lst = self.peers.get();
         let hosts = sample(&mut thread_rng(), lst.values(), PACKETS_AT_ONCE);
         for host in hosts {
-            self.send_gossip(host.addr, &ipr);
+            self.send_gossip(host.addr, &ipr, &deleted);
         }
     }
     fn send_gossip(&self, addr: SocketAddr,
-        in_progress: &BTreeMap<VPath, ShortProgress>)
+        in_progress: &BTreeMap<VPath, ShortProgress>,
+        deleted: &Vec<(VPath, ImageId)>)
     {
         let mut buf = Vec::with_capacity(1400);
         let mut base_dirs = BTreeMap::new();
@@ -208,7 +222,8 @@ impl Gossip {
                     .map(|(k, s)| {
                         (k, (&s.image_id, &s.mask, s.source, s.stalled))
                     })
-                    .collect::<BTreeMap<_, _>>(),
+                    .collect(),
+                deleted: deleted,
                 base_dirs: &base_dirs,
             }
         };
@@ -232,8 +247,7 @@ impl Future for Gossip {
 
 pub fn start(addr: SocketAddr,
     peers: Arc<ArcCell<HashMap<MachineId, Peer>>>,
-    downloading: Arc<Mutex<
-        HashMap<MachineId, BTreeMap<VPath, Downloading>>>>,
+    by_host: Arc<Mutex<HashMap<MachineId, HostData>>>,
     dir_peers: Arc<Mutex<HashMap<VPath, HashSet<MachineId>>>>,
     messages: UnboundedReceiver<Message>,
     machine_id: MachineId,
@@ -244,7 +258,7 @@ pub fn start(addr: SocketAddr,
         interval: interval(Duration::from_millis(GOSSIP_INTERVAL)),
         socket: UdpSocket::bind(&addr, &handle())?,
         tracking: tracking.clone(),
-        peers, machine_id, future_peers, downloading, dir_peers, messages,
+        peers, machine_id, future_peers, by_host, dir_peers, messages,
     });
     Ok(())
 }

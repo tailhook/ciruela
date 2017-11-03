@@ -108,6 +108,11 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
                     continue;
                 }
             };
+            if sys3.is_recently_deleted(&vpath, &rstate.image) {
+                debug!("Not updating {:?} to {} because it was recently \
+                    deleted", vpath, rstate.image);
+                continue;
+            }
             // TODO(tailhook) consume multiple signatures
             let image_id = rstate.image;
             if let Some(old_state) = local.dirs.remove(&name) {

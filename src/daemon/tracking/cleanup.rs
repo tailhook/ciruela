@@ -78,6 +78,8 @@ pub fn spawn_loop(rx: UnboundedReceiver<Command>, sys: &Subsystem) {
                                         &img.path.file_name()
                                         .expect("valid image path"));
                                 warn!("Removing {:?}", vpath);
+                                sys2.dir_deleted(&vpath,
+                                    &img.target_state.image);
                                 let cfg = dir2.config.clone();
                                 let sys = sys2.clone();
                                 sys.meta.remove_state_file(vpath, time)

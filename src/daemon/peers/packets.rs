@@ -1,6 +1,6 @@
 use ciruela::{ImageId, VPath, Hash, MachineId};
 use mask::Mask;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -13,6 +13,7 @@ pub struct Packet {
 pub enum Message {
     BaseDirs {
         in_progress: BTreeMap<VPath, (ImageId, Mask, bool, bool)>,
+        deleted: HashSet<(VPath, ImageId)>,
         base_dirs: BTreeMap<VPath, Hash>,
     },
     Downloading { path: VPath, image: ImageId, mask: Mask,
@@ -30,6 +31,7 @@ pub struct PacketRef<'a> {
 pub enum MessageRef<'a> {
     BaseDirs {
         in_progress: BTreeMap<&'a VPath, (&'a ImageId, &'a Mask, bool, bool)>,
+        deleted: &'a Vec<(VPath, ImageId)>,
         base_dirs: &'a BTreeMap<VPath, Hash>,
     },
     Downloading { path: &'a VPath, image: &'a ImageId, mask: &'a Mask,

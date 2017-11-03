@@ -4,7 +4,7 @@ mod gossip;
 mod packets;
 pub mod config;
 
-use std::collections::{HashMap, BTreeMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::path::{PathBuf};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -22,7 +22,7 @@ use mask::Mask;
 use named_mutex::{Mutex, MutexGuard};
 use self::packets::Message;
 use tracking::Tracking;
-use peers::gossip::Downloading;
+use peers::gossip::{HostData};
 
 
 #[derive(Debug, Clone)]
@@ -35,7 +35,7 @@ pub struct Peer {
 
 #[derive(Clone)]
 pub struct Peers {
-    downloading: Arc<Mutex<HashMap<MachineId, BTreeMap<VPath, Downloading>>>>,
+    by_host: Arc<Mutex<HashMap<MachineId, HostData>>>,
     dir_peers: Arc<Mutex<HashMap<VPath, HashSet<MachineId>>>>,
     peers: Arc<ArcCell<HashMap<MachineId, Peer>>>,
     messages: UnboundedSender<Message>,
@@ -45,7 +45,7 @@ pub struct PeersInit {
     machine_id: MachineId,
     cell: Arc<ArcCell<HashMap<MachineId, Peer>>>,
     peer_file: Option<PathBuf>,
-    downloading: Arc<Mutex<HashMap<MachineId, BTreeMap<VPath, Downloading>>>>,
+    by_host: Arc<Mutex<HashMap<MachineId, HostData>>>,
     dir_peers: Arc<Mutex<HashMap<VPath, HashSet<MachineId>>>>,
     messages: UnboundedReceiver<Message>,
 }
@@ -55,12 +55,13 @@ impl Peers {
         machine_id: MachineId,
         peer_file: Option<PathBuf>) -> (Peers, PeersInit)
     {
-        let dw = Arc::new(Mutex::new(HashMap::new(), "peers_downloading"));
+        let by_host = Arc::new(Mutex::new(HashMap::new(),
+            "peers_host_data"));
         let (tx, rx) = unbounded();
         let cell = Arc::new(ArcCell::new(Arc::new(HashMap::new())));
         let dir_peers = Arc::new(Mutex::new(HashMap::new(), "dir_peers"));
         (Peers {
-            downloading: dw.clone(),
+            by_host: by_host.clone(),
             messages: tx,
             peers: cell.clone(),
             dir_peers: dir_peers.clone(),
@@ -68,7 +69,7 @@ impl Peers {
             cell: cell,
             peer_file: peer_file,
             machine_id,
-            downloading: dw,
+            by_host: by_host,
             dir_peers: dir_peers,
             messages: rx,
         })
@@ -88,8 +89,8 @@ impl Peers {
     {
         let mut result = Vec::new();
         let peers = self.peers.get();
-        for (mid, paths) in self.downloading.lock().iter() {
-            if let Some(dw) = paths.get(vpath) {
+        for (mid, host) in self.by_host.lock().iter() {
+            if let Some(dw) = host.downloading.get(vpath) {
                 if &dw.image == targ_id && dw.mask.is_superset_of(targ_mask) {
                     if let Some(peer) = peers.get(mid) {
                         result.push(peer.addr)
@@ -125,10 +126,10 @@ impl Peers {
         .unwrap_or_else(HashMap::new)
     }
     // this is only for calling from UI, probably not safe in different threads
-    pub fn get_downloading(&self)
-        -> MutexGuard<HashMap<MachineId, BTreeMap<VPath, Downloading>>>
+    pub fn get_host_data(&self)
+        -> MutexGuard<HashMap<MachineId, HostData>>
     {
-        self.downloading.lock()
+        self.by_host.lock()
     }
 
     // check if this image is stalled across the whole cluster
@@ -139,13 +140,15 @@ impl Peers {
     pub fn check_stalled(&self, path: &VPath, image: &ImageId) -> bool {
         let needed_peers = self.dir_peers.lock()
             .get(&path.parent()).cloned().unwrap_or_else(HashSet::new);
-        let dw = self.downloading.lock();
+        let hdata = self.by_host.lock();
         let mut stalled = 0;
+        let mut deleted = 0;
         let mut sources = 0;
         let mut possibly_okay = 0;
+        let pair = (path.clone(), image.clone());
         for pid in &needed_peers {
-            if let Some(peer) = dw.get(&pid) {
-                if let Some(dir) = peer.get(path) {
+            if let Some(peer) = hdata.get(&pid) {
+                if let Some(dir) = peer.downloading.get(path) {
                     if &dir.image == image {
                         if dir.stalled {
                             stalled += 1;
@@ -156,6 +159,8 @@ impl Peers {
                             sources += 1;
                         }
                     }
+                } else if peer.deleted.contains(&pair) {
+                    deleted += 1;
                 } else {
                     possibly_okay += 1;
                 }
@@ -163,10 +168,10 @@ impl Peers {
                 possibly_okay += 1;
             }
         }
-        info!("Stale check {} -> {:?}: {}/{} (okay: {}, sources: {})",
+        info!("Stale check {} -> {:?}: {}+{}/{} (okay: {}, sources: {})",
             image, path,
-            stalled, needed_peers.len(), possibly_okay, sources);
-        return stalled >= needed_peers.len() &&
+            stalled, deleted, needed_peers.len(), possibly_okay, sources);
+        return stalled+deleted >= needed_peers.len() &&
                possibly_okay == 0 && sources == 0;
     }
 }
@@ -179,7 +184,7 @@ pub fn start(me: PeersInit, addr: SocketAddr,
     if let Some(peer_file) = me.peer_file {
         let tracking = tracking.clone();
         let id = me.machine_id.clone();
-        let dw = me.downloading.clone();
+        let dw = me.by_host.clone();
         let tx = me.messages;
         let dp = me.dir_peers;
         let cell = me.cell;
@@ -193,7 +198,7 @@ pub fn start(me: PeersInit, addr: SocketAddr,
     } else {
         cantal::spawn_fetcher(&me.cell, config.port);
         gossip::start(addr,
-            me.cell, me.downloading, me.dir_peers, me.messages, me.machine_id,
+            me.cell, me.by_host, me.dir_peers, me.messages, me.machine_id,
             tracking, HashMap::new())?;
     }
     Ok(())

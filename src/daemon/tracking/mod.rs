@@ -37,11 +37,15 @@ pub use self::fetch_index::Index;
 pub use self::progress::{Downloading, Slices};
 pub use self::base_dir::BaseDir;
 
+const DELETED_RETENTION: u64 = 300_000;  // 5 min
+const AVOID_DOWNLOAD: u64 = 120_000;  // do not try delete image again in 2 min
+
 
 pub type BlockData = Arc<Vec<u8>>;
 
 pub struct State {
     in_progress: HashSet<Arc<Downloading>>,
+    recently_deleted: HashMap<(VPath, ImageId), Instant>,
 
     base_dirs: HashMap<VPath, Arc<BaseDir>>,
     base_dir_list: Vec<Arc<BaseDir>>,
@@ -118,6 +122,7 @@ impl Tracking {
             images: fetch_index::Indexes::new(),
             state: Arc::new(Mutex::new(State {
                 in_progress: HashSet::new(),
+                recently_deleted: HashMap::new(),
                 base_dirs: HashMap::new(),
                 base_dir_list: Vec::new(),
                 reconciling: HashMap::new(),
@@ -221,6 +226,13 @@ impl Tracking {
         }
         return res;
     }
+    pub fn get_deleted(&self) -> Vec<(VPath, ImageId)> {
+        let retention = Duration::from_millis(DELETED_RETENTION);
+        let mut state = self.state();
+        state.recently_deleted
+            .retain(|_, v| *v + retention > Instant::now());
+        state.recently_deleted.keys().cloned().collect()
+    }
     pub fn get_connection_by_mask<P: Policy>(&self,
         vpath: &VPath, id: &ImageId, mask: Mask,
         failures: &Failures<SocketAddr, P>)
@@ -318,6 +330,22 @@ impl Subsystem {
     fn rescan_dir(&self, path: VPath) {
         self.0.scan.unbounded_send((path, Instant::now(), false))
             .expect("can always send in rescan channel");
+    }
+    pub fn dir_deleted(&self, path: &VPath, image_id: &ImageId) {
+        let mut state = self.state();
+        state.recently_deleted
+            .insert((path.clone(), image_id.clone()), Instant::now());
+    }
+    pub fn is_recently_deleted(&self, path: &VPath, image_id: &ImageId)
+        -> bool
+    {
+        let state = self.state();
+        let key = (path.clone(), image_id.clone());
+        if let Some(ts) = state.recently_deleted.get(&key) {
+            *ts + Duration::from_millis(AVOID_DOWNLOAD) >= Instant::now()
+        } else {
+            false
+        }
     }
 }
 
