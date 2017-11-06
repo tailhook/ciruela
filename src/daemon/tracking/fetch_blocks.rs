@@ -168,6 +168,18 @@ impl Future for FetchBlocks {
                     None => unreachable!(),
                 }
             }
+            self.downloading.slices().retain(|s| {
+                if s.in_progress > 0 || s.blocks.len() > 0 {
+                    true
+                } else {
+                    let ref dw = self.downloading;
+                    dw.report_slice(s.index as usize);
+                    self.sys.peers.notify_progress(&dw.virtual_path,
+                        &dw.image_id, dw.mask.get(),
+                        self.sys.remote.has_image_source(&dw.image_id));
+                    false
+                }
+            });
             if self.futures.len() == 0 &&
                 self.downloading.slices().len() == 0
             {
@@ -181,18 +193,6 @@ impl Future for FetchBlocks {
                 return Ok(Async::NotReady);
             }
             let mut new = 0;
-            self.downloading.slices().retain(|s| {
-                if s.in_progress > 0 || s.blocks.len() > 0 {
-                    true
-                } else {
-                    let ref dw = self.downloading;
-                    dw.report_slice(s.index as usize);
-                    self.sys.peers.notify_progress(&dw.virtual_path,
-                        &dw.image_id, dw.mask.get(),
-                        self.sys.remote.has_image_source(&dw.image_id));
-                    false
-                }
-            });
             for s in self.downloading.slices().iter_mut() {
                 while let Some(blk) = s.blocks.pop_front() {
                     // TODO(tailhook) Try peer connections
