@@ -12,7 +12,12 @@ pub fn start(sys: &Subsystem, cmd: Downloading) {
     let cmd = Arc::new(cmd);
     let cmd2 = cmd.clone();
     sys.rescan_dir(cmd.virtual_path.parent());
-    sys.state().in_progress.insert(cmd.clone());
+    {
+        let mut state = sys.state();
+        state.recently_deleted.remove(
+            &(cmd.virtual_path.clone(), cmd.image_id.clone()));
+        state.in_progress.insert(cmd.clone());
+    }
     sys.peers.notify_progress(
         &cmd.virtual_path, &cmd.image_id, cmd.mask.get(),
         sys.remote.has_image_source(&cmd.image_id));
