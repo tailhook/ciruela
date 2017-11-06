@@ -145,6 +145,7 @@ impl Peers {
         let mut deleted = 0;
         let mut sources = 0;
         let mut possibly_okay = 0;
+        let mut wrong_image = 0;
         let pair = (path.clone(), image.clone());
         for pid in &needed_peers {
             if let Some(peer) = hdata.get(&pid) {
@@ -158,6 +159,8 @@ impl Peers {
                         if dir.source {
                             sources += 1;
                         }
+                    } else {
+                        wrong_image += 1;
                     }
                 } else if peer.deleted.contains(&pair) {
                     deleted += 1;
@@ -168,9 +171,11 @@ impl Peers {
                 possibly_okay += 1;
             }
         }
-        info!("Stale check {} -> {:?}: {}+{}/{} (okay: {}, sources: {})",
+        info!("Stale check {} -> {:?}: {}+{}/{} \
+            (okay: {}, sources: {}, wrong: {})",
             image, path,
-            stalled, deleted, needed_peers.len(), possibly_okay, sources);
+            stalled, deleted, needed_peers.len(),
+            possibly_okay, sources, wrong_image);
         return stalled+deleted >= needed_peers.len() &&
                possibly_okay == 0 && sources == 0;
     }
