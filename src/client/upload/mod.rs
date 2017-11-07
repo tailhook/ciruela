@@ -3,7 +3,7 @@ use std::io::{self, stdout, stderr};
 use std::net::SocketAddr;
 use std::process::exit;
 use std::sync::{Arc, Mutex};
-use std::time::SystemTime;
+use std::time::{SystemTime, Duration};
 
 use abstract_ns::HostResolve;
 use argparse::{ArgumentParser};
@@ -36,6 +36,10 @@ struct Progress {
 
 struct Tracker(SocketAddr, Arc<Mutex<Progress>>);
 
+fn duration_float(d: Duration) -> f64 {
+    d.as_secs() as f64 + d.subsec_nanos() as f64 / 1_000_000_000.
+}
+
 
 impl Progress {
     fn hosts_done(&self) -> String {
@@ -52,10 +56,11 @@ impl Progress {
         if self.ips_needed.len() == 0 {
             info!("Fetched from {}", self.hosts_done());
             eprintln!("Fetched from all required hosts. {} total. \
-                Done in {} seconds.",
+                Done in {:.3} seconds.",
                 self.hosts_done.len(),
-                SystemTime::now().duration_since(self.started)
-                    .unwrap().as_secs());
+                duration_float(
+                    SystemTime::now().duration_since(self.started)
+                    .unwrap()));
             self.done.take().map(|chan| {
                 chan.send(()).ok();
             });
