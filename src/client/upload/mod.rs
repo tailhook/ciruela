@@ -122,6 +122,12 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
     v1::scan(&cfg, &mut indexbuf)
         .map_err(|e| error!("Error scanning {:?}: {}", dir, e))?;
 
+    if indexbuf.len() > 100 << 20 {
+        error!("Index is too large: {} with the limit of {}",
+            indexbuf.len(), 100 << 20);
+        return Err(());
+    }
+
     let pool = CpuPool::new(gopt.threads);
 
     let image_id = get_hash(&mut io::Cursor::new(&indexbuf))
