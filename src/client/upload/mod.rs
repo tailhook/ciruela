@@ -82,6 +82,15 @@ impl Listener for Tracker {
                 }
                 pro.check_status()
             }
+            AbortedImage(img) => {
+                // TODO(tailhook) check image id and path
+                let mut pro = self.1.lock().expect("progress is not poisoned");
+                pro.hosts_errored.insert(self.0);
+                if !img.forwarded {
+                    pro.ips_needed.remove(&self.0);
+                }
+                pro.check_status()
+            }
             _ => {}
         }
     }

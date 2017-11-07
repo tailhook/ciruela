@@ -40,6 +40,7 @@ pub enum ResponseType {
 pub enum NotificationType {
     PublishImage,
     ReceivedImage,
+    AbortedImage,
 }
 
 const REQUEST_TYPES: &'static [&'static str] = &[
@@ -61,6 +62,7 @@ const RESPONSE_TYPES: &'static [&'static str] = &[
 const NOTIFICATION_TYPES: &'static [&'static str] = &[
     "PublishImage",
     "ReceivedImage",
+    "AbortedImage",
     ];
 
 pub enum Request {
@@ -84,6 +86,7 @@ pub enum Response {
 pub enum Notification {
     PublishImage(index_commands::PublishImage),
     ReceivedImage(index_commands::ReceivedImage),
+    AbortedImage(index_commands::AbortedImage),
 }
 
 impl<'a> Deserialize<'a> for Message {
@@ -147,6 +150,7 @@ impl<'a> Visitor<'a> for NotificationTypeVisitor {
         match value {
             "PublishImage" => Ok(NotificationType::PublishImage),
             "ReceivedImage" => Ok(NotificationType::ReceivedImage),
+            "AbortedImage" => Ok(NotificationType::AbortedImage),
             _ => Err(Error::unknown_field(value, NOTIFICATION_TYPES)),
         }
     }
@@ -200,6 +204,10 @@ impl<'a> Visitor<'a> for MessageVisitor {
                     },
                     NotificationType::ReceivedImage => match visitor.next_element()? {
                         Some(data) => Notification::ReceivedImage(data),
+                        None => return Err(Error::invalid_length(3, &self)),
+                    },
+                    NotificationType::AbortedImage => match visitor.next_element()? {
+                        Some(data) => Notification::AbortedImage(data),
                         None => return Err(Error::invalid_length(3, &self)),
                     },
                 };

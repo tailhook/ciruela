@@ -202,6 +202,10 @@ impl websocket::Dispatcher for Dispatcher {
                     // ignoring for now
                     // TODO(tailhook) forward the notification
                 }
+                Ok(Message::Notification(N::AbortedImage(_))) => {
+                    // ignoring for now
+                    // TODO(tailhook) forward the notification
+                }
                 Err(e) => {
                     match *frame {
                         Frame::Binary(x) => {
