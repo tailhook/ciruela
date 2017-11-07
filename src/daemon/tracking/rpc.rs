@@ -30,8 +30,10 @@ quick_error! {
 
 impl Tracking {
     /// RPC Requests
-    pub fn append_dir(&self, cmd: AppendDir, resp: Responder<AppendDirAck>)
-    {
+    pub fn append_dir(&self, cmd: AppendDir, resp: Responder<AppendDirAck>) {
+        use metadata::Upload::*;
+        use metadata::Accept::*;
+
         if !self.0.config.dirs.contains_key(cmd.path.key()) {
             resp.respond_now(AppendDirAck {
                 accepted: false,
@@ -46,18 +48,31 @@ impl Tracking {
         resp.respond_with_future(self.0.meta.append_dir(cmd)
             .map(move |result| {
                 let parent = path.parent();
-                if result.new {
-                    tracking.fetch_dir(path, image_id, false);
+                match result {
+                    Accepted(New) => {
+                        tracking.fetch_dir(path, image_id, false);
+                    }
+                    Accepted(AlreadyDone) => {
+                        tracking.0.remote
+                            .notify_received_image(&image_id, &path);
+                    }
+                    Accepted(InProgress) | Rejected(..) => {}
                 }
                 AppendDirAck {
-                    accepted: result.accepted,
-                    reject_reason: result.reject_reason.map(Into::into),
+                    accepted: matches!(result, Accepted(..)),
+                    reject_reason: match result {
+                        Rejected(reason) => Some(reason.to_string()),
+                        _ => None,
+                    },
                     hosts: tracking.0.peers.servers_by_basedir(&parent),
                 }
             }));
     }
     pub fn replace_dir(&self, cmd: ReplaceDir, resp: Responder<ReplaceDirAck>)
     {
+        use metadata::Upload::*;
+        use metadata::Accept::*;
+
         if !self.0.config.dirs.contains_key(cmd.path.key()) {
             resp.respond_now(ReplaceDirAck {
                 accepted: false,
@@ -72,12 +87,22 @@ impl Tracking {
         resp.respond_with_future(self.0.meta.replace_dir(cmd)
             .map(move |result| {
                 let parent = path.parent();
-                if result.new {
-                    tracking.fetch_dir(path, image_id, true);
+                match result {
+                    Accepted(New) => {
+                        tracking.fetch_dir(path, image_id, true);
+                    }
+                    Accepted(AlreadyDone) => {
+                        tracking.0.remote
+                            .notify_received_image(&image_id, &path);
+                    }
+                    Accepted(InProgress) | Rejected(..) => {}
                 }
                 ReplaceDirAck {
-                    accepted: result.accepted,
-                    reject_reason: result.reject_reason.map(Into::into),
+                    accepted: matches!(result, Accepted(..)),
+                    reject_reason: match result {
+                        Rejected(reason) => Some(reason.to_string()),
+                        _ => None,
+                    },
                     hosts: tracking.0.peers.servers_by_basedir(&parent),
                 }
             }));

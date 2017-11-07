@@ -17,13 +17,17 @@ use config::Directory;
 use metadata::keys::read_upload_keys;
 use metadata::{Meta, Error, Writing};
 
+#[derive(Debug, Clone, Copy)]
+pub enum Accept {
+    New,
+    InProgress,
+    AlreadyDone,
+}
 
 #[derive(Debug, Clone, Copy)]
-pub struct Upload {
-    pub accepted: bool,
-    pub reject_reason: Option<&'static str>,
-    /// set to true to singal `tracking` that it should start a directory
-    pub new: bool,
+pub enum Upload {
+    Accepted(Accept),
+    Rejected(&'static str),
 }
 
 fn sort_signatures(new: &mut Vec<SignatureEntry>) {
@@ -73,11 +77,7 @@ pub fn start_append(params: AppendDir, meta: &Meta)
     if !check_keys(&params.sig_data(), &params.signatures, config, meta)? {
         warn!("{:?} has no valid signatures. Upload-keys: {:?}",
               params, config.upload_keys);
-        return Ok(Upload {
-            accepted: false,
-            reject_reason: Some("signature_mismatch"),
-            new: false,
-        });
+        return Ok(Upload::Rejected("signature_mismatch"));
     }
 
     let dir = meta.signatures()?.ensure_dir(vpath.parent_rel())?;
@@ -98,13 +98,9 @@ pub fn start_append(params: AppendDir, meta: &Meta)
             {
                 if state.image == params.image {
                     append_signatures(&mut state.signatures, signatures);
-                    (state, false)
+                    (state, Accept::AlreadyDone)
                 } else {
-                    return Ok(Upload {
-                        accepted: false,
-                        reject_reason: Some("already_exists"),
-                        new: false,
-                    });
+                    return Ok(Upload::Rejected("already_exists"));
                 }
             } else {
                 let state = State {
@@ -116,7 +112,7 @@ pub fn start_append(params: AppendDir, meta: &Meta)
                     signatures: state.signatures.clone(),
                     replacing: false,
                 });
-                (state, true)
+                (state, Accept::New)
             }
         }
         Entry::Occupied(mut e) => {
@@ -128,21 +124,17 @@ pub fn start_append(params: AppendDir, meta: &Meta)
                 (State {
                     image: old_state.image.clone(),
                     signatures: old_state.signatures.clone(),
-                }, false)
+                }, Accept::InProgress)
             } else {
-                return Ok(Upload {
-                    accepted: false,
-                    reject_reason:
-                        Some("already_uploading_different_version"),
-                    new: false,
-                });
+                return Ok(Upload::Rejected(
+                        "already_uploading_different_version"));
             }
         }
     };
     dir.replace_file(&state_file, |file| {
         state.serialize(&mut Cbor::new(BufWriter::new(file)))
     })?;
-    Ok(Upload { accepted: true, reject_reason: None, new: new })
+    Ok(Upload::Accepted(new))
 }
 
 pub fn start_replace(params: ReplaceDir, meta: &Meta)
@@ -158,19 +150,11 @@ pub fn start_replace(params: ReplaceDir, meta: &Meta)
         return Err(Error::PathNotFound(vpath));
     };
     if config.append_only {
-        return Ok(Upload {
-            accepted: false,
-            reject_reason: Some("dir_is_append_only"),
-            new: false,
-        });
+        return Ok(Upload::Rejected("dir_is_append_only"));
     }
 
     if !check_keys(&params.sig_data(), &params.signatures, config, meta)? {
-        return Ok(Upload {
-            accepted: false,
-            reject_reason: Some("signature_mismatch"),
-            new: false,
-        });
+        return Ok(Upload::Rejected("signature_mismatch"));
     }
 
     let dir = meta.signatures()?.ensure_dir(vpath.parent_rel())?;
@@ -191,7 +175,7 @@ pub fn start_replace(params: ReplaceDir, meta: &Meta)
             if let Some(mut state) = dir.read_file(&state_file, read_state)? {
                 if state.image == params.image {
                     append_signatures(&mut state.signatures, signatures);
-                    (state, false, false)
+                    (state, Accept::AlreadyDone, false)
                 } else {
                     let state = State {
                         image: params.image.clone(),
@@ -202,7 +186,7 @@ pub fn start_replace(params: ReplaceDir, meta: &Meta)
                         signatures: state.signatures.clone(),
                         replacing: true,
                     });
-                    (state, true, true)
+                    (state, Accept::New, true)
                 }
             } else {
                 let state = State {
@@ -214,7 +198,7 @@ pub fn start_replace(params: ReplaceDir, meta: &Meta)
                     signatures: state.signatures.clone(),
                     replacing: false,
                 });
-                (state, true, false)
+                (state, Accept::New, false)
             }
         }
         Entry::Occupied(mut e) => {
@@ -226,17 +210,13 @@ pub fn start_replace(params: ReplaceDir, meta: &Meta)
                 (State {
                     image: old_state.image.clone(),
                     signatures: old_state.signatures.clone(),
-                }, false, old_state.replacing)
+                }, Accept::InProgress, old_state.replacing)
             } else {
                 // TODO(tailhook) stop fetching image, delete and
                 // start replacing
                 warn!("Replace is rejected because already in progress");
-                return Ok(Upload {
-                    accepted: false,
-                    reject_reason:
-                        Some("already_uploading_different_version"),
-                    new: false,
-                });
+                return Ok(Upload::Rejected(
+                    "already_uploading_different_version"));
             }
         }
     };
@@ -249,7 +229,7 @@ pub fn start_replace(params: ReplaceDir, meta: &Meta)
             state.serialize(&mut Cbor::new(BufWriter::new(file)))
         })?;
     }
-    Ok(Upload { accepted: true, reject_reason: None, new: new })
+    Ok(Upload::Accepted(new))
 }
 
 pub(in metadata) fn abort_replace(vpath: &VPath, _wr: Writing, meta: &Meta)

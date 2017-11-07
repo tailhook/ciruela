@@ -351,6 +351,9 @@ impl Subsystem {
 
 pub fn start(init: TrackingInit) -> Result<(), String> // actually void
 {
+    use metadata::Upload::*;
+    use metadata::Accept::*;
+
     let (ctx, crx) = unbounded();
     let TrackingInit { cmd_chan, rescan_chan, tracking } = init;
     let sys = Subsystem(Arc::new(Data {
@@ -436,15 +439,15 @@ pub fn start(init: TrackingInit) -> Result<(), String> // actually void
                                             Either::B(
                                                 sys.meta.append_dir(cmd)
                                                 .map(move |result| {
-                                                    // TODO(tailhook)
-                                                    // does `accepted` mean
-                                                    // here something?
-                                                    if result.new {
-                                                        sys.tracking
-                                                        .fetch_dir(
-                                                            dir,
-                                                            image_id,
-                                                            false);
+                                                    match result {
+                                                        Accepted(New) => {
+                                                            sys.tracking
+                                                            .fetch_dir(
+                                                                dir,
+                                                                image_id,
+                                                                false);
+                                                        }
+                                                        _ => {}
                                                     }
                                                 })
                                                 .map_err(|e| {

@@ -27,7 +27,7 @@ use index::IndexData;
 use named_mutex::{Mutex, MutexGuard};
 
 use self::dir::Dir;
-pub use self::upload::Upload;
+pub use self::upload::{Upload, Accept};
 pub use self::error::Error;
 pub use self::hardlink_sources::Hardlink;
 

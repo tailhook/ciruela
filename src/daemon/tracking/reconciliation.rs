@@ -10,7 +10,7 @@ use tracking::Subsystem;
 use futures::future::{Future, Loop, loop_fn};
 use tk_easyloop::spawn;
 use tracking::{base_dir};
-use metadata::Upload;
+use metadata::{Upload, Accept};
 
 
 pub struct ReconPush {
@@ -144,14 +144,15 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
                         signatures: vec![sig.signature],
                     }).then(move |result| {
                         match result {
-                            Ok(Upload { accepted: true, new: true, .. }) => {
+                            Ok(Upload::Accepted(Accept::New)) => {
                                 sys.tracking.fetch_dir(
                                     vpath, image_id, true);
                             }
-                            Ok(Upload { accepted: true, new: false, .. }) => {}
-                            Ok(Upload { reject_reason, ..}) => {
+                            Ok(Upload::Accepted(Accept::InProgress)) |
+                            Ok(Upload::Accepted(Accept::AlreadyDone)) => {}
+                            Ok(Upload::Rejected(reason)) => {
                                 error!("Error reconciling {:?}: {}",
-                                    vpath, reject_reason.unwrap_or("(???)"));
+                                    vpath, reason);
                             }
                             Err(e) => {
                                 error!("Error reconciling {:?}: {}",
@@ -170,14 +171,15 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
                         signatures: vec![sig.signature],
                     }).then(move |result| {
                         match result {
-                            Ok(Upload { accepted: true, new: true, .. }) => {
+                            Ok(Upload::Accepted(Accept::New)) => {
                                 sys.tracking.fetch_dir(
                                     vpath, image_id, false);
                             }
-                            Ok(Upload { accepted: true, new: false, .. }) => {}
-                            Ok(Upload { reject_reason, ..}) => {
+                            Ok(Upload::Accepted(Accept::InProgress)) |
+                            Ok(Upload::Accepted(Accept::AlreadyDone)) => {}
+                            Ok(Upload::Rejected(reason)) => {
                                 error!("Error reconciling {:?}: {}",
-                                    vpath, reject_reason.unwrap_or("(???)"));
+                                    vpath, reason);
                             }
                             Err(e) => {
                                 error!("Error reconciling {:?}: {}",
