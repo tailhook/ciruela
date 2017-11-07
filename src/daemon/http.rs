@@ -3,6 +3,7 @@ use std::io;
 use std::net::SocketAddr;
 use std::time::Duration;
 
+use futures::Async;
 use futures::future::{Future, FutureResult, ok};
 use futures::stream::Stream;
 use self_meter_http::{Meter, ProcessReport, ThreadReport};
@@ -11,20 +12,222 @@ use serde_json;
 use time;
 use tk_easyloop::{spawn, handle};
 use tk_easyloop;
+use tk_bufstream::{ReadBuf, WriteBuf};
 use tk_http::Status;
-use tk_http::server::buffered::{Request, BufferedDispatcher};
-use tk_http::server::{Proto, Encoder, EncoderDone, Error, Config};
+use tk_http::server::{self, Proto, Encoder, EncoderDone, Error, Config};
+use tk_http::server::{WebsocketHandshake, Head, RecvMode};
+use tk_http::websocket::ServerCodec;
 use tk_listen::ListenExt;
 use tokio_core::net::TcpListener;
+use tokio_io::{AsyncRead, AsyncWrite};
 
 
 use mask::Mask;
 use remote::websocket::Connection;
-use remote::Remote;
 use tracking::Tracking;
 
 
 const BODY: &'static str = "Not found";
+const BAD_REQUEST: &'static str = "Bad Request";
+
+struct HttpCodec {
+    addr: SocketAddr,
+    route: Option<Route>,
+    meter: Meter,
+    tracking: Tracking,
+}
+
+struct Dispatcher {
+    addr: SocketAddr,
+    meter: Meter,
+    tracking: Tracking,
+}
+
+enum ClusterRoute {
+    Downloading,
+    Deleted,
+}
+
+enum Route {
+    NotFound,
+    BadRequest,
+    Websocket(WebsocketHandshake),
+    Status,
+    Cluster(ClusterRoute),
+    Downloading,
+    Deleted,
+}
+
+
+impl<S> server::Dispatcher<S> for Dispatcher
+    where S: AsyncRead + AsyncWrite + 'static,
+{
+    type Codec = HttpCodec;
+
+    fn headers_received(&mut self, headers: &Head)
+        -> Result<Self::Codec, Error>
+    {
+        match headers.get_websocket_upgrade() {
+            Ok(up) => {
+                Ok(HttpCodec {
+                    addr: self.addr,
+                    route: Some(
+                        Route::parse(headers.path().unwrap_or("/"), up)),
+                    meter: self.meter.clone(),
+                    tracking: self.tracking.clone(),
+                })
+            }
+            Err(()) => {
+                Ok(HttpCodec {
+                    addr: self.addr,
+                    route: Some(Route::BadRequest),
+                    meter: self.meter.clone(),
+                    tracking: self.tracking.clone(),
+                })
+            }
+        }
+    }
+}
+
+
+impl<S> server::Codec<S> for HttpCodec
+    where S: AsyncRead + AsyncWrite + 'static,
+{
+    type ResponseFuture = FutureResult<EncoderDone<S>, Error>;
+    fn recv_mode(&mut self) -> RecvMode {
+        if let Some(Route::Websocket(..)) = self.route {
+            RecvMode::hijack()
+        } else {
+            RecvMode::buffered_upfront(0)
+        }
+    }
+    fn data_received(&mut self, data: &[u8], end: bool)
+        -> Result<Async<usize>, Error>
+    {
+        debug_assert!(end);
+        debug_assert_eq!(data.len(), 0);
+        Ok(Async::Ready(data.len()))
+    }
+    fn start_response(&mut self, mut e: Encoder<S>) -> Self::ResponseFuture {
+        match self.route.take().unwrap() {
+            Route::Websocket(ws) => {
+                e.status(Status::SwitchingProtocol);
+                e.format_header("Date", time::now_utc().rfc822()).unwrap();
+                e.add_header("Server",
+                    concat!("ciruela/", env!("CARGO_PKG_VERSION"))
+                ).unwrap();
+                e.add_header("Connection", "upgrade").unwrap();
+                e.add_header("Upgrade", "websocket").unwrap();
+                e.format_header("Sec-Websocket-Accept", &ws.accept).unwrap();
+                e.done_headers().unwrap();
+                ok(e.done())
+            }
+            Route::Status => {
+                #[derive(Serialize)]
+                struct Report<'a> {
+                    process: ProcessReport<'a>,
+                    threads: ThreadReport<'a>,
+                    version: &'static str,
+                }
+                ok(serve_json(e, &Report {
+                    process: self.meter.process_report(),
+                    threads: self.meter.thread_report(),
+                    version: env!("CARGO_PKG_VERSION"),
+                }))
+            }
+            Route::Downloading => {
+                #[derive(Serialize)]
+                pub struct Progress {
+                    pub image_id: String,
+                    pub mask: Mask,
+                    pub stalled: bool,
+                    pub source: bool,
+                }
+                ok(serve_json(e, &self.tracking.get_in_progress()
+                    .iter().map(|(path, p)| (path, Progress {
+                        image_id: format!("{}", p.image_id),
+                        mask: p.mask,
+                        stalled: p.stalled,
+                        source: p.source,
+                    })).collect::<BTreeMap<_, _>>()))
+            }
+            Route::Deleted => {
+                ok(serve_json(e, &self.tracking.get_deleted()
+                    .iter()
+                    .map(|&(ref vpath, ref id)| (vpath.clone(), id.to_string()))
+                    .collect::<Vec<_>>()))
+            }
+            Route::Cluster(ClusterRoute::Downloading) => {
+                #[derive(Serialize)]
+                pub struct Progress {
+                    pub image_id: String,
+                    pub mask: Mask,
+                    pub stalled: bool,
+                    pub source: bool,
+                }
+                let dl = &*self.tracking.peers().get_host_data();
+                ok(serve_json(e, &dl
+                    .iter().map(|(machine_id, data)| {
+                        (format!("{}", machine_id), data.downloading.iter()
+                            .map(|(path, p)| (path, Progress {
+                                image_id: format!("{}", p.image),
+                                mask: p.mask,
+                                stalled: p.stalled,
+                                source: p.source,
+                            })).collect::<BTreeMap<_, _>>())
+                    }).collect::<BTreeMap<_, _>>()))
+            }
+            Route::Cluster(ClusterRoute::Deleted) => {
+                let dl = &*self.tracking.peers().get_host_data();
+                ok(serve_json(e, &dl
+                    .iter().map(|(machine_id, data)| {
+                        (format!("{}", machine_id), data.deleted.iter()
+                            .map(|&(ref vpath, ref id)| {
+                                (vpath.clone(), id.to_string())
+                            })
+                            .collect::<Vec<_>>())
+                    }).collect::<BTreeMap<_, _>>()))
+            }
+            Route::BadRequest => {
+                e.status(Status::BadRequest);
+                e.add_length(BAD_REQUEST.as_bytes().len() as u64).unwrap();
+                e.format_header("Date", time::now_utc().rfc822()).unwrap();
+                e.add_header("Server",
+                    concat!("ciruela/", env!("CARGO_PKG_VERSION"))
+                ).unwrap();
+                if e.done_headers().unwrap() {
+                    e.write_body(BAD_REQUEST.as_bytes());
+                }
+                ok(e.done())
+            }
+            Route::NotFound => {
+                e.status(Status::NotFound);
+                e.add_length(BODY.as_bytes().len() as u64).unwrap();
+                e.format_header("Date", time::now_utc().rfc822()).unwrap();
+                e.add_header("Server",
+                    concat!("ciruela/", env!("CARGO_PKG_VERSION"))
+                ).unwrap();
+                if e.done_headers().unwrap() {
+                    e.write_body(BODY.as_bytes());
+                }
+                ok(e.done())
+            }
+        }
+    }
+    fn hijack(&mut self, write_buf: WriteBuf<S>, read_buf: ReadBuf<S>){
+        let inp = read_buf.framed(ServerCodec);
+        let out = write_buf.framed(ServerCodec);
+        let (cli, fut) = Connection::incoming(
+            self.addr, out, inp, &self.tracking.remote(), &self.tracking);
+        let token = self.tracking.remote().register_connection(&cli);
+        spawn(fut
+            .map_err(|e| debug!("websocket closed: {}", e))
+            .then(move |r| {
+                drop(token);
+                r
+            }));
+    }
+}
 
 fn serve_json<S, V: Serialize>(mut e: Encoder<S>, data: &V)
     -> EncoderDone<S>
@@ -42,131 +245,51 @@ fn serve_json<S, V: Serialize>(mut e: Encoder<S>, data: &V)
     e.done()
 }
 
-fn service<S>(req: Request, mut e: Encoder<S>,
-    meter: &Meter, tracking: &Tracking)
-    -> FutureResult<EncoderDone<S>, Error>
-{
-    if let Some(ws) = req.websocket_handshake() {
-        e.status(Status::SwitchingProtocol);
-        e.format_header("Date", time::now_utc().rfc822()).unwrap();
-        e.add_header("Server",
-            concat!("ciruela/", env!("CARGO_PKG_VERSION"))
-        ).unwrap();
-        e.add_header("Connection", "upgrade").unwrap();
-        e.add_header("Upgrade", "websocket").unwrap();
-        e.format_header("Sec-Websocket-Accept", &ws.accept).unwrap();
-        e.done_headers().unwrap();
-        ok(e.done())
-    } else {
-        if req.path().starts_with("/status/") {
-            #[derive(Serialize)]
-            struct Report<'a> {
-                process: ProcessReport<'a>,
-                threads: ThreadReport<'a>,
-                version: &'static str,
+impl Route {
+    fn parse(path: &str, wh: Option<WebsocketHandshake>) -> Route {
+        if path == "/" {
+            if let Some(wh) = wh {
+                return Route::Websocket(wh);
+            } else {
+                return Route::NotFound;
             }
-            ok(serve_json(e, &Report {
-                process: meter.process_report(),
-                threads: meter.thread_report(),
-                version: env!("CARGO_PKG_VERSION"),
-            }))
-        } else if req.path().starts_with("/downloading/") {
-            #[derive(Serialize)]
-            pub struct Progress {
-                pub image_id: String,
-                pub mask: Mask,
-                pub stalled: bool,
-                pub source: bool,
+        } else if path == "/status/" {
+            return Route::Status;
+        } else if path == "/downloading/" {
+            return Route::Downloading;
+        } else if path == "/deleted/" {
+            return Route::Deleted;
+        } else if path.starts_with("/cluster/") {
+            if path == "/cluster/downloading/" {
+                return Route::Cluster(ClusterRoute::Downloading);
+            } else if path == "/cluster/deleted/" {
+                return Route::Cluster(ClusterRoute::Deleted);
+            } else {
+                return Route::NotFound;
             }
-            ok(serve_json(e, &tracking.get_in_progress()
-                .iter().map(|(path, p)| (path, Progress {
-                    image_id: format!("{}", p.image_id),
-                    mask: p.mask,
-                    stalled: p.stalled,
-                    source: p.source,
-                })).collect::<BTreeMap<_, _>>()))
-        } else if req.path().starts_with("/deleted/") {
-            ok(serve_json(e, &tracking.get_deleted()
-                .iter()
-                .map(|&(ref vpath, ref id)| (vpath.clone(), id.to_string()))
-                .collect::<Vec<_>>()))
-        } else if req.path().starts_with("/cluster/downloading/") {
-            #[derive(Serialize)]
-            pub struct Progress {
-                pub image_id: String,
-                pub mask: Mask,
-                pub stalled: bool,
-                pub source: bool,
-            }
-            let dl = &*tracking.peers().get_host_data();
-            ok(serve_json(e, &dl
-                .iter().map(|(machine_id, data)| {
-                    (format!("{}", machine_id), data.downloading.iter()
-                        .map(|(path, p)| (path, Progress {
-                            image_id: format!("{}", p.image),
-                            mask: p.mask,
-                            stalled: p.stalled,
-                            source: p.source,
-                        })).collect::<BTreeMap<_, _>>())
-                }).collect::<BTreeMap<_, _>>()))
-        } else if req.path().starts_with("/cluster/deleted/") {
-            let dl = &*tracking.peers().get_host_data();
-            ok(serve_json(e, &dl
-                .iter().map(|(machine_id, data)| {
-                    (format!("{}", machine_id), data.deleted.iter()
-                        .map(|&(ref vpath, ref id)| {
-                            (vpath.clone(), id.to_string())
-                        })
-                        .collect::<Vec<_>>())
-                }).collect::<BTreeMap<_, _>>()))
-        } else {
-            e.status(Status::NotFound);
-            e.add_length(BODY.as_bytes().len() as u64).unwrap();
-            e.format_header("Date", time::now_utc().rfc822()).unwrap();
-            e.add_header("Server",
-                concat!("ciruela/", env!("CARGO_PKG_VERSION"))
-            ).unwrap();
-            if e.done_headers().unwrap() {
-                e.write_body(BODY.as_bytes());
-            }
-            ok(e.done())
+        } else{
+            return Route::NotFound;
         }
     }
 }
 
 
-pub fn start(addr: SocketAddr, remote: &Remote, tracking: &Tracking,
-    meter: &Meter)
+pub fn start(addr: SocketAddr, tracking: &Tracking, meter: &Meter)
     -> Result<(), io::Error>
 {
     let listener = TcpListener::bind(&addr, &handle())?;
     let cfg = Config::new().done();
-    let remote = remote.clone();
     let tracking = tracking.clone();
     let meter = meter.clone();
 
     spawn(listener.incoming()
         .sleep_on_error(Duration::from_millis(100), &tk_easyloop::handle())
         .map(move |(socket, addr)| {
-            let remote = remote.clone();
-            let t1 = tracking.clone();
-            let t2 = tracking.clone();
-            let meter = meter.clone();
-            Proto::new(socket, &cfg,
-                BufferedDispatcher::new_with_websockets(addr, &handle(),
-                    move |r, e| service(r, e, &meter, &t1),
-                    move |out, inp| {
-                        let (cli, fut) = Connection::incoming(
-                            addr, out, inp, &remote, &t2);
-                        let token = remote.register_connection(&cli);
-                        fut
-                            .map_err(|e| debug!("websocket closed: {}", e))
-                            .then(move |r| {
-                                drop(token);
-                                r
-                            })
-                    }),
-                &tk_easyloop::handle())
+            Proto::new(socket, &cfg, Dispatcher {
+                addr: addr,
+                meter: meter.clone(),
+                tracking: tracking.clone(),
+                }, &tk_easyloop::handle())
             .map_err(|e| { debug!("Connection error: {}", e); })
         })
         .listen(1000));

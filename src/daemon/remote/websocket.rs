@@ -11,11 +11,10 @@ use futures::stream::MapErr;
 use futures::future::{FutureResult, ok};
 use futures::sync::mpsc::{UnboundedReceiver};
 use serde_cbor::de::from_slice;
-use tk_http::websocket::{self, Frame, Loop};
-use tk_http::websocket::ServerCodec;
+use tk_http::websocket::{self, Frame, Loop, ServerCodec};
 use tk_easyloop::{spawn, handle};
 use tk_bufstream::{WriteFramed, ReadFramed};
-use tokio_core::net::TcpStream;
+use tokio_io::{AsyncRead, AsyncWrite};
 
 use named_mutex::{Mutex, MutexGuard};
 use ciruela::proto::message::{Message};
@@ -71,15 +70,16 @@ impl Dispatcher {
 }
 
 impl Connection {
-    pub fn incoming(addr: SocketAddr,
-               out: WriteFramed<TcpStream, ServerCodec>,
-               inp: ReadFramed<TcpStream, ServerCodec>,
+    pub fn incoming<S>(addr: SocketAddr,
+               out: WriteFramed<S, ServerCodec>,
+               inp: ReadFramed<S, ServerCodec>,
                remote: &Remote, tracking: &Tracking)
-        -> (Connection, Loop<TcpStream,
+        -> (Connection, Loop<S,
             PacketStream<
                 MapErr<UnboundedReceiver<Box<WrapTrait>>,
                         fn(()) -> &'static str>>,
             Dispatcher>)
+        where S: AsyncRead + AsyncWrite
     {
         // TODO(tailhook) not sure how large backpressure should be
         let (tx, rx) = Sender::channel();

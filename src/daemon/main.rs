@@ -31,6 +31,7 @@ extern crate tk_easyloop;
 extern crate tk_http;
 extern crate tk_listen;
 extern crate tokio_core;
+extern crate tokio_io;
 extern crate typenum;
 extern crate valuable_futures;
 
@@ -242,7 +243,7 @@ fn main() {
                 .frozen_subscriber())
             .done(), &tk_easyloop::handle());
 
-        http::start(addr, &remote, &tracking, &meter)?;
+        http::start(addr, &tracking, &meter)?;
         disk::start(disk_init, &meta)?;
         tracking::start(tracking_init)?;
         peers::start(peers_init, addr, &config, &disk, &router, &tracking)?;
