@@ -1,5 +1,5 @@
 use std::borrow;
-use std::collections::{VecDeque};
+use std::collections::{VecDeque, HashSet};
 use std::hash;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering::Relaxed;
@@ -125,7 +125,7 @@ impl Downloading {
         self.blocks_total.store(index.blocks_total as usize, Relaxed);
         self.index_fetched.store(true, Relaxed);
     }
-    pub fn fill_blocks(&self, index: &Index) {
+    pub fn fill_blocks(&self, index: &Index, hardlinks: HashSet<PathBuf>) {
         let blocks = index.entries.iter()
             .flat_map(|entry| {
                 use dir_signature::v1::Entry::*;
@@ -133,6 +133,9 @@ impl Downloading {
                     Dir(..) => Vec::new(),
                     Link(..) => Vec::new(),
                     File { ref hashes, ref path, .. } => {
+                        if hardlinks.contains(path) {
+                            return Vec::new();
+                        }
                         let arc = Arc::new(path.clone());
                         let mut result = Vec::new();
                         for (i, hash) in hashes.iter().enumerate() {

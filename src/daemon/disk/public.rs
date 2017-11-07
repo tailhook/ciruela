@@ -1,12 +1,16 @@
+use std::collections::HashSet;
 use std::fs::File;
 use std::io::{self, Seek, SeekFrom, Write, BufReader, BufRead, Read};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use futures::{Future, Stream};
+use futures::stream::iter_ok;
 use futures_cpupool::{self, CpuPool, CpuFuture};
-use openat::{Dir, SimpleType};
+use openat::{Dir, SimpleType, hardlink};
 use regex::Regex;
 use self_meter_http::Meter;
+use void::Void;
 
 use ciruela::VPath;
 use config::{Config, Directory};
@@ -16,7 +20,7 @@ use disk::dir::{ensure_subdir, recover_path, DirBorrow};
 use disk::dir::{remove_dir_recursive};
 use disk::{Init, Error};
 use tracking::Index;
-use metadata::Meta;
+use metadata::{Meta, Hardlink};
 use tracking::BlockData;
 
 
@@ -260,6 +264,56 @@ impl Disk {
             }
         })
     }
+    pub fn check_and_hardlink(&self, hardlinks: Vec<Hardlink>,
+        image: &Arc<Image>)
+        -> Box<Future<Item=HashSet<PathBuf>, Error=Void>>
+    {
+        let pool = self.pool.clone();
+        let config = self.config.clone();
+        let image = image.clone();
+        Box::new(iter_ok(hardlinks)
+            .map(move |hlink| {
+                let config = config.clone();
+                let image = image.clone();
+                pool.spawn_fn(move || {
+                    Ok(try_hardlink(&config, &hlink, &image)
+                        .map_err(|e| error!("Error hardlinking: {}", e))
+                        .map(move |()| hlink.path))
+                })
+            })
+            .buffer_unordered(8)
+            .filter_map(|x| x.ok())
+            .collect().map(|x| x.into_iter().collect()))
+    }
+}
+
+fn try_hardlink(config: &Arc<Config>, hlink: &Hardlink, img: &Arc<Image>)
+    -> Result<(), Error>
+{
+    let cfg = match config.dirs.get(hlink.source.key()) {
+        Some(cfg) => cfg,
+        None => return Err(Error::NoDir(hlink.source.clone())),
+    };
+    let dir = Dir::open(&cfg.directory)
+        .map_err(|e| Error::OpenBase(cfg.directory.clone(), e))?;
+    let dir = open_path(&dir, hlink.source.suffix())?;
+    let parent = hlink.path.parent().expect("path is never root");
+    let dir = open_path(&dir, parent)?;
+    let epath = &|| cfg.directory.join(hlink.source.suffix()).join(&hlink.path);
+    let file_name = hlink.path.file_name().expect("file name should exist");
+    let mut file = dir.open_file(file_name)
+        .map_err(|e| Error::ReadFile(epath(), e))?;
+    let ok = hlink.hashes.check_file(&mut file)
+        .map_err(|e| Error::ReadFile(epath(), e))?;
+    if !ok {
+        return Err(Error::Checksum(epath()));
+    }
+    // TODO(tailhook) check file permissions?
+    debug!("Hardlinking {:?}/{:?} -> {:?}", hlink.source, hlink.path, epath());
+    let dest = ensure_path(&img.temporary, parent)?;
+    hardlink(&dir, file_name, &dest, file_name)
+        .map_err(|e| Error::Hardlink(epath(), e))?;
+    Ok(())
 }
 
 fn write_block(dir: &Dir, filename: &Path, offset: u64, block: BlockData)

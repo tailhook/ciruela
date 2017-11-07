@@ -41,6 +41,11 @@ quick_error! {
             display("error renaming dir {:?}: {}", path, e)
             cause(e)
         }
+        Hardlink(path: PathBuf, e: io::Error) {
+            description("error hardlinking")
+            display("error hardlinking to {:?}: {}", path, e)
+            cause(e)
+        }
         ReadFile(path: PathBuf, e: io::Error) {
             description("error reading file")
             display("error reading {:?}: {}", path, e)

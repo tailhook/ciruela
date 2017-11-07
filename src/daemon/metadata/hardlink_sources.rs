@@ -45,14 +45,21 @@ pub fn files_to_link(index: Index, dir: VPath, meta: Meta)
     });
     let mut visited = HashSet::new();
     let mut selected = Vec::new();
-    for (dir, s) in vec {
-        if visited.contains(&s.image) {
-            continue;
-        }
-        visited.insert(s.image.clone());
-        selected.push((dir, s));
-        if selected.len() > 36 {  // TODO(tailhook) make tweakable
-            break;
+    {
+        let writing = meta.writing();
+        for (cur_dir, s) in vec {
+            if visited.contains(&s.image) {
+                continue;
+            }
+            if writing.contains_key(&dir.join(&cur_dir)) {
+                // skip all currently writing images
+                continue;
+            }
+            visited.insert(s.image.clone());
+            selected.push((cur_dir, s));
+            if selected.len() > 36 {  // TODO(tailhook) make tweakable
+                break;
+            }
         }
     }
     let mut files = Vec::new();

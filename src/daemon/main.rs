@@ -34,6 +34,7 @@ extern crate tokio_core;
 extern crate tokio_io;
 extern crate typenum;
 extern crate valuable_futures;
+extern crate void;
 
 #[macro_use] extern crate log;
 #[macro_use] extern crate lazy_static;

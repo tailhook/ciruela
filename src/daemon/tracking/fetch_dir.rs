@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use futures::{Future};
 use tk_easyloop::spawn;
+use void::unreachable;
 
 use disk::{self, Image};
 use tracking::{Subsystem, Downloading};
@@ -76,13 +77,10 @@ pub fn start(sys: &Subsystem, cmd: Downloading) {
 
 fn hardlink_blocks(sys: Subsystem, image: Arc<Image>, cmd: Arc<Downloading>) {
     let sys2 = sys.clone();
+    let sys3 = sys.clone();
     let cmd2 = cmd.clone();
+    let image2 = image.clone();
     spawn(sys.meta.files_to_hardlink(&cmd.virtual_path, &image.index)
-        .map(move |_sources| {
-            //println!("Files {:#?}", sources);
-            cmd.fill_blocks(&image.index);
-            fetch_blocks(sys.clone(), image, cmd);
-        })
         .map_err(move |e| {
             error!("Error fetching hardlink sources: {}", e);
             // TODO(tailhook) remove temporary directory
@@ -91,7 +89,16 @@ fn hardlink_blocks(sys: Subsystem, image: Arc<Image>, cmd: Arc<Downloading>) {
             sys2.remote.notify_aborted_image(
                 &cmd2.image_id, &cmd2.virtual_path,
                 "internal_error_when_hardlinking".into());
-        }));
+        })
+        .and_then(move |sources| {
+            sys3.disk.check_and_hardlink(sources, &image2)
+                .map_err(|e| unreachable(e))
+        })
+        .map(move |hardlink_paths| {
+            cmd.fill_blocks(&image.index, hardlink_paths);
+            fetch_blocks(sys.clone(), image, cmd);
+        })
+        );
 }
 
 fn fetch_blocks(sys: Subsystem, image: Arc<Image>, cmd: Arc<Downloading>)
