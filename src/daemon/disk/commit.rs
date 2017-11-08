@@ -50,14 +50,33 @@ pub fn commit_image(image: Arc<Image>) -> Result<(), Error> {
                 debug_assert!(*dpath == path.parent().unwrap());
                 // ... and having filenames
                 let filename = path.file_name().expect("file has filename");
-                let file = dir.new_file(filename, 0o644)
-                    .map_err(|e| Error::WriteFile(
-                        recover_path(dir, filename), e))?;
-                if exe {
-                    file.set_permissions(PermissionsExt::from_mode(0o755))
-                    .map_err(|e| Error::SetPermissions(
-                        recover_path(dir, filename), e))?;
-                } // TODO(tailhook) else check permissions
+                match dir.new_file(filename, 0o644) {
+                    Ok(file) => {
+                        if exe {
+                            file.set_permissions(
+                                PermissionsExt::from_mode(0o755))
+                            .map_err(|e| Error::SetPermissions(
+                                recover_path(dir, filename), e))?;
+                        } // TODO(tailhook) else check permissions
+                    }
+                    Err(ref e) if e.kind() == io::ErrorKind::AlreadyExists => {
+                        let mut file = dir.open_file(filename)
+                            .map_err(|e| Error::ReadFile(
+                                recover_path(dir, filename), e))?;
+                        let meta = file.metadata()
+                            .map_err(|e| Error::ReadFile(
+                                recover_path(dir, filename), e))?;
+                        if meta.len() != 0 {
+                            return Err(
+                                Error::Checksum(recover_path(dir, filename)));
+                        }
+                        // TODO(tailhook) check permissions
+                    }
+                    Err(e) => {
+                        return Err(Error::WriteFile(
+                            recover_path(dir, filename), e))?;
+                    }
+                }
             }
             File { ref path, exe, size, ref hashes } => {
                 debug_assert!(size != 0);
