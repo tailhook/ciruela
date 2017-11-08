@@ -1,5 +1,7 @@
 use std::io;
-use std::os::unix::fs::PermissionsExt;
+use std::fs;
+use std::os::unix::fs::{PermissionsExt};
+use std::os::unix::io::{AsRawFd};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -8,7 +10,27 @@ use disk::error::Error;
 use disk::public::Image;
 use disk::dir::remove_dir_recursive;
 
+use libc::{futimens, timespec};
 use dir_signature::v1::Entry::*;
+
+pub fn reset_timestamp(f: &mut fs::File) -> Result<(), io::Error> {
+    let times = [
+        timespec {
+            tv_sec: 1,
+            tv_nsec: 0,
+        },
+        timespec {
+            tv_sec: 1,
+            tv_nsec: 0,
+        },
+    ];
+    let rc = unsafe { futimens(f.as_raw_fd(), times.as_ptr()) };
+    if rc != 0 {
+        Err(io::Error::last_os_error())
+    } else {
+        Ok(())
+    }
+}
 
 
 pub fn commit_image(image: Arc<Image>) -> Result<(), Error> {
@@ -46,6 +68,9 @@ pub fn commit_image(image: Arc<Image>) -> Result<(), Error> {
                 let filename = path.file_name().expect("file has filename");
                 let mut file = dir.open_file(filename)
                     .map_err(|e| Error::ReadFile(
+                        recover_path(dir, filename), e))?;
+                reset_timestamp(&mut file)
+                    .map_err(|e| Error::SetTimestamp(
                         recover_path(dir, filename), e))?;
                 let ok = hashes.check_file(&mut file)
                     .map_err(|e| Error::ReadFile(

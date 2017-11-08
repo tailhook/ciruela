@@ -46,6 +46,11 @@ quick_error! {
             display("error hardlinking to {:?}: {}", path, e)
             cause(e)
         }
+        SetTimestamp(path: PathBuf, e: io::Error) {
+            description("error setting timestamp")
+            display("error setting timestamp of {:?}: {}", path, e)
+            cause(e)
+        }
         ReadFile(path: PathBuf, e: io::Error) {
             description("error reading file")
             display("error reading {:?}: {}", path, e)
