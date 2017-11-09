@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::{self, Seek, SeekFrom, Write, BufReader, BufRead, Read};
+use std::os::unix::fs::{PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -308,7 +309,19 @@ fn try_hardlink(config: &Arc<Config>, hlink: &Hardlink, img: &Arc<Image>)
     if !ok {
         return Err(Error::Checksum(epath()));
     }
-    // TODO(tailhook) check file permissions?
+    let meta = file.metadata()
+        .map_err(|e| Error::ReadFile(epath(), e))?;
+    let target_perm = if hlink.exe  {
+        PermissionsExt::from_mode(0o755)
+    } else {
+        PermissionsExt::from_mode(0o644)
+    };
+    if meta.permissions() != target_perm {
+        // note: entry permissions are checked when comparing, so this check
+        // is as useful as checksum check: i.e. if file was modified on
+        // the disk
+        return Err(Error::Checksum(epath()));
+    }
     debug!("Hardlinking {:?}/{:?} -> {:?}", hlink.source, hlink.path, epath());
     let dest = ensure_path(&img.temporary, parent)?;
     hardlink(&dir, file_name, &dest, file_name)
