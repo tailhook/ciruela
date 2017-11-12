@@ -5,6 +5,12 @@ use hex::ToHex;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::de::{Visitor, Error};
 
+/// Image identifier
+///
+/// This is basically an array of bytes that is hexlified when printing.
+///
+/// The meaning of the type is the hash of all the entries in the index. So
+/// basically it can be used as an identified in content-addressed store.
 #[derive(Clone, Hash, PartialEq, Eq)]
 pub struct ImageId(Internal);
 

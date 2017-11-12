@@ -1,4 +1,11 @@
+//! Ciruela client library
+//!
+//! This is curently emptied as of 0.3.0 and APIs will be correctly vetted
+//! and added again maintaining backwards compatibility (or at least
+//! semantic versioning).
 #![allow(dead_code)]  // temporarily
+#![warn(missing_docs)]
+#![warn(missing_debug_implementations)]
 extern crate base64;
 extern crate blake2;
 extern crate crypto;
