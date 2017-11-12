@@ -5,16 +5,16 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Instant, Duration};
 
 use futures::Future;
-use ciruela::proto::BaseDirState;
 
 use atomic::Atomic;
-use ciruela::{VPath, Hash};
 use config::Directory;
 use disk::{self, Disk};
 use metadata::{self, Meta};
 use named_mutex::{Mutex, MutexGuard};
 use peers::config::get_hash;
+use proto::{Hash, BaseDirState};
 use tracking::Subsystem;
+use virtual_path::{VPath};
 
 
 /// Time hashes are kept in cache so we can skip checking if some peer sends

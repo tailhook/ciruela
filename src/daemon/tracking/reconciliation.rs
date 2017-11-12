@@ -2,10 +2,12 @@ use std::collections::{HashMap};
 use std::net::SocketAddr;
 use std::time::Instant;
 
-use ciruela::{VPath, Hash, MachineId};
-use ciruela::proto::{BaseDirState, AppendDir, ReplaceDir, GetBaseDir};
-use ciruela::proto::{RequestClient};
+use machine_id::MachineId;
+use proto::Hash;
+use proto::{BaseDirState, AppendDir, ReplaceDir, GetBaseDir};
+use proto::{RequestClient};
 use tracking::Subsystem;
+use virtual_path::{VPath};
 
 use futures::future::{Future, Loop, loop_fn};
 use tk_easyloop::spawn;

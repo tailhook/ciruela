@@ -16,8 +16,8 @@ use serde_cbor::de::from_slice;
 use tk_easyloop;
 use tokio_core::net::TcpStream;
 
-use {ImageId, Hash};
-use proto::{StreamExt};
+use id::ImageId;
+use proto::{Hash, StreamExt};
 use proto::message::{Message, Request, Notification};
 use proto::index_commands::{PublishImage, GetIndexResponse};
 use proto::block_commands::{GetBlockResponse};

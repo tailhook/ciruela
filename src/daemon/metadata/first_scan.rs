@@ -1,6 +1,6 @@
 use std::path::{PathBuf, Path};
 
-use ciruela::VPath;
+use virtual_path::VPath;
 use metadata::dir::Dir;
 use metadata::{Meta, Error};
 

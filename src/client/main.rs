@@ -1,25 +1,51 @@
+#![allow(dead_code)]  // temporarily
 extern crate abstract_ns;
 extern crate argparse;
+extern crate base64;
+extern crate blake2;
 extern crate ciruela;
+extern crate crypto;
+extern crate digest_writer;
 extern crate dir_signature;
 extern crate env_logger;
 extern crate futures;
 extern crate futures_cpupool;
-extern crate tk_http;
+extern crate hex;
 extern crate ns_router;
 extern crate ns_std_threaded;
+extern crate serde;
+extern crate serde_bytes;
+extern crate serde_cbor;
 extern crate ssh_keys;
+extern crate tk_bufstream;
 extern crate tk_easyloop;
+extern crate tk_http;
 extern crate tokio_core;
+extern crate tokio_io;
+extern crate typenum;
+extern crate void;
 
 #[macro_use] extern crate log;
 #[macro_use] extern crate matches;
+#[macro_use] extern crate mopa;
+#[macro_use] extern crate quick_error;
+#[macro_use] extern crate serde_derive;
 
 mod global_options;
 mod name;
 
 // Commands
 mod upload;
+
+// common modules for lib and daemon, we don't expose them in the lib because
+// that would mean keep backwards compatibility
+#[path="../database/mod.rs"] mod database;
+#[path="../id.rs"] mod id;
+#[path="../machine_id.rs"] mod machine_id;
+#[path="../proto/mod.rs"] mod proto;
+#[path="../serialize/mod.rs"] mod serialize;
+#[path="../time_util.rs"] mod time_util;
+#[path="../virtual_path.rs"] mod virtual_path;
 
 use std::env;
 use std::io::{Write, stderr};

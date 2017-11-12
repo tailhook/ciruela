@@ -13,7 +13,7 @@ use regex::Regex;
 use self_meter_http::Meter;
 use void::Void;
 
-use ciruela::VPath;
+use virtual_path::VPath;
 use config::{Config, Directory};
 use disk::commit::commit_image;
 use disk::dir::{ensure_virtual_parent, ensure_path, open_path};

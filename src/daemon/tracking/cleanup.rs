@@ -11,7 +11,7 @@ use tk_easyloop::{timeout, spawn};
 
 use cleanup::{Image, sort_out};
 use tracking::{Subsystem, BaseDir};
-use ciruela::database::signatures::State;
+use database::signatures::State;
 
 
 pub enum Command {

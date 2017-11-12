@@ -3,7 +3,7 @@ use std::time::{Duration};
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use ciruela::MachineId;
+use machine_id::MachineId;
 use crossbeam::sync::ArcCell;
 use futures::{Future, Stream};
 use tk_cantal;

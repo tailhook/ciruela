@@ -1,7 +1,7 @@
 use std::io;
 use std::path::{PathBuf};
 
-use ciruela::VPath;
+use virtual_path::VPath;
 
 
 quick_error! {

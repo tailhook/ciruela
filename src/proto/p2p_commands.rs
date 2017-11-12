@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
-use proto::{Request, Response};
+use proto::{Request, Response, Hash};
 use database::signatures::State;
-use {VPath, Hash};
+use virtual_path::{VPath};
 
 
 #[derive(Serialize, Deserialize, Debug)]

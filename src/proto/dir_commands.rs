@@ -1,10 +1,12 @@
 use std::collections::HashMap;
 use std::time::SystemTime;
 
-use {ImageId, VPath, MachineId};
+use id::{ImageId};
+use virtual_path::{VPath};
+use machine_id::MachineId;
 use proto::{Signature, SigData, Request, Response};
 use serialize::timestamp;
-use time::to_ms;
+use time_util::to_ms;
 
 
 #[derive(Serialize, Deserialize, Debug)]

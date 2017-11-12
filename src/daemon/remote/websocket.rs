@@ -17,11 +17,11 @@ use tk_bufstream::{WriteFramed, ReadFramed};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use named_mutex::{Mutex, MutexGuard};
-use ciruela::proto::message::{Message};
-use ciruela::proto::{RequestClient, RequestDispatcher, Sender};
-use ciruela::proto::{Registry, StreamExt, PacketStream};
-use ciruela::proto::{Response, WrapTrait, Notification};
-use ciruela::{ImageId};
+use proto::message::{Message};
+use proto::{RequestClient, RequestDispatcher, Sender};
+use proto::{Registry, StreamExt, PacketStream};
+use proto::{Response, WrapTrait, Notification};
+use id::{ImageId};
 use remote::Remote;
 use tracking::Tracking;
 
@@ -155,12 +155,12 @@ impl websocket::Dispatcher for Dispatcher {
     // TODO(tailhook) implement backpressure
     type Future = FutureResult<(), websocket::Error>;
     fn frame(&mut self, frame: &Frame) -> Self::Future {
-        use ciruela::proto::message::Notification as N;
+        use proto::message::Notification as N;
 
         match *frame {
             Frame::Binary(data) => match from_slice(data) {
                 Ok(Message::Request(rid, req)) => {
-                    use ciruela::proto::message::Request::*;
+                    use proto::message::Request::*;
                     match req {
                         AppendDir(ad) => {
                             self.tracking.append_dir(ad,

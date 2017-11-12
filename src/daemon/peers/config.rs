@@ -1,8 +1,8 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use ciruela::serialize;
-use ciruela::Hash;
+use serialize;
+use proto::Hash;
 use config::Directory;
 
 

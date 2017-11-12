@@ -7,8 +7,8 @@ use tk_easyloop::{spawn, handle};
 use tk_http::websocket::client::{HandshakeProto, SimpleAuthorizer};
 use tk_http::websocket::{Loop};
 
-use ciruela::proto::{WrapTrait, Registry};
-use ciruela::proto::{StreamExt};
+use proto::{WrapTrait, Registry};
+use proto::{StreamExt};
 use remote::websocket::{Dispatcher, Connection};
 use remote::{Remote, Token};
 use tracking::Tracking;

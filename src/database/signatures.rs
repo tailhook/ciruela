@@ -2,9 +2,9 @@ use std::time::SystemTime;
 
 use serde::{Serialize, Deserialize, Serializer, Deserializer};
 
-use {ImageId};
+use id::{ImageId};
 use proto::Signature;
-use time::{to_ms, from_ms};
+use time_util::{to_ms, from_ms};
 
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]

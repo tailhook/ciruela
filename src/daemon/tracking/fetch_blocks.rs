@@ -9,9 +9,8 @@ use valuable_futures::{StateMachine, Async as VAsync};
 use tokio_core::reactor::Timeout;
 use tk_easyloop::timeout;
 
-use ciruela::Hash;
-use ciruela::proto::{RequestFuture, GetBlock, GetBlockResponse};
-use ciruela::proto::{RequestClient};
+use proto::{RequestFuture, GetBlock, GetBlockResponse};
+use proto::{RequestClient, Hash};
 use tracking::progress::{Downloading, Block};
 use tracking::Subsystem;
 use disk::{self, Image};

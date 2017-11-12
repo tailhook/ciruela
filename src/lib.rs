@@ -1,3 +1,4 @@
+#![allow(dead_code)]  // temporarily
 extern crate base64;
 extern crate blake2;
 extern crate crypto;
@@ -27,12 +28,9 @@ extern crate void;
 mod id;
 mod machine_id;
 mod virtual_path;
-pub mod proto;
-pub mod database;
-pub mod time;
-pub mod serialize;
+mod proto;
+mod database;
+mod time_util;
+mod serialize;
 
 pub use id::ImageId;
-pub use machine_id::MachineId;
-pub use proto::{Hash, HashBuilder};
-pub use virtual_path::VPath;

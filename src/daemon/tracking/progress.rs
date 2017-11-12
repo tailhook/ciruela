@@ -8,8 +8,9 @@ use std::sync::{Arc};
 
 use rand::{thread_rng, Rng};
 
-use ciruela::Hash;
-use ciruela::{ImageId, VPath};
+use proto::Hash;
+use id::{ImageId};
+use virtual_path::{VPath};
 use config::Directory;
 use failure_tracker::HostFailures;
 use mask::{AtomicMask, Mask};

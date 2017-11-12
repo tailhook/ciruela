@@ -2,7 +2,7 @@ use std::io::{Write};
 
 use hex::ToHex;
 
-use ciruela::ImageId;
+use id::ImageId;
 use metadata::{Meta, Error};
 
 

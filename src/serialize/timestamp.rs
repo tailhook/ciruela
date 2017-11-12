@@ -2,7 +2,7 @@ use std::time::{SystemTime};
 
 use serde::{Serializer, Deserializer, Deserialize};
 
-use time::{to_ms, from_ms};
+use time_util::{to_ms, from_ms};
 
 
 pub fn serialize<S>(tm: &SystemTime, ser: S) -> Result<S::Ok, S::Error>

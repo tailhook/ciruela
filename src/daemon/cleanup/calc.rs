@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use ciruela::database::signatures::State;
+use database::signatures::State;
 
 use config::Directory;
 
@@ -98,9 +98,9 @@ mod test {
     use rand::{thread_rng, Rng};
     use config::Directory;
     use super::{sort_out, Image, Sorted};
-    use ciruela::ImageId;
-    use ciruela::proto::Signature;
-    use ciruela::database::signatures::{State, SignatureEntry};
+    use id::ImageId;
+    use proto::Signature;
+    use database::signatures::{State, SignatureEntry};
 
     fn cfg(min: usize, max: usize, rec: &str) -> Arc<Directory> {
         Arc::new(Directory {

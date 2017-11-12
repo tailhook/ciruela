@@ -12,9 +12,10 @@ use futures::sync::oneshot::{channel, Receiver, Sender};
 use valuable_futures::{Supply, Async, StateMachine};
 use rand::{thread_rng, Rng};
 
-use ciruela::{ImageId, VPath};
-use ciruela::proto::{GetIndex, GetIndexResponse};
-use ciruela::proto::{RequestFuture, RequestClient};
+use id::{ImageId};
+use virtual_path::{VPath};
+use proto::{GetIndex, GetIndexResponse};
+use proto::{RequestFuture, RequestClient};
 use index::{IndexData};
 use failure_tracker::HostFailures;
 use mask::Mask;

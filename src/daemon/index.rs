@@ -6,7 +6,7 @@ use dir_signature::v1::{Entry};
 use dir_signature::HashType;
 use dir_signature::v1::{Parser, ParseError as IndexError};
 
-use ciruela::ImageId;
+use id::ImageId;
 
 
 pub struct IndexData {

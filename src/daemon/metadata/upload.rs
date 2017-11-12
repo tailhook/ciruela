@@ -8,11 +8,11 @@ use serde_cbor::de::from_reader as read_cbor;
 use serde_cbor::error::Error as CborError;
 use serde_cbor::ser::Serializer as Cbor;
 
-use ciruela::VPath;
-use ciruela::database::signatures::{State, SignatureEntry};
-use ciruela::proto::{AppendDir};
-use ciruela::proto::{ReplaceDir};
-use ciruela::proto::{SigData, Signature, verify};
+use virtual_path::VPath;
+use database::signatures::{State, SignatureEntry};
+use proto::{AppendDir};
+use proto::{ReplaceDir};
+use proto::{SigData, Signature, verify};
 use config::Directory;
 use metadata::keys::read_upload_keys;
 use metadata::{Meta, Error, Writing};

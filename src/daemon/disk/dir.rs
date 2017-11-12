@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use openat::{Dir, SimpleType, Entry};
 
-use ciruela::VPath;
+use virtual_path::VPath;
 use disk::error::Error;
 
 pub enum DirBorrow<'a> {

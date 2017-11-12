@@ -4,7 +4,9 @@ use serde_bytes;
 
 use proto::request::Notification;
 use proto::{Request, Response};
-use {ImageId, VPath, MachineId};
+use id::{ImageId};
+use virtual_path::{VPath};
+use machine_id::{MachineId};
 
 
 #[derive(Serialize, Deserialize, Debug)]

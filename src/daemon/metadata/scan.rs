@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 
 use metadata::{Error, Dir};
 
-use ciruela::database::signatures::State;
+use database::signatures::State;
 use serde_cbor::de::from_reader as read_cbor;
 
 

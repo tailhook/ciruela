@@ -17,10 +17,11 @@ use openat::Metadata;
 use futures_cpupool::{self, CpuPool, CpuFuture};
 use self_meter_http::Meter;
 
-use ciruela::database::signatures::{State, SignatureEntry};
-use ciruela::proto::{AppendDir};
-use ciruela::proto::{ReplaceDir};
-use ciruela::{ImageId, VPath};
+use database::signatures::{State, SignatureEntry};
+use proto::{AppendDir};
+use proto::{ReplaceDir};
+use id::{ImageId};
+use virtual_path::{VPath};
 use config::Config;
 use tracking::Index;
 use index::IndexData;

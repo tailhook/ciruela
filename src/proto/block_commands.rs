@@ -1,8 +1,8 @@
+use std::fmt;
 use std::path::PathBuf;
 
-use proto::{Request, Response};
-use std::fmt;
-use {Hash, VPath};
+use proto::{Request, Response, Hash};
+use virtual_path::{VPath};
 
 use serde_bytes;
 

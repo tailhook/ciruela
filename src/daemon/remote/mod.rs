@@ -8,9 +8,11 @@ use std::collections::{HashSet, HashMap};
 use std::sync::{Arc};
 use std::time::{Duration};
 
-use ciruela::proto::{ReceivedImage, AbortedImage};
-use ciruela::proto::{Registry};
-use ciruela::{ImageId, VPath, MachineId};
+use proto::{ReceivedImage, AbortedImage};
+use proto::{Registry};
+use id::{ImageId};
+use virtual_path::{VPath};
+use machine_id::{MachineId};
 use failure_tracker::HostFailures;
 use named_mutex::{Mutex, MutexGuard};
 use remote::outgoing::connect;

@@ -1,4 +1,7 @@
-use ciruela::{ImageId, VPath, Hash, MachineId};
+use id::{ImageId};
+use virtual_path::{VPath};
+use proto::Hash;
+use machine_id::MachineId;
 use mask::Mask;
 use std::collections::{BTreeMap, HashSet};
 

@@ -16,14 +16,16 @@ use tk_easyloop;
 mod options;
 
 use name;
-use ciruela::{Hash, VPath, MachineId};
-use ciruela::time::to_ms;
-use ciruela::proto::{SigData, sign};
+use proto::{Hash};
+use virtual_path::{VPath};
+use machine_id::{MachineId};
+use time_util::to_ms;
+use proto::{SigData, sign};
 use global_options::GlobalOptions;
-use ciruela::proto::{Client, AppendDir, ReplaceDir, ImageInfo, BlockPointer};
-use ciruela::proto::RequestClient;
-use ciruela::proto::{Listener};
-use ciruela::proto::message::Notification;
+use proto::{Client, AppendDir, ReplaceDir, ImageInfo, BlockPointer};
+use proto::RequestClient;
+use proto::{Listener};
+use proto::message::Notification;
 
 struct Progress {
     started: SystemTime,
@@ -76,7 +78,7 @@ impl Progress {
 
 impl Listener for Tracker {
     fn notification(&self, n: Notification) {
-        use ciruela::proto::message::Notification::*;
+        use proto::message::Notification::*;
         match n {
             ReceivedImage(img) => {
                 // TODO(tailhook) check image id and path

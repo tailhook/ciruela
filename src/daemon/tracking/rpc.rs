@@ -1,10 +1,10 @@
 use futures::Future;
 
-use ciruela::proto::{AppendDir, AppendDirAck};
-use ciruela::proto::{ReplaceDir, ReplaceDirAck};
-use ciruela::proto::{GetIndex, GetIndexResponse};
-use ciruela::proto::{GetBlock, GetBlockResponse};
-use ciruela::proto::{GetBaseDir, GetBaseDirResponse};
+use proto::{AppendDir, AppendDirAck};
+use proto::{ReplaceDir, ReplaceDirAck};
+use proto::{GetIndex, GetIndexResponse};
+use proto::{GetBlock, GetBlockResponse};
+use proto::{GetBaseDir, GetBaseDirResponse};
 use tracking::{Tracking, base_dir};
 use remote::websocket::Responder;
 use {metadata, disk};

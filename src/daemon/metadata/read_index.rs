@@ -3,7 +3,7 @@ use std::fs::File;
 
 use hex::ToHex;
 
-use ciruela::ImageId;
+use id::ImageId;
 use index::IndexData;
 use metadata::{Meta, Error};
 use dir_signature::v1::Parser;

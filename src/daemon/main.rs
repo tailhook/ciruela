@@ -1,10 +1,12 @@
+#![allow(dead_code)]  // temporarily
 #![recursion_limit="100"]
 extern crate abstract_ns;
 extern crate argparse;
 extern crate atomic;
+extern crate base64;
 extern crate blake2;
-extern crate ciruela;
 extern crate crossbeam;
+extern crate crypto;
 extern crate digest_writer;
 extern crate dir_signature;
 extern crate env_logger;
@@ -22,6 +24,7 @@ extern crate regex;
 extern crate scan_dir;
 extern crate self_meter_http;
 extern crate serde;
+extern crate serde_bytes;
 extern crate serde_cbor;
 extern crate serde_json;
 extern crate ssh_keys;
@@ -40,6 +43,7 @@ extern crate void;
 #[macro_use] extern crate log;
 #[macro_use] extern crate lazy_static;
 #[macro_use] extern crate matches;
+#[macro_use] extern crate mopa;
 #[macro_use] extern crate quick_error;
 #[macro_use] extern crate serde_derive;
 
@@ -54,10 +58,10 @@ use std::sync::Arc;
 
 use abstract_ns::{HostResolve, Resolve};
 use argparse::{ArgumentParser, Parse, Store, Print, StoreTrue, StoreOption};
-use ciruela::MachineId;
 use ns_std_threaded::ThreadedResolver;
 use ns_router::{Router, Config};
 
+use machine_id::MachineId;
 
 mod cleanup;
 mod config;
@@ -72,6 +76,17 @@ mod named_mutex;
 mod peers;
 mod remote;
 mod tracking;
+
+// common modules for lib and daemon, we don't expose them in the lib because
+// that would mean keep backwards compatibility
+#[path="../database/mod.rs"] mod database;
+#[path="../id.rs"] mod id;
+#[path="../machine_id.rs"] mod machine_id;
+#[path="../proto/mod.rs"] mod proto;
+#[path="../serialize/mod.rs"] mod serialize;
+#[path="../time_util.rs"] mod time_util;
+#[path="../virtual_path.rs"] mod virtual_path;
+
 
 fn init_logging(mid: MachineId, log_mid: bool) {
     let format = move |record: &log::LogRecord| {

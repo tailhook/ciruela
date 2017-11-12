@@ -20,8 +20,10 @@ use futures::stream::iter_ok;
 use futures::sync::mpsc::{unbounded, UnboundedSender, UnboundedReceiver};
 use tk_easyloop::{spawn, timeout};
 
-use ciruela::proto::{AppendDir};
-use ciruela::{ImageId, Hash, VPath, MachineId};
+use proto::{AppendDir, Hash};
+use id::{ImageId};
+use virtual_path::{VPath};
+use machine_id::{MachineId};
 use config::{Config};
 use disk::Disk;
 use failure_tracker::{Failures, Policy};
