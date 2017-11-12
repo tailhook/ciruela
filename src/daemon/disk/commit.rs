@@ -60,7 +60,7 @@ pub fn commit_image(image: Arc<Image>) -> Result<(), Error> {
                         } // TODO(tailhook) else check permissions
                     }
                     Err(ref e) if e.kind() == io::ErrorKind::AlreadyExists => {
-                        let mut file = dir.open_file(filename)
+                        let file = dir.open_file(filename)
                             .map_err(|e| Error::ReadFile(
                                 recover_path(dir, filename), e))?;
                         let meta = file.metadata()
