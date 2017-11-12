@@ -74,7 +74,9 @@ debug = true
 [[bin]]
 name = "ciruela-server"
 path = "src/daemon/main.rs"
+doc = false
 
 [[bin]]
 name = "ciruela"
 path = "src/client/main.rs"
+doc = false
