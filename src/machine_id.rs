@@ -3,7 +3,8 @@ use std::fs::File;
 use std::io::{self, Read};
 use std::str::FromStr;
 
-use hex::{ToHex, FromHex};
+use hex::{FromHex, ToHex};
+use hexlify::Hex;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::de::{Visitor, Error};
 
@@ -50,13 +51,13 @@ impl FromStr for MachineId {
 
 impl fmt::Debug for MachineId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "MachineId({})", self.0.to_hex())
+        write!(f, "MachineId({})", Hex(&self.0))
     }
 }
 
 impl fmt::Display for MachineId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.0.to_hex())
+        self.0.write_hex(f)
     }
 }
 

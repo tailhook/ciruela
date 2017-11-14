@@ -86,6 +86,7 @@ mod tracking;
 #[path="../serialize/mod.rs"] mod serialize;
 #[path="../time_util.rs"] mod time_util;
 #[path="../virtual_path.rs"] mod virtual_path;
+#[path="../hexlify.rs"] mod hexlify;
 
 
 fn init_logging(mid: MachineId, log_mid: bool) {

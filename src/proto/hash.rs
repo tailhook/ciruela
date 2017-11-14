@@ -1,11 +1,11 @@
 use std::fmt;
 use std::io;
 
-use hex::ToHex;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::de::{Visitor, Error};
 use serde_cbor::ser::to_writer;
 
+use hexlify::Hex;
 use digest_writer;
 use blake2::{Blake2b, Digest};
 use typenum::U32;
@@ -55,13 +55,13 @@ impl Builder for digest_writer::Writer<Blake2b<U32>> {
 
 impl fmt::Debug for Hash {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Hash({})", self.0.to_hex())
+        write!(f, "Hash({})", &Hex(&self.0))
     }
 }
 
 impl fmt::Display for Hash {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.0.to_hex())
+        write!(f, "{}", &Hex(&self.0))
     }
 }
 

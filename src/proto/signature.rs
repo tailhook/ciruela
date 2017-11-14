@@ -3,12 +3,12 @@ use std::cmp::Ordering;
 
 use base64;
 use crypto::ed25519;
-use hex::ToHex;
 use serde::{Serialize, Serializer};
 use serde::{Deserialize, Deserializer};
 use serde::de::{Visitor, SeqAccess, Error};
 use serde_cbor::ser::Serializer as Cbor;
 use ssh_keys::{PrivateKey, PublicKey};
+use hexlify::Hex;
 
 
 // Note everything here, must be stable-serialized
@@ -57,7 +57,7 @@ pub fn sign(src: SigData, keys: &[PrivateKey]) -> Vec<Signature> {
         res.push(signature);
     }
     info!("Image {}[{}] signed with {} keys",
-        src.path, src.image.to_hex(), res.len());
+        src.path, Hex(src.image), res.len());
     return res;
 }
 

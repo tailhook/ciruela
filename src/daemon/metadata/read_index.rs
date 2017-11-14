@@ -1,8 +1,6 @@
 use std::io::{Read, BufReader};
 use std::fs::File;
 
-use hex::ToHex;
-
 use id::ImageId;
 use index::IndexData;
 use metadata::{Meta, Error};
@@ -11,7 +9,7 @@ use dir_signature::v1::Parser;
 
 pub fn read_bytes(image_id: &ImageId, meta: &Meta) -> Result<Vec<u8>, Error> {
     // TODO(tailhook) assert on thread name
-    let hex_id = image_id.to_hex();
+    let hex_id = image_id.to_string();
     let filename = format!("{}.ds1", &hex_id);
     let base = meta.indexes()?
         .dir_if_exists(&hex_id[..2])?
@@ -24,7 +22,7 @@ pub fn read_bytes(image_id: &ImageId, meta: &Meta) -> Result<Vec<u8>, Error> {
 
 pub fn read(image_id: &ImageId, meta: &Meta) -> Result<IndexData, Error> {
     // TODO(tailhook) assert on thread name
-    let hex_id = image_id.to_hex();
+    let hex_id = image_id.to_string();
     let filename = format!("{}.ds1", &hex_id);
     let base = meta.indexes()?
         .dir_if_exists(&hex_id[..2])?
@@ -48,7 +46,7 @@ pub fn read(image_id: &ImageId, meta: &Meta) -> Result<IndexData, Error> {
 pub fn open(image_id: &ImageId, meta: &Meta)
     -> Result<Parser<BufReader<File>>, Error>
 {
-    let hex_id = image_id.to_hex();
+    let hex_id = image_id.to_string();
     let filename = format!("{}.ds1", &hex_id);
     let base = meta.indexes()?
         .dir_if_exists(&hex_id[..2])?

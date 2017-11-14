@@ -50,10 +50,12 @@ impl From<Vec<u8>> for ImageId {
 
 impl fmt::Debug for ImageId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str("ImageId(")?;
         match self.0 {
-            Internal::B32(ref ar) => write!(f, "ImageId({})", ar.to_hex()),
-            Internal::Other(ref slc) => write!(f, "ImageId({})", slc.to_hex()),
+            Internal::B32(ref ar) => ar.write_hex(f)?,
+            Internal::Other(ref slc) => slc.write_hex(f)?,
         }
+        f.write_str(")")
     }
 }
 
@@ -61,8 +63,8 @@ impl fmt::Display for ImageId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.0 {
             // TODO(tailhook) optimize to be zero-allocation
-            Internal::B32(ref ar) => write!(f, "{}", ar.to_hex()),
-            Internal::Other(ref slc) => write!(f, "{}", slc.to_hex()),
+            Internal::B32(ref ar) => ar.write_hex(f),
+            Internal::Other(ref slc) => slc.write_hex(f),
         }
     }
 }

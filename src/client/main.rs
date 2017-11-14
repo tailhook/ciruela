@@ -46,6 +46,7 @@ mod upload;
 #[path="../serialize/mod.rs"] mod serialize;
 #[path="../time_util.rs"] mod time_util;
 #[path="../virtual_path.rs"] mod virtual_path;
+#[path="../hexlify.rs"] mod hexlify;
 
 use std::env;
 use std::io::{Write, stderr};

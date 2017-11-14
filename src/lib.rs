@@ -39,5 +39,6 @@ mod proto;
 mod database;
 mod time_util;
 mod serialize;
+mod hexlify;
 
 pub use id::ImageId;
