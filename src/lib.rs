@@ -40,5 +40,7 @@ mod database;
 mod time_util;
 mod serialize;
 mod hexlify;
+mod block_id;
 
 pub use id::ImageId;
+pub mod blocks;
