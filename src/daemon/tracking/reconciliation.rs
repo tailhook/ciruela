@@ -124,7 +124,6 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
                     trace!("Peer image {} is older than ours", image_id);
                     continue;
                 }
-                info!("Replacing {:?}", vpath);
                 {
                     let state = &mut *sys.state();
                     if let Some(items) = state.reconciling.get(&pair2) {
@@ -147,6 +146,7 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
                     }).then(move |result| {
                         match result {
                             Ok(Upload::Accepted(Accept::New)) => {
+                                info!("Replacing {} -> {:?}", image_id, vpath);
                                 sys.tracking.fetch_dir(
                                     vpath, image_id, true);
                             }
@@ -164,7 +164,6 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
                         Ok(())
                     }));
             } else {
-                info!("Appending {:?}", vpath);
                 spawn(
                     sys.meta.append_dir(AppendDir {
                         path: vpath.clone(),
@@ -174,6 +173,7 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
                     }).then(move |result| {
                         match result {
                             Ok(Upload::Accepted(Accept::New)) => {
+                                info!("Appending {} -> {:?}", image_id, vpath);
                                 sys.tracking.fetch_dir(
                                     vpath, image_id, false);
                             }
