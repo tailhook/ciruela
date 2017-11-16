@@ -12,7 +12,7 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc};
-use std::time::{Instant, Duration};
+use std::time::{Instant, SystemTime, Duration};
 
 use futures::{Future, Stream};
 use futures::future::{Either, ok};
@@ -66,6 +66,13 @@ pub struct ShortProgress {
     pub mask: Mask,
     pub stalled: bool,
     pub source: bool,
+}
+
+pub struct ShortBasedir {
+    pub hash: Hash,
+    pub num_subdirs: usize,
+    pub num_downloading: usize,
+    pub last_scan: SystemTime,
 }
 
 #[derive(Clone)]
@@ -224,6 +231,20 @@ impl Tracking {
                 mask: inp.mask.get(),
                 stalled: inp.is_stalled(),
                 source: self.0.remote.has_image_source(&inp.image_id),
+            });
+        }
+        return res;
+    }
+    // only for http
+    pub fn get_base_dirs(&self) -> BTreeMap<VPath, ShortBasedir> {
+        let mut res = BTreeMap::new();
+        for (_, inp) in &self.state().base_dirs {
+            res.insert(inp.path.clone(), ShortBasedir {
+                hash: inp.hash(),
+                num_subdirs: inp.subdirs(),
+                num_downloading: inp.downloading(),
+                last_scan: SystemTime::now() +
+                    Instant::now().duration_since(inp.last_scan()),
             });
         }
         return res;

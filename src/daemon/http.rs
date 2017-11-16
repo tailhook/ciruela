@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::io;
 use std::net::SocketAddr;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 use futures::Async;
 use futures::future::{Future, FutureResult, ok};
@@ -53,6 +53,7 @@ enum Route {
     BadRequest,
     Websocket(WebsocketHandshake),
     Status,
+    BaseDirs,
     Cluster(ClusterRoute),
     Downloading,
     Deleted,
@@ -149,6 +150,23 @@ impl<S> server::Codec<S> for HttpCodec
                         mask: p.mask,
                         stalled: p.stalled,
                         source: p.source,
+                    })).collect::<BTreeMap<_, _>>()))
+            }
+            Route::BaseDirs => {
+                #[derive(Serialize)]
+                pub struct BaseDir {
+                    pub hash: String,
+                    pub num_subdirs: usize,
+                    pub num_downloading: usize,
+                    #[serde(with="::serialize::timestamp")]
+                    pub last_scan: SystemTime,
+                }
+                ok(serve_json(e, &self.tracking.get_base_dirs()
+                    .iter().map(|(path, d)| (path, BaseDir {
+                        hash: format!("{}", d.hash),
+                        num_subdirs: d.num_subdirs,
+                        num_downloading: d.num_downloading,
+                        last_scan: d.last_scan,
                     })).collect::<BTreeMap<_, _>>()))
             }
             Route::Deleted => {
@@ -257,6 +275,8 @@ impl Route {
             return Route::Status;
         } else if path == "/downloading/" {
             return Route::Downloading;
+        } else if path == "/base-dirs/" {
+            return Route::BaseDirs;
         } else if path == "/deleted/" {
             return Route::Deleted;
         } else if path.starts_with("/cluster/") {

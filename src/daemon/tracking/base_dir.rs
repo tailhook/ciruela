@@ -54,6 +54,12 @@ impl BaseDir {
     pub fn hash(&self) -> Hash {
         self.hash.load(Ordering::SeqCst)
     }
+    pub fn subdirs(&self) -> usize {
+        self.num_subdirs.load(Ordering::SeqCst)
+    }
+    pub fn downloading(&self) -> usize {
+        self.num_downloading.load(Ordering::SeqCst)
+    }
     pub fn is_superset_of(&self, hash: Hash) -> bool {
         if self.hash() == hash {
             return true;
