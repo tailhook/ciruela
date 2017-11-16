@@ -97,12 +97,7 @@ impl Meta {
             // need to offload to disk thread because we hold ``writing`` lock
             // in disk thread too
             if let Some(wr) = meta.writing().remove(&path) {
-                let res = if wr.replacing {
-                    upload::abort_append(&path, wr, &meta)
-                } else {
-                    upload::abort_replace(&path, wr, &meta)
-                };
-                match res {
+                match upload::abort_dir(&path, wr, &meta) {
                     Ok(()) => {}
                     Err(e) => {
                         error!("Error commiting abort {:?}: {}", path, e);
@@ -120,14 +115,11 @@ impl Meta {
         let path: VPath = path.clone();
         self.0.cpu_pool.spawn_fn(move || -> Result<(), ()> {
             if let Some(wr) = meta.writing().remove(&path) {
-                if wr.replacing {
-                    match upload::commit_replace(&path, wr, &meta) {
-                        Ok(()) => {}
-                        Err(e) => {
-                            error!("Error commiting state {:?}: {}",
-                                path, e);
-                            // TODO(tailhook) die?
-                        }
+                match upload::commit_dir(&path, wr, &meta) {
+                    Ok(()) => {}
+                    Err(e) => {
+                        error!("Error commiting state {:?}: {}", path, e);
+                        // TODO(tailhook) die?
                     }
                 }
             } else {

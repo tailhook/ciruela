@@ -90,6 +90,7 @@ pub fn start_append(params: AppendDir, meta: &Meta)
         }).collect::<Vec<_>>();
     sort_signatures(&mut signatures);
     let state_file = format!("{}.state", vpath.final_name());
+    let new_state_file = format!("{}.new.state", vpath.final_name());
 
     let mut writing = meta.writing();
     let (state, new) = match writing.entry(vpath.clone()) {
@@ -98,7 +99,10 @@ pub fn start_append(params: AppendDir, meta: &Meta)
             {
                 if state.image == params.image {
                     append_signatures(&mut state.signatures, signatures);
-                    (state, Accept::AlreadyDone)
+                    dir.replace_file(&state_file, |file| {
+                        state.serialize(&mut Cbor::new(BufWriter::new(file)))
+                    })?;
+                    return Ok(Upload::Accepted(Accept::AlreadyDone));
                 } else {
                     return Ok(Upload::Rejected("already_exists"));
                 }
@@ -131,7 +135,7 @@ pub fn start_append(params: AppendDir, meta: &Meta)
             }
         }
     };
-    dir.replace_file(&state_file, |file| {
+    dir.replace_file(&new_state_file, |file| {
         state.serialize(&mut Cbor::new(BufWriter::new(file)))
     })?;
     Ok(Upload::Accepted(new))
@@ -170,12 +174,15 @@ pub fn start_replace(params: ReplaceDir, meta: &Meta)
     let new_state_file = format!("{}.new.state", vpath.final_name());
 
     let mut writing = meta.writing();
-    let (state, new, replacing) = match writing.entry(vpath.clone()) {
+    let (state, new) = match writing.entry(vpath.clone()) {
         Entry::Vacant(e) => {
             if let Some(mut state) = dir.read_file(&state_file, read_state)? {
                 if state.image == params.image {
                     append_signatures(&mut state.signatures, signatures);
-                    (state, Accept::AlreadyDone, false)
+                    dir.replace_file(&state_file, |file| {
+                        state.serialize(&mut Cbor::new(BufWriter::new(file)))
+                    })?;
+                    return Ok(Upload::Accepted(Accept::AlreadyDone));
                 } else {
                     let state = State {
                         image: params.image.clone(),
@@ -186,7 +193,7 @@ pub fn start_replace(params: ReplaceDir, meta: &Meta)
                         signatures: state.signatures.clone(),
                         replacing: true,
                     });
-                    (state, Accept::New, true)
+                    (state, Accept::New)
                 }
             } else {
                 let state = State {
@@ -198,7 +205,7 @@ pub fn start_replace(params: ReplaceDir, meta: &Meta)
                     signatures: state.signatures.clone(),
                     replacing: false,
                 });
-                (state, Accept::New, false)
+                (state, Accept::New)
             }
         }
         Entry::Occupied(mut e) => {
@@ -210,7 +217,7 @@ pub fn start_replace(params: ReplaceDir, meta: &Meta)
                 (State {
                     image: old_state.image.clone(),
                     signatures: old_state.signatures.clone(),
-                }, Accept::InProgress, old_state.replacing)
+                }, Accept::InProgress)
             } else {
                 // TODO(tailhook) stop fetching image, delete and
                 // start replacing
@@ -220,19 +227,13 @@ pub fn start_replace(params: ReplaceDir, meta: &Meta)
             }
         }
     };
-    if replacing {
-        dir.replace_file(&new_state_file, |file| {
-            state.serialize(&mut Cbor::new(BufWriter::new(file)))
-        })?;
-    } else {
-        dir.replace_file(&state_file, |file| {
-            state.serialize(&mut Cbor::new(BufWriter::new(file)))
-        })?;
-    }
+    dir.replace_file(&new_state_file, |file| {
+        state.serialize(&mut Cbor::new(BufWriter::new(file)))
+    })?;
     Ok(Upload::Accepted(new))
 }
 
-pub(in metadata) fn abort_replace(vpath: &VPath, _wr: Writing, meta: &Meta)
+pub(in metadata) fn abort_dir(vpath: &VPath, _wr: Writing, meta: &Meta)
     -> Result<(), Error>
 {
     let new_state_file = format!("{}.new.state", vpath.final_name());
@@ -241,16 +242,7 @@ pub(in metadata) fn abort_replace(vpath: &VPath, _wr: Writing, meta: &Meta)
     Ok(())
 }
 
-pub(in metadata) fn abort_append(vpath: &VPath, _wr: Writing, meta: &Meta)
-    -> Result<(), Error>
-{
-    let state_file = format!("{}.state", vpath.final_name());
-    let dir = meta.signatures()?.ensure_dir(vpath.parent_rel())?;
-    dir.remove_file(&state_file)?;
-    Ok(())
-}
-
-pub(in metadata) fn commit_replace(vpath: &VPath, _wr: Writing, meta: &Meta)
+pub(in metadata) fn commit_dir(vpath: &VPath, _wr: Writing, meta: &Meta)
     -> Result<(), Error>
 {
     let state_file = format!("{}.state", vpath.final_name());
