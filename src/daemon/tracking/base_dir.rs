@@ -55,7 +55,15 @@ impl BaseDir {
         self.hash.load(Ordering::SeqCst)
     }
     pub fn is_superset_of(&self, hash: Hash) -> bool {
-        self.hash() == hash || self.recon_table().contains_key(&hash)
+        if self.hash() == hash {
+            return true;
+        }
+        let cut_off = Instant::now() -
+            Duration::from_millis(RETAIN_TIME);
+        match self.recon_table().get(&hash) {
+            Some(&time) if time > cut_off => true,
+            _ => false,
+        }
     }
     pub fn last_scan(&self) -> Instant {
         self.last_scan.load(Ordering::SeqCst)
@@ -102,7 +110,8 @@ impl BaseDir {
                     let cut_off = Instant::now() -
                         Duration::from_millis(RETAIN_TIME);
                     table.retain(|_, x| *x >= cut_off);
-                    table.insert(hash, Instant::now());
+                    table.insert(old_hash, Instant::now());
+                    table.shrink_to_fit();
                 }
             }
         }
