@@ -412,8 +412,6 @@ pub fn start(init: TrackingInit) -> Result<(), String> // actually void
                             BaseDir::commit_scan(bdir, &config, scan_time, &sys);
                             Either::B(iter_ok(dirs)
                                 .for_each(move |(dir, mut state)| {
-                                    // TODO(tailhook) also check if replace
-                                    // is done (tmp directory exists)
                                     let dir = path.join(dir);
                                     let sig = state.signatures.pop()
                                         .expect("checked in metadata reader");
