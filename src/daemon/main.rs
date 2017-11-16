@@ -242,6 +242,7 @@ fn main() {
     let (tracking, tracking_init) = tracking::Tracking::new(&config,
         &meta, &disk, &remote, &peers);
 
+    let mut keep_router = None;
 
     tk_easyloop::run_forever(|| -> Result<(), Box<Error>> {
         meter.spawn_scanner(&tk_easyloop::handle());
@@ -259,6 +260,7 @@ fn main() {
                 .null_service_resolver()
                 .frozen_subscriber())
             .done(), &tk_easyloop::handle());
+        keep_router = Some(router.clone());
 
         http::start(addr, &tracking, &meter)?;
         disk::start(disk_init, &meta)?;
