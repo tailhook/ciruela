@@ -4,7 +4,7 @@ use futures::{Future};
 use tk_easyloop::spawn;
 use void::unreachable;
 
-use disk::{self, Image};
+use disk::{Image};
 use tracking::{Subsystem, Downloading};
 use tracking::fetch_blocks::FetchBlocks;
 
@@ -41,8 +41,7 @@ pub fn start(sys: &Subsystem, cmd: Downloading) {
         spawn(sys.disk.start_image(
                 cmd.config.directory.clone(),
                 index.clone(),
-                cmd.virtual_path.clone(),
-                cmd.replacing)
+                cmd.virtual_path.clone())
             .then(move |res| -> Result<(), ()> {
                 match res {
                     Ok(img) => {
@@ -53,13 +52,6 @@ pub fn start(sys: &Subsystem, cmd: Downloading) {
                             &cmd.image_id, cmd.mask.get(),
                             sys.remote.has_image_source(&cmd.image_id));
                         hardlink_blocks(sys.clone(), img, cmd);
-                    }
-                    Err(disk::Error::AlreadyExists) => {
-                        sys.state().in_progress.remove(&cmd);
-                        sys.meta.dir_committed(&cmd.virtual_path);
-                        sys.remote.notify_received_image(
-                            &index.id, &cmd.virtual_path);
-                        info!("Image already exists {:?}", cmd);
                     }
                     Err(e) => {
                         error!("Can't start image {:?}: {}",

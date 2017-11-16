@@ -135,10 +135,6 @@ pub fn commit_image(image: Arc<Image>) -> Result<(), Error> {
     };
 
     if exists {
-        if !image.can_replace {
-            return Err(Error::Commit(recover_path(&image.parent, fname),
-                io::ErrorKind::AlreadyExists.into()));
-        }
         image.parent.local_exchange(&image.temporary_name, fname)
             .map_err(|e| Error::Commit(
                 recover_path(&image.parent, fname), e))?;
