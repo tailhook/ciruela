@@ -254,8 +254,15 @@ impl Disk {
     {
         let cfg = config.clone();
         self.pool.spawn_fn(move || {
-            let dir = Dir::open(&cfg.directory)
-                .map_err(|e| Error::OpenBase(cfg.directory.clone(), e))?;
+            let dir = match Dir::open(&cfg.directory) {
+                Ok(dir) => dir,
+                Err(ref e) if e.kind() == io::ErrorKind::NotFound => {
+                    return Ok(false);
+                }
+                Err(e) => {
+                    return Err(Error::OpenBase(cfg.directory.clone(), e));
+                }
+            };
             match open_path(&dir, path) {
                 Ok(_) => Ok(true),
                 Err(Error::OpenDir(_, ref e))
