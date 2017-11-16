@@ -9,9 +9,13 @@ use openat::Dir;
 use metadata::{Error, Meta};
 
 
-fn read_keys(dir: &Dir, name: &str, keys: &mut Vec<PublicKey>) {
+fn read_keys(dir: &Dir, name: &str, keys: &mut Vec<PublicKey>, absent_ok: bool)
+{
     let f = match dir.open_file(name) {
         Ok(f) => f,
+        Err(ref e) if e.kind() == io::ErrorKind::NotFound && absent_ok => {
+            return;
+        }
         Err(e) => {
             error!("Can't read key {:?}: {}", name, e);
             return;
@@ -44,11 +48,11 @@ pub fn read_upload_keys(cfg: &Arc<Directory>, meta: &Meta)
     let mut res = Vec::new();
     let cfg_dir = Dir::open(&meta.0.config.config_dir)
         .map_err(|e| Error::ReadKey(meta.0.config.config_dir.clone(), e))?;
-    read_keys(&cfg_dir, "master.key", &mut res);
+    read_keys(&cfg_dir, "master.key", &mut res, true);
     match cfg_dir.sub_dir("keys") {
         Ok(dir) => {
             for key in &cfg.upload_keys {
-                read_keys(&dir, &format!("{}.key", key), &mut res);
+                read_keys(&dir, &format!("{}.key", key), &mut res, false);
             }
         }
         Err(ref e) if e.kind() == io::ErrorKind::NotFound => {
