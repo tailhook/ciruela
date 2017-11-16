@@ -40,7 +40,7 @@ pub use self::progress::{Downloading, Slices};
 pub use self::base_dir::BaseDir;
 
 const DELETED_RETENTION: u64 = 300_000;  // 5 min
-const AVOID_DOWNLOAD: u64 = 120_000;  // do not try delete image again in 2 min
+const AVOID_DOWNLOAD: u64 = 10_000;  // do not try delete image again in 2 min
 
 
 pub type BlockData = Arc<Vec<u8>>;
@@ -338,6 +338,16 @@ impl Subsystem {
         state.recently_deleted
             .insert((path.clone(), image_id.clone()), Instant::now());
     }
+    pub fn dir_aborted(&self, cmd: &Arc<Downloading>, reason: &'static str) {
+        let mut state = self.state();
+        state.recently_deleted
+            .insert((cmd.virtual_path.clone(), cmd.image_id.clone()),
+                    Instant::now());
+        state.in_progress.remove(cmd);
+        self.remote.notify_aborted_image(
+            &cmd.image_id, &cmd.virtual_path, reason.into());
+        self.rescan_dir(cmd.virtual_path.parent());
+    }
     pub fn is_recently_deleted(&self, path: &VPath, image_id: &ImageId)
         -> bool
     {
@@ -348,6 +358,12 @@ impl Subsystem {
         } else {
             false
         }
+    }
+    fn dir_committed(&self, cmd: &Arc<Downloading>) {
+        self.state().in_progress.remove(cmd);
+        self.remote.notify_received_image(
+            &cmd.image_id, &cmd.virtual_path);
+        self.rescan_dir(cmd.virtual_path.clone());
     }
 }
 

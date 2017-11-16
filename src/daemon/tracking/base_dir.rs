@@ -19,7 +19,7 @@ use virtual_path::{VPath};
 
 /// Time hashes are kept in cache so we can skip checking if some peer sends
 /// us the same hash again
-const RETAIN_TIME: u64 = 300000;
+const RETAIN_TIME: u64 = 10_000;
 
 
 quick_error! {

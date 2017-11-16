@@ -26,6 +26,7 @@ use config::Config;
 use tracking::Index;
 use index::IndexData;
 use named_mutex::{Mutex, MutexGuard};
+use void::Void;
 
 use self::dir::Dir;
 pub use self::upload::{Upload, Accept};
@@ -90,10 +91,10 @@ impl Meta {
             upload::start_replace(params, &meta)
         })
     }
-    pub fn dir_aborted(&self, path: &VPath) {
+    pub fn dir_aborted(&self, path: &VPath) -> CpuFuture<(), Void> {
         let meta = self.clone();
         let path: VPath = path.clone();
-        self.0.cpu_pool.spawn_fn(move || -> Result<(), ()> {
+        self.0.cpu_pool.spawn_fn(move || {
             // need to offload to disk thread because we hold ``writing`` lock
             // in disk thread too
             if let Some(wr) = meta.writing().remove(&path) {
@@ -108,12 +109,12 @@ impl Meta {
                 error!("Spurious abort of writing {:?}", path);
             }
             Ok(())
-        }).forget();
+        })
     }
-    pub fn dir_committed(&self, path: &VPath) {
+    pub fn dir_committed(&self, path: &VPath) -> CpuFuture<(), Void> {
         let meta = self.clone();
         let path: VPath = path.clone();
-        self.0.cpu_pool.spawn_fn(move || -> Result<(), ()> {
+        self.0.cpu_pool.spawn_fn(move || {
             if let Some(wr) = meta.writing().remove(&path) {
                 match upload::commit_dir(&path, wr, &meta) {
                     Ok(()) => {}
@@ -127,7 +128,7 @@ impl Meta {
                 // TODO(tailhook) die?
             }
             Ok(())
-        }).forget();
+        })
     }
     fn writing(&self) -> MutexGuard<HashMap<VPath, Writing>> {
         self.0.writing.lock()

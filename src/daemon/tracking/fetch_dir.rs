@@ -29,12 +29,11 @@ pub fn start(sys: &Subsystem, cmd: Downloading) {
         error!("Error fetching index: {}. \
             We abort downloading of {} to {:?}", e,
             &cmd2.image_id, &cmd2.virtual_path);
-        sys2.dir_deleted(&cmd2.virtual_path, &cmd2.image_id);
-        sys2.state().in_progress.remove(&cmd2);
-        sys2.meta.dir_aborted(&cmd2.virtual_path);
-        sys2.remote.notify_aborted_image(
-            &cmd2.image_id, &cmd2.virtual_path,
-            "cant_fetch_index".into());
+        spawn(sys2.meta.dir_aborted(&cmd2.virtual_path)
+            .map_err(|e| unreachable(e))
+            .map(move |()| {
+                sys2.dir_aborted(&cmd2, "cant_fetch_index")
+            }));
     })
     .and_then(|index| {
         debug!("Got index {:?}", cmd.image_id);
@@ -56,12 +55,11 @@ pub fn start(sys: &Subsystem, cmd: Downloading) {
                     Err(e) => {
                         error!("Can't start image {:?}: {}",
                             cmd.virtual_path, e);
-                        sys.dir_deleted(&cmd.virtual_path, &cmd.image_id);
-                        sys.state().in_progress.remove(&cmd);
-                        sys.meta.dir_aborted(&cmd.virtual_path);
-                        sys.remote.notify_aborted_image(
-                            &cmd.image_id, &cmd.virtual_path,
-                            "cant_create_directory".into());
+                        spawn(sys.meta.dir_aborted(&cmd.virtual_path)
+                            .map_err(|e| unreachable(e))
+                            .map(move |()| {
+                                sys.dir_aborted(&cmd, "cant_create_directory")
+                            }));
                     }
                 }
                 Ok(())
@@ -79,12 +77,12 @@ fn hardlink_blocks(sys: Subsystem, image: Arc<Image>, cmd: Arc<Downloading>) {
         .map_err(move |e| {
             error!("Error fetching hardlink sources: {}", e);
             // TODO(tailhook) remove temporary directory
-            sys2.dir_deleted(&cmd2.virtual_path, &cmd2.image_id);
-            sys2.state().in_progress.remove(&cmd2);
-            sys2.meta.dir_aborted(&cmd2.virtual_path);
-            sys2.remote.notify_aborted_image(
-                &cmd2.image_id, &cmd2.virtual_path,
-                "internal_error_when_hardlinking".into());
+            spawn(sys2.meta.dir_aborted(&cmd2.virtual_path)
+                .map_err(|e| unreachable(e))
+                .map(move |()| {
+                    sys2.dir_aborted(&cmd2,
+                        "internal_error_when_hardlinking")
+                }));
         })
         .and_then(move |sources| {
             sys3.disk.check_and_hardlink(sources, &image2)
@@ -102,35 +100,34 @@ fn fetch_blocks(sys: Subsystem, image: Arc<Image>, cmd: Arc<Downloading>)
     let sys1 = sys.clone();
     let sys2 = sys.clone();
     let sys3 = sys.clone();
+    let sys4 = sys.clone();
     let cmd1 = cmd.clone();
+    let cmd2 = cmd.clone();
     let cmd3 = cmd.clone();
     spawn(FetchBlocks::new(&image, &cmd, &sys)
         .map_err(move |()| {
             // TODO(tailhook) remove temporary directory
-            sys3.dir_deleted(&cmd3.virtual_path, &cmd3.image_id);
-            sys3.state().in_progress.remove(&cmd3);
-            sys3.meta.dir_aborted(&cmd3.virtual_path);
-            sys3.remote.notify_aborted_image(
-                &cmd3.image_id, &cmd3.virtual_path,
-                "cluster_abort_no_file_source".into());
+            spawn(sys3.meta.dir_aborted(&cmd3.virtual_path)
+                .map_err(|e| unreachable(e))
+                .map(move |()| {
+                    sys3.dir_aborted(&cmd3, "cluster_abort_no_file_source")
+                }));
         })
         .and_then(move |()| {
             sys1.disk.commit_image(image)
             .map_err(move |e| {
                 error!("Error commiting image: {}", e);
                 // TODO(tailhook) remove temporary directory
-                sys1.dir_deleted(&cmd1.virtual_path, &cmd1.image_id);
-                sys1.state().in_progress.remove(&cmd1);
-                sys1.meta.dir_aborted(&cmd1.virtual_path);
-                sys1.remote.notify_aborted_image(
-                    &cmd1.image_id, &cmd1.virtual_path,
-                    "commit_error".into());
+                spawn(sys1.meta.dir_aborted(&cmd1.virtual_path)
+                    .map_err(|e| unreachable(e))
+                    .map(move |()| {
+                        sys1.dir_aborted(&cmd1, "commit_error")
+                    }));
             })
         })
-        .map(move |()| {
-            sys2.state().in_progress.remove(&cmd);
-            sys2.meta.dir_committed(&cmd.virtual_path);
-            sys2.remote.notify_received_image(
-                &cmd.image_id, &cmd.virtual_path);
-        }));
+        .and_then(move |()| {
+            sys2.meta.dir_committed(&cmd2.virtual_path)
+                .map_err(|e| unreachable(e))
+        })
+        .map(move |()| sys4.dir_committed(&cmd)));
 }
