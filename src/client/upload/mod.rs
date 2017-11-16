@@ -90,6 +90,8 @@ impl Listener for Tracker {
                 pro.check_status()
             }
             AbortedImage(img) => {
+                error!("Image download from {} aborted: {}", self.0,
+                    img.reason);
                 // TODO(tailhook) check image id and path
                 let mut pro = self.1.lock().expect("progress is not poisoned");
                 pro.hosts_errored.insert(self.0);
