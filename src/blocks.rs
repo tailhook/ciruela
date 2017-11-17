@@ -50,17 +50,19 @@ pub struct ThreadedBlockReader {
 #[derive(Debug)]
 pub struct FutureBlock(CpuFuture<Vec<u8>, ReadError>);
 
-quick_error! {
-    /// Error reading file or block not found
-    #[derive(Debug)]
-    pub enum ReadError wraps ErrorEnum {
-        Fs(path: PathBuf, err: io::Error) {
-            display("error reading file {:?}: {}", path, err)
-        }
-        NotFound(block: BlockHash) {
-            display("block {} not found", block)
-        }
-    }
+/// Error reading file or block not found
+#[derive(Debug, Fail)]
+#[fail(display="{}", internal)]
+pub struct ReadError {
+    internal: ReadErrorInt,
+}
+
+#[derive(Debug, Fail)]
+enum ReadErrorInt {
+    #[fail(display="error reading file {:?}: {}", _0, _1)]
+    Fs(PathBuf, io::Error),
+    #[fail(display="block {} not found", _0)]
+    NotFound(BlockHash),
 }
 
 impl ThreadedBlockReader {
