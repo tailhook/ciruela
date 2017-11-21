@@ -129,8 +129,13 @@ impl ThreadedBlockReader {
         }
     }
     /// Register a filesystem directory to respond to get_block request from
-    pub fn register_dir(&self, dir: &Path, _virtual_path: &VPath,
+    pub fn register_dir<P: AsRef<Path>>(&self, dir: P, virtual_path: &VPath,
         index_data: &[u8])
+        -> Result<(), DirError>
+    {
+        self._register_dir(dir.as_ref(), virtual_path, index_data)
+    }
+    fn _register_dir(&self, dir: &Path, _vpath: &VPath, index_data: &[u8])
         -> Result<(), DirError>
     {
         let ref mut cur = io::Cursor::new(&index_data);
@@ -156,7 +161,7 @@ impl ThreadedBlockReader {
                             offset: idx as u64 * block_size,
                             size: min(left, block_size) as usize,
                         });
-                        left -= block_size;
+                        left = left.saturating_sub(block_size);
                     }
                 }
                 _ => {}

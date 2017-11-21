@@ -19,7 +19,7 @@ fn scan_dir<F>(dir: &Dir, virtual_path: PathBuf, level: usize,
             }
         }
     } else {
-        add_dir(virtual_path.into());
+        add_dir(VPath::from(virtual_path));
     }
     Ok(())
 }

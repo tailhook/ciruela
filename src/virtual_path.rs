@@ -13,7 +13,7 @@ use serde::de::{Deserialize, Deserializer, Error};
 ///
 /// The anatomy of the virtual path:
 ///
-/// ```
+/// ```ignore
 /// /[key]/[suffix]
 /// ```
 ///
@@ -84,6 +84,17 @@ impl VPath {
         assert!(path.components().all(|x| matches!(x, Normal(_))));
         VPath(Arc::new(self.0.join(path)))
     }
+    /// Create a virtual path from path
+    ///
+    /// # Panics
+    ///
+    /// Panics if path is not absolute or doesn't contain directory components
+    pub fn from<T: Into<PathBuf>>(t: T) -> VPath {
+        let buf = t.into();
+        assert!(buf.is_absolute());
+        assert!(buf != Path::new("/"));
+        VPath(Arc::new(buf))
+    }
 }
 
 impl Borrow<Path> for VPath {
@@ -95,17 +106,6 @@ impl Borrow<Path> for VPath {
 impl AsRef<Path> for VPath {
     fn as_ref(&self) -> &Path {
         self.0.as_ref()
-    }
-}
-
-impl<T> From<T> for VPath
-    where T: Into<PathBuf>
-{
-    fn from(t: T) -> VPath {
-        let buf = t.into();
-        assert!(buf.is_absolute());
-        assert!(buf != Path::new("/"));
-        VPath(Arc::new(buf))
     }
 }
 
