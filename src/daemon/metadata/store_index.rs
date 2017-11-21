@@ -1,6 +1,6 @@
 use std::io::{Write};
 
-use id::ImageId;
+use {ImageId};
 use metadata::{Meta, Error};
 
 

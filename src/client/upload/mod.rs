@@ -10,22 +10,21 @@ use argparse::{ArgumentParser};
 use dir_signature::{ScannerConfig, HashType, v1, get_hash};
 use futures::future::{Future, Either, join_all, ok};
 use futures::sync::oneshot::{channel, Sender};
-use futures_cpupool::CpuPool;
 use tk_easyloop;
 
 mod options;
 
 use name;
-use proto::{Hash};
-use virtual_path::{VPath};
+use ciruela::blocks;
 use machine_id::{MachineId};
 use time_util::to_ms;
 use proto::{SigData, sign};
 use global_options::GlobalOptions;
-use proto::{Client, AppendDir, ReplaceDir, ImageInfo, BlockPointer};
+use proto::{Client, AppendDir, ReplaceDir};
 use proto::RequestClient;
 use proto::{Listener};
 use proto::message::Notification;
+use {ImageId, VPath};
 
 struct Progress {
     started: SystemTime,
@@ -132,7 +131,7 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
 {
     let dir = opt.source_directory.clone().unwrap();
     let mut cfg = ScannerConfig::new();
-    cfg.auto_threads();
+    cfg.threads(gopt.threads);
     cfg.hash(HashType::blake2b_256());
     cfg.add_dir(&dir, "/");
     cfg.print_progress();
@@ -147,52 +146,24 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
         return Err(());
     }
 
-    let pool = CpuPool::new(gopt.threads);
 
-    let image_id = get_hash(&mut io::Cursor::new(&indexbuf))
-        .expect("hash valid in just created index")
-        .into();
+    let image_id = ImageId::from(get_hash(&mut io::Cursor::new(&indexbuf))
+        .expect("hash valid in just created index"));
     eprintln!("Uploading image {} [index_size: {}]",
         image_id, indexbuf.len());
-    let (blocks, block_size) = {
-        let ref mut cur = io::Cursor::new(&indexbuf);
-        let mut parser = v1::Parser::new(cur)
-            .expect("just created index is valid");
-        let header = parser.get_header();
-        let block_size = header.get_block_size();
-        let mut blocks = HashMap::new();
-        for entry in parser.iter() {
-            match entry.expect("just created index is valid") {
-                v1::Entry::File { ref path, ref hashes, .. } => {
-                    let path = Arc::new(path.to_path_buf());
-                    for (idx, hash) in hashes.iter().enumerate() {
-                        blocks.insert(Hash::new(hash), BlockPointer {
-                            file: path.clone(),
-                            offset: idx as u64 * block_size,
-                        });
-                    }
-                }
-                _ => {}
-            }
-        }
-        (blocks, block_size)
-    };
-    let image_info = Arc::new(ImageInfo {
-        image_id: image_id,
-        block_size: block_size,
-        index_data: indexbuf,
-        location: dir.to_path_buf(),
-        blocks: blocks,
-    });
+
+    let blocks = blocks::ThreadedBlockReader::new_num_threads(gopt.threads);
+
     let timestamp = SystemTime::now();
     let mut signatures = HashMap::new();
     for turl in &opt.target_urls {
         if signatures.contains_key(&turl.path[..]) {
             continue;
         }
+        blocks.register_dir(&dir, &VPath::from(&turl.path), &indexbuf);
         signatures.insert(&turl.path[..], sign(SigData {
             path: &turl.path,
-            image: image_info.image_id.as_ref(),
+            image: image_id.as_ref(),
             timestamp: to_ms(timestamp),
         }, &opt.private_keys));
     }
@@ -221,8 +192,8 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
             .map(move |turl| {
                 let host2 = turl.host.clone();
                 let host4 = turl.host.clone();
-                let image_info = image_info.clone();
-                let pool = pool.clone();
+                let image_id = image_id.clone();
+                let blocks = blocks.clone();
                 let signatures = signatures.clone();
                 let done_rx = done_rx.clone();
                 let progress = progress.clone();
@@ -249,8 +220,8 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                             let turl = turl.clone();
                             let host = host4.clone();
                             let signatures = signatures.clone();
-                            let image_info = image_info.clone();
-                            let pool = pool.clone();
+                            let image_id = image_id.clone();
+                            let blocks = blocks.clone();
                             let progress = progress.clone();
                             let progress2 = progress.clone();
                             let progress3 = progress.clone();
@@ -258,13 +229,14 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                                                   progress.clone());
                             let done_rx = done_rx.clone();
                             let host_port = format!("{}:{}", host4, port);
-                            Client::spawn(addr, host_port, &pool, tracker)
+                            Client::spawn(addr, host_port,
+                                blocks.clone(), tracker)
                             .and_then(move |mut cli| {
                                 info!("Connected to {}", addr);
-                                cli.register_index(&image_info);
+                                cli.register_index(&image_id);
                                 if replace {
                                     Either::A(cli.request(ReplaceDir {
-                                        image: image_info.image_id.clone(),
+                                        image: image_id.clone(),
                                         timestamp: timestamp,
                                         old_image: None,
                                         signatures: signatures
@@ -284,7 +256,7 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                                         error!("Request error: {}", e)))
                                 } else {
                                     Either::B(cli.request(AppendDir {
-                                        image: image_info.image_id.clone(),
+                                        image: image_id.clone(),
                                         timestamp: timestamp,
                                         signatures: signatures
                                             .get(&turl.path[..]).unwrap()

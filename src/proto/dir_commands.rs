@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 use std::time::SystemTime;
 
-use id::{ImageId};
-use virtual_path::{VPath};
+use {ImageId, VPath};
 use machine_id::MachineId;
 use proto::{Signature, SigData, Request, Response};
 use serialize::timestamp;

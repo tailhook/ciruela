@@ -14,7 +14,7 @@ use named_mutex::{Mutex, MutexGuard};
 use peers::config::get_hash;
 use proto::{Hash, BaseDirState};
 use tracking::Subsystem;
-use virtual_path::{VPath};
+use {VPath};
 
 
 /// Time hashes are kept in cache so we can skip checking if some peer sends

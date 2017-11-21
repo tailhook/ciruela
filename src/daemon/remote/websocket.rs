@@ -21,7 +21,7 @@ use proto::message::{Message};
 use proto::{RequestClient, RequestDispatcher, Sender};
 use proto::{Registry, StreamExt, PacketStream};
 use proto::{Response, WrapTrait, Notification};
-use id::{ImageId};
+use {ImageId};
 use remote::Remote;
 use tracking::Tracking;
 

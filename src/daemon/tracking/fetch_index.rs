@@ -12,8 +12,7 @@ use futures::sync::oneshot::{channel, Receiver, Sender};
 use valuable_futures::{Supply, Async, StateMachine};
 use rand::{thread_rng, Rng};
 
-use id::{ImageId};
-use virtual_path::{VPath};
+use {ImageId, VPath};
 use proto::{GetIndex, GetIndexResponse};
 use proto::{RequestFuture, RequestClient};
 use index::{IndexData};

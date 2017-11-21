@@ -14,8 +14,7 @@ use tokio_core::reactor::Interval;
 use serde::Deserialize;
 use serde_cbor::de::Deserializer;
 
-use virtual_path::{VPath};
-use id::{ImageId};
+use {VPath, ImageId};
 use machine_id::{MachineId};
 use mask::Mask;
 use named_mutex::Mutex;

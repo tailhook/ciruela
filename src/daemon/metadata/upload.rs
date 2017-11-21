@@ -8,7 +8,7 @@ use serde_cbor::de::from_reader as read_cbor;
 use serde_cbor::error::Error as CborError;
 use serde_cbor::ser::Serializer as Cbor;
 
-use virtual_path::VPath;
+use {VPath};
 use database::signatures::{State, SignatureEntry};
 use proto::{AppendDir};
 use proto::{ReplaceDir};

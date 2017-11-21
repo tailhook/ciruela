@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use proto::{Request, Response, Hash};
 use database::signatures::State;
-use virtual_path::{VPath};
+use {VPath};
 
 
 #[derive(Serialize, Deserialize, Debug)]

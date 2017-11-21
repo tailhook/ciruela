@@ -10,8 +10,7 @@ use std::time::{Duration};
 
 use proto::{ReceivedImage, AbortedImage};
 use proto::{Registry};
-use id::{ImageId};
-use virtual_path::{VPath};
+use {ImageId, VPath};
 use machine_id::{MachineId};
 use failure_tracker::HostFailures;
 use named_mutex::{Mutex, MutexGuard};

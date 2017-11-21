@@ -7,7 +7,7 @@ use proto::Hash;
 use proto::{BaseDirState, AppendDir, ReplaceDir, GetBaseDir};
 use proto::{RequestClient};
 use tracking::Subsystem;
-use virtual_path::{VPath};
+use {VPath};
 
 use futures::future::{Future, Loop, loop_fn};
 use tk_easyloop::spawn;

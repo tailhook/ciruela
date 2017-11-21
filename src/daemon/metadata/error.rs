@@ -2,7 +2,7 @@ use std::io;
 use std::path::{PathBuf};
 use serde_cbor;
 
-use virtual_path::VPath;
+use {VPath};
 use dir_signature::v1::{ParseError as IndexError};
 use dir_signature::v1::merge::MergeError;
 

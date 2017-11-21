@@ -4,8 +4,7 @@ use serde_bytes;
 
 use proto::request::Notification;
 use proto::{Request, Response};
-use id::{ImageId};
-use virtual_path::{VPath};
+use {ImageId, VPath};
 use machine_id::{MachineId};
 
 

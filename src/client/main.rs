@@ -31,6 +31,7 @@ extern crate void;
 #[macro_use] extern crate mopa;
 #[macro_use] extern crate quick_error;
 #[macro_use] extern crate serde_derive;
+#[macro_use] extern crate failure_derive;
 
 mod global_options;
 mod name;
@@ -41,13 +42,13 @@ mod upload;
 // common modules for lib and daemon, we don't expose them in the lib because
 // that would mean keep backwards compatibility
 #[path="../database/mod.rs"] mod database;
-#[path="../id.rs"] mod id;
 #[path="../machine_id.rs"] mod machine_id;
 #[path="../proto/mod.rs"] mod proto;
 #[path="../serialize/mod.rs"] mod serialize;
 #[path="../time_util.rs"] mod time_util;
-#[path="../virtual_path.rs"] mod virtual_path;
 #[path="../hexlify.rs"] mod hexlify;
+pub use ciruela::{ImageId, VPath};
+pub use ciruela::blocks as blocks;
 
 use std::env;
 use std::io::{Write, stderr};

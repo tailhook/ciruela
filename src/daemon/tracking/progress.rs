@@ -8,9 +8,8 @@ use std::sync::{Arc};
 
 use rand::{thread_rng, Rng};
 
-use proto::Hash;
-use id::{ImageId};
-use virtual_path::{VPath};
+use {ImageId, VPath};
+use blocks::BlockHash;
 use config::Directory;
 use failure_tracker::HostFailures;
 use mask::{AtomicMask, Mask};
@@ -24,7 +23,7 @@ pub const MAX_SLICES: usize = 15;
 
 #[derive(Debug, Clone)]
 pub struct Block {
-    pub hash: Hash,
+    pub hash: BlockHash,
     pub path: Arc<PathBuf>,
     pub offset: u64,
 }
@@ -140,7 +139,8 @@ impl Downloading {
                         let arc = Arc::new(path.clone());
                         let mut result = Vec::new();
                         for (i, hash) in hashes.iter().enumerate() {
-                            let hash = Hash::new(hash);
+                            let hash = BlockHash::from_bytes(hash)
+                                .expect("valid hash type");
                             result.push(Block {
                                 hash: hash,
                                 path: arc.clone(),

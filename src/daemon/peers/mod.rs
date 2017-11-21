@@ -15,8 +15,7 @@ use futures::sync::mpsc::{unbounded, UnboundedSender, UnboundedReceiver};
 use ns_router::Router;
 use tk_easyloop::spawn;
 
-use id::{ImageId};
-use virtual_path::{VPath};
+use {ImageId, VPath};
 use machine_id::{MachineId};
 use config::{Config};
 use disk::Disk;

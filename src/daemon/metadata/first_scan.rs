@@ -1,6 +1,6 @@
 use std::path::{PathBuf, Path};
 
-use virtual_path::VPath;
+use {VPath};
 use metadata::dir::Dir;
 use metadata::{Meta, Error};
 

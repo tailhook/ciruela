@@ -9,8 +9,9 @@ use valuable_futures::{StateMachine, Async as VAsync};
 use tokio_core::reactor::Timeout;
 use tk_easyloop::timeout;
 
+use blocks::BlockHash;
 use proto::{RequestFuture, GetBlock, GetBlockResponse};
-use proto::{RequestClient, Hash};
+use proto::{RequestClient};
 use tracking::progress::{Downloading, Block};
 use tracking::Subsystem;
 use disk::{self, Image};
@@ -73,7 +74,8 @@ impl StateMachine for FetchBlock {
                                 Fetching(blk, slice, addr, f)));
                         }
                         Ok(Async::Ready(data)) => {
-                            if Hash::for_bytes(&data.data) == blk.hash {
+                            let bytes = BlockHash::from_bytes(&data.data);
+                            if bytes.as_ref() == Some(&blk.hash) {
                                 for s in ctx.downloading.slices().iter_mut() {
                                     if s.index == slice {
                                         s.in_progress -= 1;
@@ -202,7 +204,7 @@ impl Future for FetchBlocks {
                             Mask::slice_bit(s.index as usize), &s.failures);
                     if let Some(conn) = conn {
                         let req = conn.request(GetBlock {
-                            hash: blk.hash,
+                            hash: blk.hash.clone(),
                             hint: Some((
                                 self.downloading.virtual_path.clone(),
                                 (*blk.path).clone(),

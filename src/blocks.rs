@@ -17,9 +17,10 @@ use std::fs::{File};
 use failure::Backtrace;
 use futures::{Future, Async};
 use futures_cpupool::{CpuPool, CpuFuture};
-use block_id::{BlockHash};
 use dir_signature::v1::{self, ParseError};
 use virtual_path::VPath;
+
+pub use block_id::{BlockHash};
 
 /// A trait to fulfill block reading when uploading
 pub trait GetBlock {
@@ -43,12 +44,18 @@ pub trait GetBlock {
 /// It's currently empty, will grow methods in future
 #[derive(Debug)]
 pub struct BlockHint {
-
+    hint: Option<(VPath, PathBuf, u64)>,
 }
 
 trait Assert: Send + Sync + 'static {}
 impl Assert for BlockHint {}
 impl Assert for BlockHash {}
+
+fn _object_safe() {
+    use futures::future::FutureResult;
+    let _: Option<&GetBlock<Block=Vec<u8>, Error=String,
+                   Future=FutureResult<Vec<u8>, String>>> = None;
+}
 
 #[derive(Debug, Clone)]
 struct BlockPointer {
@@ -203,5 +210,16 @@ impl Future for FutureBlock {
     type Error = ReadError;
     fn poll(&mut self) -> Result<Async<Self::Item>, Self::Error> {
         self.0.poll()
+    }
+}
+
+impl BlockHint {
+    /// Create an empty hint
+    ///
+    /// This assumes that block reader is able to find block b hash
+    pub fn empty() -> BlockHint {
+        BlockHint {
+            hint: None,
+        }
     }
 }

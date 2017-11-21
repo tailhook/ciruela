@@ -5,7 +5,7 @@ use std::io;
 use std::path::{Path, PathBuf, Component};
 use std::sync::Arc;
 
-use virtual_path::VPath;
+use {VPath};
 use dir_util::recover_path;
 use metadata::Error;
 use openat::{self, Entry, SimpleType, Metadata};

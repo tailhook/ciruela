@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use openat::{Dir, SimpleType, Entry};
 
-use virtual_path::VPath;
+use {VPath};
 use disk::error::Error;
 
 pub enum DirBorrow<'a> {

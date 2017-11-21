@@ -7,7 +7,7 @@ use std::time::UNIX_EPOCH;
 use dir_signature::v1::merge::MergedSignatures;
 use dir_signature::v1::{Entry, EntryKind, Hashes};
 
-use virtual_path::VPath;
+use {VPath};
 use metadata::{Meta, Error};
 use metadata::{read_index, scan};
 use tracking::Index;

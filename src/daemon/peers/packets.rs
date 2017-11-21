@@ -1,5 +1,4 @@
-use id::{ImageId};
-use virtual_path::{VPath};
+use {ImageId, VPath};
 use proto::Hash;
 use machine_id::MachineId;
 use mask::Mask;

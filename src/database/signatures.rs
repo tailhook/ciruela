@@ -2,7 +2,7 @@ use std::time::SystemTime;
 
 use serde::{Serialize, Deserialize, Serializer, Deserializer};
 
-use id::{ImageId};
+use {ImageId};
 use proto::Signature;
 use time_util::{to_ms, from_ms};
 
