@@ -105,7 +105,7 @@ pub fn ensure_virtual_parent<'x>(dir: &'x Dir, path: &VPath)
     -> Result<DirBorrow<'x>, Error>
 {
     let mut dir = DirBorrow::Borrow(dir);
-    for component in path.names().take(path.level()-1) {
+    for component in path.suffix().iter().take(path.level()-1) {
         dir = DirBorrow::Owned(ensure_subdir(&*dir, component)?);
     }
     Ok(dir)

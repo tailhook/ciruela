@@ -70,7 +70,7 @@ impl Dir {
     pub fn open_vpath(&self, path: &VPath) -> Result<Dir, Error> {
         let mut dir = self.0.sub_dir(path.key())
             .map_err(|e| Error::Open(self.path(path.key()), e))?;
-        for cmp in path.names() {
+        for cmp in path.suffix().iter() {
             dir = dir.sub_dir(cmp)
                 .map_err(|e| Error::Open(recover_path(&dir, cmp), e))?;
         }

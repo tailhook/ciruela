@@ -1,60 +1,94 @@
-use std::path::{Path, PathBuf, Iter};
+use std::path::{Path, PathBuf};
 use std::borrow::Borrow;
+use std::sync::Arc;
 
 use serde::de::{Deserialize, Deserializer, Error};
 
 
+/// Virtual path for uploading images
+///
+/// Basically it's an `Arc<PathBuf>` so it clones cheaply, but also has
+/// convenience methods for extracting features specific to our
+/// virtual paths.
+///
+/// The anatomy of the virtual path:
+///
+/// ```
+/// /[key]/[suffix]
+/// ```
+///
+/// Type asserts on the presence of the ``key`` and that the path is absolute.
+/// Suffix might be of arbitrary length including zero.
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Debug, Clone)]
-pub struct VPath(PathBuf);
+pub struct VPath(Arc<PathBuf>);
 
 impl VPath {
+    /// Returns a `key`, i.e. the first component
     pub fn key(&self) -> &str {
         self.0.iter().nth(1).and_then(|x| x.to_str())
         .expect("valid virtual path")
     }
+    /// Returns a level of a directory
+    ///
+    /// Level is number of path components not counting a key
     pub fn level(&self) -> usize {
         // don't count key and initial slash
         self.0.iter().count() - 2
     }
+    /// Return parent path relative to a `key`
+    ///
+    /// # Panics
+    ///
+    /// Panics if the directory contains only a key (has single component)
     pub fn parent_rel(&self) -> &Path {
-        debug_assert!(self.level() > 0);
+        assert!(self.level() > 0);
         self.0.strip_prefix("/").ok().and_then(|x| x.parent())
         .expect("valid virtual path")
     }
+    /// Return virtual path of the directory
+    ///
+    /// # Panics
+    ///
+    /// Panics if the directory contains only a key (has single component)
     pub fn parent(&self) -> VPath {
-        debug_assert!(self.level() > 0);
-        VPath(self.0.parent().expect("valid virtual path").to_path_buf())
+        assert!(self.level() > 0);
+        let parent = self.0.parent().expect("valid virtual path");
+        VPath(Arc::new(parent.to_path_buf()))
     }
+    /// The path relative to the key
     pub fn suffix(&self) -> &Path {
         let mut names = self.0.iter();
         names.next().expect("valid virtual path");  // skip slash
         names.next().expect("valid virtual path");  // skip key
         names.as_path()
     }
-    pub fn names(&self) -> Iter {
-        debug_assert!(self.level() > 0);
-        let mut names = self.0.iter();
-        names.next().expect("valid virtual path");  // skip slash
-        names.next().expect("valid virtual path");  // skip key
-        return names;
-    }
+    /// The last component of the directory
+    ///
+    /// # Panics
+    ///
+    /// Panics if the path has only one component (the key)
     pub fn final_name(&self) -> &str {
-        debug_assert!(self.level() > 0);
+        assert!(self.level() > 0);
         self.0.file_name().and_then(|x| x.to_str())
         .expect("valid virtual path")
     }
+    /// Join path to the virtual path
+    ///
+    /// # Panics
+    ///
+    /// Panics if suffix is invalid: empty, root or has parent `..` components
     pub fn join<P: AsRef<Path>>(&self, path: P) -> VPath {
         use std::path::Component::Normal;
         let path = path.as_ref();
         assert!(path != Path::new(""));
         assert!(path.components().all(|x| matches!(x, Normal(_))));
-        VPath(self.0.join(path))
+        VPath(Arc::new(self.0.join(path)))
     }
 }
 
 impl Borrow<Path> for VPath {
     fn borrow(&self) -> &Path {
-        self.0.borrow()
+        (&*self.0).borrow()
     }
 }
 
@@ -71,7 +105,7 @@ impl<T> From<T> for VPath
         let buf = t.into();
         assert!(buf.is_absolute());
         assert!(buf != Path::new("/"));
-        VPath(buf)
+        VPath(Arc::new(buf))
     }
 }
 
@@ -84,7 +118,7 @@ impl<'de> Deserialize<'de> for VPath {
             return Err(D::Error::custom("virtual path must be absolute \
                 and must contain at least two components"));
         }
-        Ok(VPath(s.into()))
+        Ok(VPath(Arc::new(s.into())))
     }
 }
 

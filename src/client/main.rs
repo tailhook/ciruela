@@ -31,7 +31,6 @@ extern crate void;
 #[macro_use] extern crate mopa;
 #[macro_use] extern crate quick_error;
 #[macro_use] extern crate serde_derive;
-#[macro_use] extern crate failure_derive;
 
 mod global_options;
 mod name;

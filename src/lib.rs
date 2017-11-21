@@ -45,4 +45,5 @@ mod hexlify;
 mod block_id;
 
 pub use id::ImageId;
+pub use virtual_path::VPath;
 pub mod blocks;

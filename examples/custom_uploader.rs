@@ -26,6 +26,6 @@ fn run() -> Result<bool, ()> {
     let mut indexbuf = Vec::new();
     v1::scan(&cfg, &mut indexbuf)
         .map_err(|e| error!("Error scanning {:?}: {}", DIR, e))?;
-    let block_reader = ThreadedBlockReader::new();
+    let _block_reader = ThreadedBlockReader::new();
     unimplemented!();
 }
