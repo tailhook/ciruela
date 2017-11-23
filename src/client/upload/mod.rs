@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::io::{self, stdout, stderr};
+use std::io::{stdout, stderr};
 use std::net::SocketAddr;
 use std::process::exit;
 use std::sync::{Arc, Mutex};
@@ -7,7 +7,7 @@ use std::time::{SystemTime, Duration};
 
 use abstract_ns::HostResolve;
 use argparse::{ArgumentParser};
-use dir_signature::{ScannerConfig, HashType, v1, get_hash};
+use dir_signature::{ScannerConfig, HashType, v1};
 use futures::future::{Future, Either, join_all, ok};
 use futures::sync::oneshot::{channel, Sender};
 use tk_easyloop;
@@ -16,6 +16,7 @@ mod options;
 
 use name;
 use ciruela::blocks;
+use ciruela::index;
 use machine_id::{MachineId};
 use time_util::to_ms;
 use proto::{SigData, sign};
@@ -24,7 +25,6 @@ use proto::{Client, AppendDir, ReplaceDir};
 use proto::RequestClient;
 use proto::{Listener};
 use proto::message::Notification;
-use index::{ImageId};
 use {VPath};
 
 struct Progress {
@@ -148,12 +148,13 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
     }
 
 
-    let image_id = ImageId::from(get_hash(&mut io::Cursor::new(&indexbuf))
-        .expect("hash valid in just created index"));
+    let indexes = index::InMemoryIndexes::new();
+    let blocks = blocks::ThreadedBlockReader::new_num_threads(gopt.threads);
+    let image_id = indexes.register_index(&indexbuf)
+        .expect("register index failed");
     eprintln!("Uploading image {} [index_size: {}]",
         image_id, indexbuf.len());
 
-    let blocks = blocks::ThreadedBlockReader::new_num_threads(gopt.threads);
 
     let timestamp = SystemTime::now();
     let mut signatures = HashMap::new();
@@ -162,7 +163,7 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
             continue;
         }
         blocks.register_dir(&dir, &VPath::from(&turl.path), &indexbuf)
-            .expect("registration");
+            .expect("register blocks failed");
         signatures.insert(&turl.path[..], sign(SigData {
             path: &turl.path,
             image: image_id.as_ref(),
@@ -195,6 +196,7 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                 let host2 = turl.host.clone();
                 let host4 = turl.host.clone();
                 let image_id = image_id.clone();
+                let indexes = indexes.clone();
                 let blocks = blocks.clone();
                 let signatures = signatures.clone();
                 let done_rx = done_rx.clone();
@@ -223,6 +225,7 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                             let host = host4.clone();
                             let signatures = signatures.clone();
                             let image_id = image_id.clone();
+                            let indexes = indexes.clone();
                             let blocks = blocks.clone();
                             let progress = progress.clone();
                             let progress2 = progress.clone();
@@ -232,7 +235,7 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                             let done_rx = done_rx.clone();
                             let host_port = format!("{}:{}", host4, port);
                             Client::spawn(addr, host_port,
-                                blocks.clone(), tracker)
+                                blocks.clone(), indexes.clone(), tracker)
                             .and_then(move |mut cli| {
                                 info!("Connected to {}", addr);
                                 cli.register_index(&image_id);

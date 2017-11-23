@@ -11,6 +11,7 @@ use tk_easyloop::{spawn, handle};
 use tokio_core::net::TcpStream;
 
 use blocks::{GetBlock, BlockHint};
+use index::{GetIndex};
 use index::ImageId;
 use proto::{StreamExt};
 use proto::message::{Message, Request, Notification};
@@ -33,41 +34,47 @@ pub trait Listener {
     fn closed(&self);
 }
 
-struct MyDispatcher<L: Listener, B> {
+struct MyDispatcher<L: Listener, B, I> {
     requests: Registry,
     channel: Sender,
     blocks: B,
+    indexes: I,
     listener: L,
 }
 
-impl<L: Listener, B> Drop for MyDispatcher<L, B> {
+impl<L: Listener, B, I> Drop for MyDispatcher<L, B, I> {
     fn drop(&mut self) {
         self.listener.closed();
     }
 }
 
-impl<L: Listener, B: GetBlock> Dispatcher for MyDispatcher<L, B> {
+impl<L, B, I> Dispatcher for MyDispatcher<L, B, I>
+    where L: Listener, B: GetBlock, I: GetIndex,
+{
     type Future = FutureResult<(), WsError>;
     fn frame(&mut self, frame: &Frame) -> FutureResult<(), WsError> {
         match *frame {
             Frame::Binary(data) => match from_slice(data) {
                 Ok(Message::Request(req_id, Request::GetIndex(idx))) => {
-                    unimplemented!();
-                    /*
-                    self.local_images.lock()
-                        .expect("local_images is not poisoned")
-                        .get(&idx.id)
-                        .map(|img| {
-                            self.channel.response(req_id,
-                                GetIndexResponse {
-                                    // TODO(tailhook) optimize clone
-                                    data: img.index_data.clone(),
-                                })
-                        })
-                        .unwrap_or_else(|| {
-                            self.channel.error_response(req_id,
-                                Error::IndexNotFound)
-                        }); */
+                    let chan = self.channel.clone();
+                    spawn(self.indexes.read_index(&idx.id)
+                        .then(move |res| {
+                            match res {
+                                Ok(data) => {
+                                    chan.response(req_id,
+                                        GetIndexResponse {
+                                            // TODO(tailhook) optimize clone
+                                            data: data.as_ref().to_vec(),
+                                        })
+                                }
+                                Err(e) => {
+                                    error!("Error getting index: {}", e);
+                                    chan.error_response(req_id,
+                                        Error::IndexNotFound)
+                                }
+                            }
+                            Ok(())
+                        }));
                 }
                 Ok(Message::Request(req_id, Request::GetBlock(req))) => {
                     let chan = self.channel.clone();
@@ -114,7 +121,7 @@ impl<L: Listener, B: GetBlock> Dispatcher for MyDispatcher<L, B> {
     }
 }
 
-impl<L: Listener, B> RequestDispatcher for MyDispatcher<L, B> {
+impl<L: Listener, B, I> RequestDispatcher for MyDispatcher<L, B, I> {
     fn request_registry(&self) -> &Registry {
         &self.requests
     }
@@ -127,11 +134,12 @@ impl RequestClient for Client {
 }
 
 impl Client {
-    pub fn spawn<L, B>(addr: SocketAddr, host: String,
-        blocks: B, listener: L)
+    pub fn spawn<L, B, I>(addr: SocketAddr, host: String,
+        blocks: B, indexes: I, listener: L)
         -> ClientFuture
         where L: Listener + 'static,
               B: GetBlock + Send + 'static,
+              I: GetIndex + Send + 'static,
     {
         let (tx, rx) = oneshot();
         let (ctx, crx) = Sender::channel();
@@ -159,6 +167,7 @@ impl Client {
                     requests: requests.clone(),
                     channel: ctx,
                     blocks: blocks,
+                    indexes: indexes,
                     listener: listener,
                 };
                 let stream = crx.packetize(&requests)

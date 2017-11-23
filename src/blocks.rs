@@ -104,13 +104,12 @@ pub enum ReadError {
 
 /// Error adding directory
 #[derive(Debug, Fail)]
-#[fail(display="{}", internal)]
 pub enum DirError {
     /// Error parsing index passed as index data
     #[fail(display="error parsing index: {}", _0)]
     ParseError(ParseError),
     #[doc(hidden)]
-    #[fail(display="block lock was poisoned")]
+    #[fail(display="blocks lock was poisoned")]
     LockError(Backtrace),
     #[doc(hidden)]
     #[fail(display="hash size is unsupported")]
@@ -200,6 +199,7 @@ impl GetBlock for ThreadedBlockReader {
                 .map_err(|e| ReadError::Fs(pointer.path.to_path_buf(), e,
                                            Backtrace::new()))?;
             result.truncate(bytes);
+            assert_eq!(result.len(), pointer.size);
             Ok(result)
         }))
     }

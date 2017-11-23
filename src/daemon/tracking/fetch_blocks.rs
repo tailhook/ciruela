@@ -74,8 +74,7 @@ impl StateMachine for FetchBlock {
                                 Fetching(blk, slice, addr, f)));
                         }
                         Ok(Async::Ready(data)) => {
-                            let bytes = BlockHash::from_bytes(&data.data);
-                            if bytes.as_ref() == Some(&blk.hash) {
+                            if BlockHash::hash_bytes(&data.data) == blk.hash {
                                 for s in ctx.downloading.slices().iter_mut() {
                                     if s.index == slice {
                                         s.in_progress -= 1;

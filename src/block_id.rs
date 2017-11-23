@@ -33,7 +33,8 @@ impl BlockHash {
         }
         return None;
     }
-    pub(crate) fn for_bytes(bytes: &[u8]) -> BlockHash {
+    /// Hash bytes and return block hash
+    pub fn hash_bytes(bytes: &[u8]) -> BlockHash {
         let mut hash = Blake2b::<U32>::new();
         hash.input(bytes);
         return BlockHash::from_bytes(&hash.result()[..]).unwrap();
