@@ -72,7 +72,7 @@ mod dir_util;
 mod disk;
 mod failure_tracker;
 mod http;
-mod index;
+mod index_cache;
 mod mask;
 mod metadata;
 mod named_mutex;
@@ -88,8 +88,9 @@ mod tracking;
 #[path="../serialize/mod.rs"] mod serialize;
 #[path="../time_util.rs"] mod time_util;
 #[path="../hexlify.rs"] mod hexlify;
-pub use ciruela::{ImageId, VPath};
+pub use ciruela::{VPath};
 pub use ciruela::blocks as blocks;
+pub use ciruela::index as index;
 
 
 fn init_logging(mid: MachineId, log_mid: bool) {

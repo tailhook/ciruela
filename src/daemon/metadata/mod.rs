@@ -20,10 +20,11 @@ use self_meter_http::Meter;
 use database::signatures::{State, SignatureEntry};
 use proto::{AppendDir};
 use proto::{ReplaceDir};
-use {ImageId, VPath};
+use {VPath};
 use config::Config;
 use tracking::Index;
-use index::IndexData;
+use index::{ImageId};
+use index_cache::{IndexData};
 use named_mutex::{Mutex, MutexGuard};
 use void::Void;
 

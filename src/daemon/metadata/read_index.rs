@@ -1,8 +1,8 @@
 use std::io::{Read, BufReader};
 use std::fs::File;
 
-use {ImageId};
-use index::IndexData;
+use index::{ImageId};
+use index_cache::IndexData;
 use metadata::{Meta, Error};
 use dir_signature::v1::Parser;
 

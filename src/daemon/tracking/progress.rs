@@ -8,7 +8,8 @@ use std::sync::{Arc};
 
 use rand::{thread_rng, Rng};
 
-use {ImageId, VPath};
+use index::{ImageId};
+use {VPath};
 use blocks::BlockHash;
 use config::Directory;
 use failure_tracker::HostFailures;

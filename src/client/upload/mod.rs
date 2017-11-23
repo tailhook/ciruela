@@ -24,7 +24,8 @@ use proto::{Client, AppendDir, ReplaceDir};
 use proto::RequestClient;
 use proto::{Listener};
 use proto::message::Notification;
-use {ImageId, VPath};
+use index::{ImageId};
+use {VPath};
 
 struct Progress {
     started: SystemTime,
@@ -160,7 +161,8 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
         if signatures.contains_key(&turl.path[..]) {
             continue;
         }
-        blocks.register_dir(&dir, &VPath::from(&turl.path), &indexbuf);
+        blocks.register_dir(&dir, &VPath::from(&turl.path), &indexbuf)
+            .expect("registration");
         signatures.insert(&turl.path[..], sign(SigData {
             path: &turl.path,
             image: image_id.as_ref(),

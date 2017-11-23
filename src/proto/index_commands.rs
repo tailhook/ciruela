@@ -2,10 +2,11 @@ use std::fmt;
 
 use serde_bytes;
 
+use index::ImageId;
+use machine_id::{MachineId};
 use proto::request::Notification;
 use proto::{Request, Response};
-use {ImageId, VPath};
-use machine_id::{MachineId};
+use {VPath};
 
 
 #[derive(Serialize, Deserialize, Debug)]

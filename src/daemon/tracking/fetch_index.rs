@@ -12,10 +12,11 @@ use futures::sync::oneshot::{channel, Receiver, Sender};
 use valuable_futures::{Supply, Async, StateMachine};
 use rand::{thread_rng, Rng};
 
-use {ImageId, VPath};
+use index::{ImageId};
+use {VPath};
 use proto::{GetIndex, GetIndexResponse};
 use proto::{RequestFuture, RequestClient};
-use index::{IndexData};
+use index_cache::{IndexData};
 use failure_tracker::HostFailures;
 use mask::Mask;
 use metadata::{Error as MetaError};

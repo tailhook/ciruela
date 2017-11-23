@@ -21,7 +21,8 @@ use futures::sync::mpsc::{unbounded, UnboundedSender, UnboundedReceiver};
 use tk_easyloop::{spawn, timeout};
 
 use proto::{AppendDir, Hash};
-use {ImageId, VPath};
+use index::{ImageId};
+use {VPath};
 use machine_id::{MachineId};
 use config::{Config};
 use disk::Disk;

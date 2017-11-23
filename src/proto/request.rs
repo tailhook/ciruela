@@ -10,7 +10,7 @@ use serde_cbor::ser::Serializer as Cbor;
 use tk_http::websocket::{Packet};
 use mopa;
 
-use {ImageId};
+use index::{ImageId};
 use proto::{REQUEST, RESPONSE, NOTIFICATION};
 use proto::message;
 use proto::dir_commands::{AppendDir, ReplaceDir};

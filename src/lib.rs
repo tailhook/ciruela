@@ -44,6 +44,6 @@ mod serialize;
 mod hexlify;
 mod block_id;
 pub mod blocks;
+pub mod index;
 
-pub use id::ImageId;
 pub use virtual_path::VPath;

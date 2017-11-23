@@ -11,7 +11,7 @@ use tk_easyloop::{spawn, handle};
 use tokio_core::net::TcpStream;
 
 use blocks::{GetBlock, BlockHint};
-use ImageId;
+use index::ImageId;
 use proto::{StreamExt};
 use proto::message::{Message, Request, Notification};
 use proto::index_commands::{PublishImage, GetIndexResponse};

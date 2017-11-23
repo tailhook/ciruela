@@ -98,7 +98,7 @@ mod test {
     use rand::{thread_rng, Rng};
     use config::Directory;
     use super::{sort_out, Image, Sorted};
-    use {ImageId};
+    use index::{ImageId};
     use proto::Signature;
     use database::signatures::{State, SignatureEntry};
 

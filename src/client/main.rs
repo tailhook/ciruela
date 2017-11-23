@@ -47,8 +47,9 @@ mod upload;
 #[path="../serialize/mod.rs"] mod serialize;
 #[path="../time_util.rs"] mod time_util;
 #[path="../hexlify.rs"] mod hexlify;
-pub use ciruela::{ImageId, VPath};
+pub use ciruela::{VPath};
 pub use ciruela::blocks as blocks;
+pub use ciruela::index as index;
 
 use std::env;
 use std::io::{Write, stderr};
