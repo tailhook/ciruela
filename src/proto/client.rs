@@ -78,7 +78,8 @@ impl<L: Listener, B: GetBlock> Dispatcher for MyDispatcher<L, B> {
                                 Ok(block) => {
                                     chan.response(req_id,
                                         GetBlockResponse {
-                                            data: block,
+                                            // TODO(tailhook) don't copy?
+                                            data: block.as_ref().to_vec(),
                                         });
                                 }
                                 Err(e) => {

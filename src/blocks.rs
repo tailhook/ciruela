@@ -28,15 +28,15 @@ pub trait GetBlock {
     ///
     /// It's usually `Vec<u8>` but may also be an Arc'd container or a
     /// memory-mapped region.
-    type Block: AsRef<[u8]>;
+    type Data: AsRef<[u8]>;
     /// Error returned by future
     ///
     /// This is used to print error and to send message to remote system
     type Error: fmt::Display;
     /// Future returned by `read_block`
-    type Future: Future<Item=Self::Block, Error=Self::Error>;
+    type Future: Future<Item=Self::Data, Error=Self::Error> + 'static;
     /// Read block by hash
-    fn read_block(&self, hash: BlockHash, hint: BlockHint) -> FutureBlock;
+    fn read_block(&self, hash: BlockHash, hint: BlockHint) -> Self::Future;
 }
 
 /// Hint where to find block
@@ -53,7 +53,7 @@ impl Assert for BlockHash {}
 
 fn _object_safe() {
     use futures::future::FutureResult;
-    let _: Option<&GetBlock<Block=Vec<u8>, Error=String,
+    let _: Option<&GetBlock<Data=Vec<u8>, Error=String,
                    Future=FutureResult<Vec<u8>, String>>> = None;
 }
 
@@ -179,7 +179,7 @@ impl ThreadedBlockReader {
 }
 
 impl GetBlock for ThreadedBlockReader {
-    type Block = Vec<u8>;
+    type Data = Vec<u8>;
     type Error = ReadError;
     type Future = FutureBlock;
     fn read_block(&self, hash: BlockHash, _hint: BlockHint) -> FutureBlock {
