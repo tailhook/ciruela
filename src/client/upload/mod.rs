@@ -162,7 +162,7 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
         if signatures.contains_key(&turl.path[..]) {
             continue;
         }
-        blocks.register_dir(&dir, &VPath::from(&turl.path), &indexbuf)
+        blocks.register_dir(&dir, &indexbuf)
             .expect("register blocks failed");
         signatures.insert(&turl.path[..], sign(SigData {
             path: &turl.path,

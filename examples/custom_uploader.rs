@@ -7,7 +7,6 @@ use std::process::exit;
 use dir_signature::{v1, ScannerConfig, HashType};
 use ciruela::blocks::ThreadedBlockReader;
 use ciruela::index::InMemoryIndexes;
-use ciruela::VPath;
 
 const DIR: &str = "./src";
 
@@ -32,7 +31,7 @@ fn run() -> Result<bool, ()> {
     let block_reader = ThreadedBlockReader::new();
     indexes.register_index(&indexbuf)
         .expect("register is okay");
-    block_reader.register_dir(DIR, &VPath::from("/dest/src"), &indexbuf)
+    block_reader.register_dir(DIR, &indexbuf)
         .expect("register is okay");
     unimplemented!();
 }
