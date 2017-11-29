@@ -223,6 +223,10 @@ impl Tracking {
     pub fn peers(&self) -> &Peers {
         &self.0.peers
     }
+    // only for http
+    pub fn config(&self) -> &Arc<Config> {
+        &self.0.config
+    }
     pub fn get_in_progress(&self) -> BTreeMap<VPath, ShortProgress> {
         let mut res = BTreeMap::new();
         for inp in &self.state().in_progress {

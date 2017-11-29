@@ -54,6 +54,7 @@ enum Route {
     Websocket(WebsocketHandshake),
     Status,
     BaseDirs,
+    Configs,
     Cluster(ClusterRoute),
     Downloading,
     Deleted,
@@ -169,6 +170,20 @@ impl<S> server::Codec<S> for HttpCodec
                         last_scan: d.last_scan,
                     })).collect::<BTreeMap<_, _>>()))
             }
+            Route::Configs => {
+                #[derive(Serialize)]
+                pub struct Config {
+                    append_only: bool,
+                    num_levels: usize,
+                    auto_clean: bool,
+                }
+                ok(serve_json(e, &self.tracking.config().dirs
+                    .iter().map(|(path, d)| (path, Config {
+                        append_only: d.append_only,
+                        num_levels: d.num_levels,
+                        auto_clean: d.auto_clean,
+                    })).collect::<BTreeMap<_, _>>()))
+            }
             Route::Deleted => {
                 ok(serve_json(e, &self.tracking.get_deleted()
                     .iter()
@@ -278,6 +293,8 @@ impl Route {
             return Route::Downloading;
         } else if path == "/base-dirs/" {
             return Route::BaseDirs;
+        } else if path == "/configs/" {
+            return Route::Configs;
         } else if path == "/deleted/" {
             return Route::Deleted;
         } else if path.starts_with("/cluster/") {
