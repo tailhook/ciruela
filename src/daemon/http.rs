@@ -253,6 +253,7 @@ fn serve_json<S, V: Serialize>(mut e: Encoder<S>, data: &V)
     e.status(Status::Ok);
     e.add_chunked().unwrap();
     e.format_header("Date", time::now_utc().rfc822()).unwrap();
+    e.add_header("Content-Type", "application/json").unwrap();
     e.add_header("Server",
         concat!("ciruela/", env!("CARGO_PKG_VERSION"))
     ).unwrap();
