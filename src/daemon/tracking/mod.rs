@@ -40,7 +40,7 @@ pub use self::progress::{Downloading, Slices};
 pub use self::base_dir::BaseDir;
 
 const DELETED_RETENTION: u64 = 300_000;  // 5 min
-const AVOID_DOWNLOAD: u64 = 10_000;  // do not try delete image again in 2 min
+const AVOID_DOWNLOAD: u64 = 120_000;  // do not try delete image again in 2 min
 
 
 pub type BlockData = Arc<Vec<u8>>;
