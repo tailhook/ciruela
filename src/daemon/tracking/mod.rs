@@ -384,7 +384,7 @@ impl Subsystem {
         self.state().in_progress.remove(cmd);
         self.remote.notify_received_image(
             &cmd.image_id, &cmd.virtual_path);
-        self.rescan_dir(cmd.virtual_path.clone());
+        self.rescan_dir(cmd.virtual_path.parent());
     }
 }
 
