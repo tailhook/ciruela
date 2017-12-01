@@ -9,7 +9,7 @@ use hexlify::Hex;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::de::{Visitor, Error};
 use blake2::{Blake2b, Digest};
-use typenum::U32;
+use blake2::digest::VariableOutput;
 
 /// Hash of a block
 ///
@@ -35,9 +35,11 @@ impl BlockHash {
     }
     /// Hash bytes and return block hash
     pub fn hash_bytes(bytes: &[u8]) -> BlockHash {
-        let mut hash = Blake2b::<U32>::new();
+        let mut hash: Blake2b = VariableOutput::new(32).expect("length is ok");
         hash.input(bytes);
-        return BlockHash::from_bytes(&hash.result()[..]).unwrap();
+        let mut result = [0u8; 32];
+        hash.variable_result(&mut result).expect("length is okay");
+        return BlockHash(result);
     }
 }
 

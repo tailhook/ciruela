@@ -38,7 +38,6 @@ extern crate tk_http;
 extern crate tk_listen;
 extern crate tokio_core;
 extern crate tokio_io;
-extern crate typenum;
 extern crate valuable_futures;
 extern crate void;
 

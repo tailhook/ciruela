@@ -6,9 +6,9 @@ use serde::de::{Visitor, Error};
 use serde_cbor::ser::to_writer;
 
 use hexlify::Hex;
+use blake2::digest::VariableOutput;
 use digest_writer;
 use blake2::{Blake2b, Digest};
-use typenum::U32;
 
 
 #[derive(Hash, PartialEq, Eq, Clone, Copy)]
@@ -24,8 +24,8 @@ impl Hash {
         val.copy_from_slice(hash);
         return Hash(val);
     }
-    pub fn builder() -> digest_writer::Writer<Blake2b<U32>> {
-        digest_writer::Writer::new(Blake2b::<U32>::new())
+    pub fn builder() -> digest_writer::Writer<Blake2b> {
+        VariableOutput::new(32).expect("length is okay")
     }
     pub fn for_object<S: Serialize>(obj: &S) -> Hash {
         let mut dig = Hash::builder();
@@ -44,12 +44,14 @@ pub trait Builder: io::Write {
     fn object<S: Serialize>(&mut self, obj: &S);
 }
 
-impl Builder for digest_writer::Writer<Blake2b<U32>> {
+impl Builder for digest_writer::Writer<Blake2b> {
     fn object<S: Serialize>(&mut self, obj: &S) {
         to_writer(self, obj).expect("can always serialize/hash structure");
     }
     fn done(self) -> Hash {
-        Hash::new(&self.into_inner().result()[..])
+        let mut result = [0u8; 32];
+        self.variable_result(&mut result).expect("length is okay");
+        Hash(result)
     }
 }
 

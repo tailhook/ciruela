@@ -23,7 +23,6 @@ extern crate tk_easyloop;
 extern crate tk_http;
 extern crate tokio_core;
 extern crate tokio_io;
-extern crate typenum;
 extern crate void;
 
 #[macro_use] extern crate log;

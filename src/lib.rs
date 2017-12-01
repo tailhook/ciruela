@@ -20,7 +20,6 @@ extern crate serde;
 extern crate serde_cbor;
 extern crate serde_bytes;
 extern crate ssh_keys;
-extern crate typenum;
 extern crate tk_easyloop;
 extern crate tk_bufstream;
 extern crate tokio_core;
