@@ -1,17 +1,31 @@
-use std::io::BufReader;
+use std::io::{BufReader};
 use std::collections::BTreeMap;
 
-use metadata::{Error, Dir};
+use metadata::{Meta, Error, Dir};
 
+use {VPath};
 use database::signatures::State;
 use serde_cbor::de::from_reader as read_cbor;
 
 
-pub fn all_states(dir: &Dir)
+pub fn all_states(meta: &Meta, vpath: &VPath, dir: &Dir)
     -> Result<BTreeMap<String, State>, Error>
 {
     let mut res = BTreeMap::new();
     for mut name in dir.list_files(".state")? {
+        if name.ends_with(".new.state") {
+            let nlen = name.len() - ".new.state".len();
+            if !meta.writing().contains_key(&vpath.join(&name[..nlen])) {
+                match dir.remove_file(&name) {
+                    Ok(()) => {
+                        info!("Removed stale file {:?} in {:?}",
+                            name, vpath);
+                    }
+                    Err(e) => warn!("Error removing stale file: {}", e),
+                }
+                continue;
+            }
+        }
         let read: Result<Option<State>, _>;
         read = dir.read_file(&name, |f| read_cbor(&mut BufReader::new(f)));
         match read {

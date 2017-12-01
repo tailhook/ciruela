@@ -27,7 +27,7 @@ pub fn files_to_link(index: Index, dir: VPath, meta: Meta)
     -> Result<Vec<Hardlink>, Error>
 {
     let all_states = match meta.signatures()?.open_vpath(&dir) {
-        Ok(dir) => scan::all_states(&dir)?,
+        Ok(open_dir) => scan::all_states(&meta, &dir, &open_dir)?,
 
         Err(Error::Open(_, ref e))
         if e.kind() == io::ErrorKind::NotFound

@@ -211,14 +211,14 @@ impl Meta {
             first_scan::scan(&meta, add_dir)
         })
     }
-    pub fn scan_dir(&self, dir: &VPath)
+    pub fn scan_dir(&self, path: &VPath)
         -> CpuFuture<BTreeMap<String, State>, Error>
     {
-        let dir = dir.clone();
+        let path = path.clone();
         let meta = self.clone();
         self.0.cpu_pool.spawn_fn(move || {
-            match meta.signatures()?.open_vpath(&dir) {
-                Ok(dir) => scan::all_states(&dir),
+            match meta.signatures()?.open_vpath(&path) {
+                Ok(dir) => scan::all_states(&meta, &path, &dir),
                 Err(Error::Open(_, ref e))
                 if e.kind() == io::ErrorKind::NotFound
                 => Ok(BTreeMap::new()),
