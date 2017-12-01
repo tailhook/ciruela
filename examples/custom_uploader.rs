@@ -1,5 +1,6 @@
 extern crate dir_signature;
 extern crate ciruela;
+extern crate tk_easyloop;
 #[macro_use] extern crate log;
 
 use std::process::exit;
@@ -33,5 +34,8 @@ fn run() -> Result<bool, ()> {
         .expect("register is okay");
     block_reader.register_dir(DIR, &indexbuf)
         .expect("register is okay");
-    unimplemented!();
+    tk_easyloop::run(|| {
+        unimplemented!();
+        Ok(true)
+    })
 }

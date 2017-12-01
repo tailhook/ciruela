@@ -6,6 +6,7 @@
 #![allow(dead_code)]  // temporarily
 #![warn(missing_docs)]
 #![warn(missing_debug_implementations)]
+extern crate abstract_ns;
 extern crate base64;
 extern crate blake2;
 extern crate crypto;
@@ -44,5 +45,6 @@ mod hexlify;
 mod block_id;
 pub mod blocks;
 pub mod index;
+pub mod cluster;
 
 pub use virtual_path::VPath;
