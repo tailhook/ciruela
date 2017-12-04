@@ -313,12 +313,9 @@ fn try_hardlink(config: &Arc<Config>, hlink: &Hardlink, img: &Arc<Image>)
     }
     let meta = file.metadata()
         .map_err(|e| Error::ReadFile(epath(), e))?;
-    let target_perm = if hlink.exe  {
-        PermissionsExt::from_mode(0o755)
-    } else {
-        PermissionsExt::from_mode(0o644)
-    };
-    if meta.permissions() != target_perm {
+    let target_perm = if hlink.exe { 0o755 } else { 0o644 };
+    // Throwing out S_IFREG flag
+    if meta.permissions().mode() & 0o777 != target_perm {
         // note: entry permissions are checked when comparing, so this check
         // is as useful as checksum check: i.e. if file was modified on
         // the disk
