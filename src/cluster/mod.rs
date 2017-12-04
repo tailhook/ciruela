@@ -8,12 +8,15 @@
 //! have higher level API.
 
 mod config;
+mod set;
 
 pub use cluster::config::Config;
 
 use std::sync::Arc;
 
 use abstract_ns::{Name, Resolve, HostResolve};
+use futures::sync::mpsc::{unbounded, UnboundedSender};
+use tk_easyloop::spawn;
 
 use index::GetIndex;
 use blocks::GetBlock;
@@ -26,6 +29,7 @@ use blocks::GetBlock;
 #[derive(Debug)]
 pub struct Connection {
     config: Arc<Config>,
+    chan: UnboundedSender<()>,
 }
 
 impl Connection {
@@ -51,12 +55,18 @@ impl Connection {
     /// a very good idea (unless you really have one server) because the server
     /// you're connecting to may fail.
     pub fn new<R, I, B>(initial_address: Vec<Name>, resolver: R,
-        index_source: I, block_source: B)
+        index_source: I, block_source: B, config: &Arc<Config>)
         -> Connection
         where I: GetIndex + 'static,
               B: GetBlock + 'static,
               R: Resolve + HostResolve + 'static,
     {
-        unimplemented!();
+        let (tx, rx) = unbounded();
+        spawn(set::ConnectionSet::new(rx, initial_address, resolver,
+            index_source, block_source, config));
+        return Connection {
+            config: config.clone(),
+            chan: tx,
+        }
     }
 }

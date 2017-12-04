@@ -8,6 +8,7 @@ use std::process::exit;
 use dir_signature::{v1, ScannerConfig, HashType};
 use ciruela::blocks::ThreadedBlockReader;
 use ciruela::index::InMemoryIndexes;
+use ciruela::cluster::{Connection, Config};
 
 const DIR: &str = "./src";
 
@@ -34,7 +35,10 @@ fn run() -> Result<bool, ()> {
         .expect("register is okay");
     block_reader.register_dir(DIR, &indexbuf)
         .expect("register is okay");
+    let config = Config::new().done();
     tk_easyloop::run(|| {
+        //Connection::new(vec!["localhost".parse().unwrap()],
+        //    resolver, indexes, block_reader, &config);
         unimplemented!();
         Ok(true)
     })
