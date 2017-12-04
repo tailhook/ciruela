@@ -9,7 +9,7 @@ use futures::stream::iter_ok;
 use futures::sync::mpsc::{UnboundedReceiver};
 use tk_easyloop::{timeout, spawn};
 
-use cleanup::{Image, sort_out};
+use cleanup::{sort_out};
 use tracking::{Subsystem, BaseDir};
 use database::signatures::State;
 
@@ -21,13 +21,10 @@ pub enum Command {
 
 fn find_unused(sys: &Subsystem, dir: &Arc<BaseDir>,
     all: BTreeMap<String, State>, keep_list: Vec<PathBuf>)
-    -> Vec<Image>
+    -> Vec<(PathBuf, State)>
 {
     let images = all.into_iter().map(|(name, state)| {
-        Image {
-            path: dir.path.suffix().join(name),
-            target_state: state,
-        }
+        (dir.path.suffix().join(name), state)
     }).collect();
     // TODO(tailhook) read keep list
     let sorted = sort_out(&dir.config, images, &keep_list);
@@ -73,19 +70,19 @@ pub fn spawn_loop(rx: UnboundedReceiver<Command>, sys: &Subsystem) {
                         .and_then(move |(lst, keep_list)| {
                             let u = find_unused(&sys1, &dir1, lst, keep_list);
                             iter_ok(u.into_iter())
-                            .for_each(move |img| {
+                            .for_each(move |(path, state)| {
                                 let vpath = dir1.path.join(
-                                        &img.path.file_name()
+                                        &path.file_name()
                                         .expect("valid image path"));
                                 warn!("Removing {:?}", vpath);
                                 sys2.dir_deleted(&vpath,
-                                    &img.target_state.image);
+                                    &state.image);
                                 let cfg = dir2.config.clone();
                                 let sys = sys2.clone();
                                 sys.meta.remove_state_file(vpath, time)
                                 .map_err(boxerr)
                                 .and_then(move |()| {
-                                    sys.disk.remove_image(&cfg, img.path)
+                                    sys.disk.remove_image(&cfg, path)
                                     .map_err(boxerr)
                                 })
                                 // TODO(tailhook) clean the image itself

@@ -1,6 +1,6 @@
 use std::cmp::min;
 use std::collections::HashSet;
-use std::path::PathBuf;
+use std::hash::Hash;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -8,84 +8,68 @@ use database::signatures::State;
 
 use config::Directory;
 
-
-#[derive(Debug)]
-pub struct Image {
-    pub path: PathBuf,
-    pub target_state: State,
-    // TODO(tailhook) real state may be different from target state:
-    // * directory has never downloaded
-    // * currently downloading
-    // * it was delete by external process (user)
-    // * it was broken
-    // * it didn't pass verification
-}
-
 #[derive(Debug, PartialEq)]
-pub struct Sorted {
-    pub used: Vec<Image>,
-    pub unused: Vec<Image>,
+pub struct Sorted<T> {
+    pub used: Vec<T>,
+    pub unused: Vec<T>,
 }
 
-fn biggest_timestamp(img: &Image) -> SystemTime {
-    img.target_state.signatures.iter()
+fn biggest_timestamp(state: &State) -> SystemTime {
+    state.signatures.iter()
     .map(|x| x.timestamp)
     .min()
     .unwrap_or(UNIX_EPOCH)
 }
 
-pub fn sort_out(config: &Arc<Directory>, items: Vec<Image>,
-                keep_list: &Vec<PathBuf>)
-    -> Sorted
+pub fn sort_out<T>(config: &Arc<Directory>, items: Vec<(T, State)>,
+                keep_list: &Vec<T>)
+    -> Sorted<(T, State)>
+    where T: PartialEq + Eq + Hash,
 {
-    let mut result = Sorted {
-        used: Vec::new(),
-        unused: Vec::new(),
-    };
+    let mut used = Vec::new();
+    let mut unused = Vec::new();
     let keep_list: HashSet<_> = keep_list.iter().collect();
     if items.len() <= config.keep_min_directories {
-        result.used.extend(items.into_iter());
-        return result;
+        return Sorted {
+            used: items,
+            unused: vec![],
+        }
     }
     let mut candidates = vec![];
     let min_time = SystemTime::now() - config.keep_recent;
-    for img in items.into_iter() {
-        if biggest_timestamp(&img) >= min_time {
-            result.used.push(img);
+    for (name, state) in items.into_iter() {
+        if biggest_timestamp(&state) >= min_time {
+            used.push((name, state));
         } else {
-            candidates.push(img);
+            candidates.push((name, state));
         }
     }
-    if result.used.len() > config.keep_max_directories {
-        result.used.sort_by(|a, b| {
+    if used.len() > config.keep_max_directories {
+        used.sort_by(|&(_, ref a), &(_, ref b)| {
             biggest_timestamp(b).cmp(&biggest_timestamp(a))
         });
-        for img in result.used.drain(config.keep_max_directories..) {
-            candidates.push(img);
+        for pair in used.drain(config.keep_max_directories..) {
+            candidates.push(pair);
         }
     }
-    for img in candidates.into_iter() {
-        if keep_list.contains(&img.path) {
-            result.used.push(img);
+    for (name, state) in candidates.into_iter() {
+        if keep_list.contains(&name) {
+            used.push((name, state));
         } else {
-            result.unused.push(img);
+            unused.push((name, state));
         }
     }
-    if result.used.len() < config.keep_min_directories {
-        result.unused.sort_by(|a, b| {
+    if used.len() < config.keep_min_directories {
+        unused.sort_by(|&(_, ref a), &(_, ref b)| {
             biggest_timestamp(a).cmp(&biggest_timestamp(b))
         });
-        let unused = result.unused.len();
-        let needs = config.keep_min_directories - result.used.len();
-        result.used.extend(
-            result.unused.drain(unused - min(unused, needs)..));
+        let unused_len = unused.len();
+        let needs = config.keep_min_directories - used.len();
+        used.extend(unused.drain(unused_len - min(unused_len, needs)..));
     }
-    return result;
-}
-
-impl PartialEq for Image {
-    fn eq(&self, other: &Image) -> bool {
-        self.path == other.path
+    return Sorted {
+        used: used,
+        unused: unused,
     }
 }
 
@@ -97,7 +81,7 @@ mod test {
     use humantime::parse_duration;
     use rand::{thread_rng, Rng};
     use config::Directory;
-    use super::{sort_out, Image, Sorted};
+    use super::{sort_out, Sorted};
     use index::{ImageId};
     use proto::Signature;
     use database::signatures::{State, SignatureEntry};
@@ -137,6 +121,17 @@ mod test {
         }
     }
 
+    fn simple_sort(config: &Arc<Directory>, items: Vec<(u32, State)>,
+                    keep_list: &Vec<u32>)
+        -> Sorted<u32>
+    {
+        let r = sort_out(config, items, keep_list);
+        return Sorted {
+            used: r.used.into_iter().map(|(x, _)| x).collect(),
+            unused: r.unused.into_iter().map(|(x, _)| x).collect(),
+        }
+    }
+
     fn state_at(from_now: &str) -> State {
         let time = SystemTime::now() - parse_duration(from_now).unwrap();
         State {
@@ -149,7 +144,7 @@ mod test {
     }
     #[test]
     fn test_zero() {
-        assert_eq!(sort_out(&cfg(1, 2, "1 day"), vec![], &vec![]),
+        assert_eq!(simple_sort(&cfg(1, 2, "1 day"), vec![], &vec![]),
             Sorted {
                 used: vec![],
                 unused: vec![],
@@ -158,196 +153,68 @@ mod test {
 
     #[test]
     fn test_few() {
-        assert_eq!(sort_out(&cfg(1, 2, "1 day"), vec![
-            Image {
-                path: PathBuf::from("t1"),
-                target_state: fake_state(),
-            },
+        assert_eq!(simple_sort(&cfg(1, 2, "1 day"), vec![
+            (1, fake_state()),
         ], &vec![]),
             Sorted {
-                used: vec![
-                    Image {
-                        path: PathBuf::from("t1"),
-                        target_state: fake_state(),
-                    }
-                ],
+                used: vec![1],
                 unused: vec![],
             });
     }
 
     #[test]
     fn test_recent() {
-        assert_eq!(sort_out(&cfg(1, 100, "1 day"), vec![
-            Image {
-                path: PathBuf::from("t1"),
-                target_state: state_at("1 hour"),
-            },
-            Image {
-                path: PathBuf::from("t2"),
-                target_state: state_at("1 week"),
-            },
-            Image {
-                path: PathBuf::from("t3"),
-                target_state: state_at("1 sec"),
-            },
+        assert_eq!(simple_sort(&cfg(1, 100, "1 day"), vec![
+            (1, state_at("1 hour")),
+            (2, state_at("1 week")),
+            (3, state_at("1 sec")),
         ], &vec![]),
             Sorted {
-                used: vec![
-                    Image {
-                        path: PathBuf::from("t1"),
-                        target_state: fake_state(),
-                    },
-                    Image {
-                        path: PathBuf::from("t3"),
-                        target_state: fake_state(),
-                    },
-                ],
-                unused: vec![
-                    Image {
-                        path: PathBuf::from("t2"),
-                        target_state: fake_state(),
-                    },
-                ],
+                used: vec![1, 3],
+                unused: vec![2],
             });
     }
 
     #[test]
     fn test_few_recent() {
-        assert_eq!(sort_out(&cfg(2, 100, "1 min"), vec![
-            Image {
-                path: PathBuf::from("t1"),
-                target_state: state_at("1 hour"),
-            },
-            Image {
-                path: PathBuf::from("t2"),
-                target_state: state_at("1 week"),
-            },
-            Image {
-                path: PathBuf::from("t3"),
-                target_state: state_at("1 sec"),
-            },
+        assert_eq!(simple_sort(&cfg(2, 100, "1 min"), vec![
+            (1, state_at("1 hour")),
+            (2, state_at("1 week")),
+            (3, state_at("1 sec")),
         ], &vec![]),
             Sorted {
-                used: vec![
-                    Image {
-                        path: PathBuf::from("t3"),
-                        target_state: fake_state(),
-                    },
-                    Image {
-                        path: PathBuf::from("t1"),
-                        target_state: fake_state(),
-                    },
-                ],
-                unused: vec![
-                    Image {
-                        path: PathBuf::from("t2"),
-                        target_state: fake_state(),
-                    },
-                ],
+                used: vec![3, 1],
+                unused: vec![2],
             });
     }
 
     #[test]
     fn test_more_than_max() {
-        assert_eq!(sort_out(&cfg(1, 2, "1 day"), vec![
-            Image {
-                path: PathBuf::from("t1"),
-                target_state: state_at("1 week"),
-            },
-            Image {
-                path: PathBuf::from("t2"),
-                target_state: state_at("1 hour"),
-            },
-            Image {
-                path: PathBuf::from("t3"),
-                target_state: state_at("30 min"),
-            },
-            Image {
-                path: PathBuf::from("t4"),
-                target_state: state_at("2 min"),
-            },
-            Image {
-                path: PathBuf::from("t5"),
-                target_state: state_at("1 year"),
-            },
+        assert_eq!(simple_sort(&cfg(1, 2, "1 day"), vec![
+            (1, state_at("1 week")),
+            (2, state_at("1 hour")),
+            (3, state_at("30 min")),
+            (4, state_at("2 min")),
+            (5, state_at("1 year")),
         ], &vec![]),
             Sorted {
-                used: vec![
-                    Image {
-                        path: PathBuf::from("t4"),
-                        target_state: fake_state(),
-                    },
-                    Image {
-                        path: PathBuf::from("t3"),
-                        target_state: fake_state(),
-                    },
-                ],
-                unused: vec![
-                    Image {
-                        path: PathBuf::from("t1"),
-                        target_state: fake_state(),
-                    },
-                    Image {
-                        path: PathBuf::from("t5"),
-                        target_state: fake_state(),
-                    },
-                    Image {
-                        path: PathBuf::from("t2"),
-                        target_state: fake_state(),
-                    },
-                ],
+                used: vec![4, 3],
+                unused: vec![1, 5, 2],
             });
     }
 
     #[test]
     fn test_keep_list() {
-        assert_eq!(sort_out(&cfg(1, 2, "1 day"), vec![
-            Image {
-                path: PathBuf::from("t1"),
-                target_state: state_at("1 week"),
-            },
-            Image {
-                path: PathBuf::from("t2"),
-                target_state: state_at("1 hour"),
-            },
-            Image {
-                path: PathBuf::from("t3"),
-                target_state: state_at("30 min"),
-            },
-            Image {
-                path: PathBuf::from("t4"),
-                target_state: state_at("2 min"),
-            },
-            Image {
-                path: PathBuf::from("t5"),
-                target_state: state_at("1 year"),
-            },
-        ], &vec![PathBuf::from("t5")]),
+        assert_eq!(simple_sort(&cfg(1, 2, "1 day"), vec![
+            (1, state_at("1 week")),
+            (2, state_at("1 hour")),
+            (3, state_at("30 min")),
+            (4, state_at("2 min")),
+            (5, state_at("1 year")),
+        ], &vec![5]),
             Sorted {
-                used: vec![
-                    Image {
-                        path: PathBuf::from("t4"),
-                        target_state: fake_state(),
-                    },
-                    Image {
-                        path: PathBuf::from("t3"),
-                        target_state: fake_state(),
-                    },
-                    Image {
-                        path: PathBuf::from("t5"),
-                        target_state: fake_state(),
-                    },
-                ],
-                unused: vec![
-                    Image {
-                        path: PathBuf::from("t1"),
-                        target_state: fake_state(),
-                    },
-                    Image {
-                        path: PathBuf::from("t2"),
-                        target_state: fake_state(),
-                    },
-                ],
+                used: vec![4, 3, 5],
+                unused: vec![1, 2],
             });
     }
 }
