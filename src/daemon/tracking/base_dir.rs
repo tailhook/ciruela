@@ -8,6 +8,7 @@ use futures::Future;
 
 use atomic::Atomic;
 use config::Directory;
+use cleanup::{sort_out};
 use disk::{self, Disk};
 use metadata::{self, Meta};
 use named_mutex::{Mutex, MutexGuard};
@@ -133,6 +134,19 @@ pub fn scan(path: &VPath, config: &Arc<Directory>, meta: &Meta, disk: &Disk)
         meta.scan_dir(&path).map_err(Error::Meta)
         .join(disk.read_keep_list(&config).map_err(Error::Disk))
         .map(move |(dirs, keep_list)| {
+            let images = dirs.into_iter().map(|(name, state)| {
+                (path.suffix().join(name), state)
+            }).collect();
+            let sorted = sort_out(&config, images, &keep_list);
+            let dirs = sorted.used.into_iter()
+                .map(|(x, state)| {
+                    (x.file_name().expect("dir name is left intact")
+                      .to_str().expect("valid dir name")
+                      .to_string(),
+                     state)
+                })
+                .collect();
+
             let kl: BTreeSet<String> = keep_list.into_iter()
                 .filter_map(|p| {
                     p.strip_prefix(path.suffix()).ok()
