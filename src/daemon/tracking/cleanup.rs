@@ -62,6 +62,7 @@ pub fn spawn_loop(rx: UnboundedReceiver<Command>, sys: &Subsystem) {
                     let dir3 = dir.clone();
                     let sys1 = sys.clone();
                     let sys2 = sys.clone();
+                    let sys3 = sys.clone();
                     let time = SystemTime::now();
                     Either::A(
                         sys.meta.scan_dir(&dir.path).map_err(boxerr)
@@ -90,7 +91,10 @@ pub fn spawn_loop(rx: UnboundedReceiver<Command>, sys: &Subsystem) {
                         })
                         .then(move |result| {
                             match result {
-                                Ok(()) => Ok(()),
+                                Ok(()) => {
+                                    sys3.rescan_dir(dir3.path.clone());
+                                    Ok(())
+                                }
                                 Err(e) => {
                                     error!("cleanup error for {:?}: {}",
                                         dir3, e);
