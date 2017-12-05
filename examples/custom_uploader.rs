@@ -1,10 +1,12 @@
 extern crate dir_signature;
 extern crate ciruela;
 extern crate tk_easyloop;
+extern crate ns_env_config;
 #[macro_use] extern crate log;
 
 use std::process::exit;
 
+use tk_easyloop::handle;
 use dir_signature::{v1, ScannerConfig, HashType};
 use ciruela::blocks::ThreadedBlockReader;
 use ciruela::index::InMemoryIndexes;
@@ -37,8 +39,9 @@ fn run() -> Result<bool, ()> {
         .expect("register is okay");
     let config = Config::new().done();
     tk_easyloop::run(|| {
-        //Connection::new(vec!["localhost".parse().unwrap()],
-        //    resolver, indexes, block_reader, &config);
+        let ns = ns_env_config::init(&handle()).expect("init dns");
+        let conn = Connection::new(vec!["localhost".parse().unwrap()],
+            ns, indexes, block_reader, &config);
         unimplemented!();
         Ok(true)
     })
