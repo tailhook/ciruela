@@ -9,8 +9,11 @@
 
 mod config;
 mod set;
+mod upload;
+mod future;
 
 pub use cluster::config::Config;
+pub use cluster::future::UploadFuture;
 
 use std::sync::Arc;
 
@@ -18,8 +21,9 @@ use abstract_ns::{Name, Resolve, HostResolve};
 use futures::sync::mpsc::{unbounded, UnboundedSender};
 use tk_easyloop::spawn;
 
-use index::GetIndex;
+use index::{GetIndex, ImageId};
 use blocks::GetBlock;
+use VPath;
 
 /// Connection to a server or cluster of servers
 ///
@@ -31,6 +35,14 @@ pub struct Connection {
     config: Arc<Config>,
     chan: UnboundedSender<()>,
 }
+
+/// This structure represents upload
+///
+/// You can introspect current upload progress through it and also make a
+/// future which resolves to `true` if upload is okay or `false` if it was
+/// rejected by all nodes.
+#[derive(Debug, Clone)]
+pub struct Upload(Arc<upload::Stats>);
 
 impl Connection {
     /// Create a connection pool object
@@ -67,6 +79,21 @@ impl Connection {
         return Connection {
             config: config.clone(),
             chan: tx,
+        }
+    }
+
+    /// Initiate a new upload
+    pub fn upload(&self, image_id: &ImageId, path: &VPath) -> Upload {
+        Upload(Arc::new(upload::Stats {
+        }))
+    }
+}
+
+impl Upload {
+    /// Return a future that will be resolved when upload is complete according
+    /// to the configuration.
+    pub fn future(&self) -> UploadFuture {
+        UploadFuture {
         }
     }
 }

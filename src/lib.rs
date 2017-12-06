@@ -13,7 +13,6 @@ extern crate crypto;
 extern crate digest_writer;
 extern crate dir_signature;
 extern crate hex;
-extern crate failure;
 extern crate futures;
 extern crate futures_cpupool;
 extern crate tk_http;
@@ -32,7 +31,7 @@ extern crate void;
 #[macro_use] extern crate matches;
 #[macro_use] extern crate quick_error;
 #[macro_use] extern crate serde_derive;
-#[macro_use] extern crate failure_derive;
+#[macro_use] extern crate failure;
 
 mod id;
 mod machine_id;

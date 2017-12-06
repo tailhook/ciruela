@@ -64,8 +64,7 @@ self-meter-http = "0.4.1"
 libcantal = "0.3.2"
 void = "1.0.0"
 libc = "0.2.35"
-failure = "0.1.0"
-failure_derive = "0.1.0"
+failure = "0.1.1"
 
 [dev-dependencies]
 humantime = "1.0.0"
