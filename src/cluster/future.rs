@@ -6,10 +6,23 @@ use futures::{Future, Async};
 pub struct UploadFuture {
 }
 
+/// Result of the upload
+#[derive(Debug)]
+pub struct UploadOk {
+    _private: ()
+}
+
+/// Error uploading image
+#[derive(Debug, Fail)]
+#[fail(display="Upload error")]
+pub struct UploadFail {
+    _private: ()
+}
+
 impl Future for UploadFuture {
-    type Item = ();  // TODO(tailhook) some success value?
-    type Error = ::failure:: Error;  // TODO(tailhook) more specific failure
-    fn poll(&mut self) -> Result<Async<()>, ::failure::Error> {
+    type Item = UploadOk;
+    type Error = UploadFail;
+    fn poll(&mut self) -> Result<Async<UploadOk>, UploadFail> {
         unimplemented!();
     }
 }

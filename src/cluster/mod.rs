@@ -13,7 +13,7 @@ mod upload;
 mod future;
 
 pub use cluster::config::Config;
-pub use cluster::future::UploadFuture;
+pub use cluster::future::{UploadFuture, UploadOk, UploadFail};
 
 use std::sync::Arc;
 

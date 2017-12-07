@@ -47,5 +47,6 @@ fn run() -> Result<(), Error> {
             ns, indexes, block_reader, &config);
         let up = conn.upload(&image_id, &VPath::from("/virtual-dir/sub-dir"));
         up.future()
-    })
+    })?;
+    Ok(())
 }
