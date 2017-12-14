@@ -5,7 +5,7 @@ use tk_easyloop::spawn;
 use void::unreachable;
 
 use disk::{Image};
-use tracking::{Subsystem, Downloading};
+use tracking::{Subsystem, Downloading, DOWNLOADING};
 use tracking::fetch_blocks::FetchBlocks;
 
 
@@ -18,6 +18,7 @@ pub fn start(sys: &Subsystem, cmd: Downloading) {
         state.recently_deleted.remove(
             &(cmd.virtual_path.clone(), cmd.image_id.clone()));
         state.in_progress.insert(cmd.clone());
+        DOWNLOADING.set(state.in_progress.len() as i64);
     }
     sys.peers.notify_progress(
         &cmd.virtual_path, &cmd.image_id, cmd.mask.get(),

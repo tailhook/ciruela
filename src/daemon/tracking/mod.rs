@@ -24,7 +24,7 @@ use proto::{AppendDir, Hash};
 use index::{ImageId};
 use {VPath};
 use machine_id::{MachineId};
-use metrics::{List, Metric};
+use metrics::{List, Metric, Integer};
 use config::{Config};
 use disk::Disk;
 use failure_tracker::{Failures, Policy};
@@ -42,6 +42,10 @@ pub use self::base_dir::BaseDir;
 
 const DELETED_RETENTION: u64 = 300_000;  // 5 min
 const AVOID_DOWNLOAD: u64 = 120_000;  // do not try delete image again in 2 min
+
+lazy_static! {
+    pub static ref DOWNLOADING: Integer = Integer::new();
+}
 
 
 pub type BlockData = Arc<Vec<u8>>;
@@ -370,6 +374,7 @@ impl Subsystem {
             .insert((cmd.virtual_path.clone(), cmd.image_id.clone()),
                     Instant::now());
         state.in_progress.remove(cmd);
+        DOWNLOADING.set(state.in_progress.len() as i64);
         self.remote.notify_aborted_image(
             &cmd.image_id, &cmd.virtual_path, reason.into());
         self.rescan_dir(cmd.virtual_path.parent());
@@ -386,7 +391,11 @@ impl Subsystem {
         }
     }
     fn dir_committed(&self, cmd: &Arc<Downloading>) {
-        self.state().in_progress.remove(cmd);
+        {
+            let mut state = self.state();
+            state.in_progress.remove(cmd);
+            DOWNLOADING.set(state.in_progress.len() as i64);
+        }
         self.remote.notify_received_image(
             &cmd.image_id, &cmd.virtual_path);
         self.rescan_dir(cmd.virtual_path.parent());
@@ -519,7 +528,9 @@ pub fn start(init: TrackingInit) -> Result<(), String> // actually void
 
 pub fn metrics() -> List {
     let indexes = "tracking.indexes";
+    let images = "tracking.images";
     vec![
         (Metric(indexes, "cached"), &*fetch_index::INDEXES),
+        (Metric(images, "downloading"), &*DOWNLOADING),
     ]
 }
