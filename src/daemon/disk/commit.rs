@@ -5,13 +5,23 @@ use std::os::unix::io::{AsRawFd};
 use std::sync::Arc;
 use std::time::Instant;
 
+use libc::{futimens, timespec};
+use dir_signature::v1::Entry::*;
+
 use disk::dir::{ensure_path, recover_path};
 use disk::error::Error;
 use disk::public::Image;
 use disk::dir::remove_dir_recursive;
+use metrics::Counter;
 
-use libc::{futimens, timespec};
-use dir_signature::v1::Entry::*;
+
+lazy_static! {
+    pub static ref IMAGES: Counter = Counter::new();
+    pub static ref BYTES: Counter = Counter::new();
+    pub static ref BLOCKS: Counter = Counter::new();
+    pub static ref PATHS: Counter = Counter::new();
+}
+
 
 pub fn reset_timestamp(f: &mut fs::File) -> Result<(), io::Error> {
     let times = [
@@ -144,6 +154,10 @@ pub fn commit_image(image: Arc<Image>) -> Result<(), Error> {
             .map_err(|e| Error::Commit(
                 recover_path(&image.parent, fname), e))?;
     }
+    IMAGES.incr(1);
+    BYTES.incr(image.index.bytes_total);
+    BLOCKS.incr(image.index.blocks_total);
+    PATHS.incr(image.index.entries.len() as u64);
 
     Ok(())
 }

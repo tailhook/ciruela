@@ -23,6 +23,14 @@ use disk::{Init, Error};
 use tracking::Index;
 use metadata::{Meta, Hardlink};
 use tracking::BlockData;
+use metrics::Counter;
+
+
+
+lazy_static! {
+    pub static ref HARDLINKED_FILES: Counter = Counter::new();
+    pub static ref HARDLINKED_BYTES: Counter = Counter::new();
+}
 
 
 #[derive(Clone)]
@@ -325,6 +333,8 @@ fn try_hardlink(config: &Arc<Config>, hlink: &Hardlink, img: &Arc<Image>)
     let dest = ensure_path(&img.temporary, parent)?;
     hardlink(&dir, file_name, &dest, file_name)
         .map_err(|e| Error::Hardlink(epath(), e))?;
+    HARDLINKED_FILES.incr(1);
+    HARDLINKED_BYTES.incr(hlink.size);
     Ok(())
 }
 
