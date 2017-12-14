@@ -1,3 +1,4 @@
+use std::fmt;
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap};
 use std::io::Cursor;
@@ -92,7 +93,7 @@ pub enum State {
 
 fn poll_state(mut state: State, id: &ImageId, tracking: &Tracking,
     inp: &mut InProgress)
-    -> Result<Async<IndexData, State>, ()>
+    -> Async<IndexData, State>
 {
     use self::State::*;
     loop {
@@ -130,7 +131,7 @@ fn poll_state(mut state: State, id: &ImageId, tracking: &Tracking,
                         match res {
                             Ok(x) => {
                                 tracking.0.meta.store_index(id, v.data);
-                                return Ok(Async::Ready(x))
+                                return Async::Ready(x);
                             }
                             Err(e) => {
                                 error!("Error parsing index: {}",
@@ -141,7 +142,7 @@ fn poll_state(mut state: State, id: &ImageId, tracking: &Tracking,
                         }
                     }
                     Ok(futures::Async::NotReady) => {
-                        return Ok(Async::NotReady(Fetching(addr, fut)));
+                        return Async::NotReady(Fetching(addr, fut));
                     }
                 }
             }
@@ -155,7 +156,7 @@ fn poll_state(mut state: State, id: &ImageId, tracking: &Tracking,
                 {
                     Start
                 } else {
-                    return Ok(Async::NotReady(Waiting(rx, timeo)));
+                    return Async::NotReady(Waiting(rx, timeo));
                 }
             }
         }
@@ -172,7 +173,7 @@ impl StateMachine for FetchBase {
         let mut lock = ctx.reg.lock();
         let res = match lock.get_mut(&ctx.id) {
             Some(&mut IndexRef::InProgress(ref mut inp)) => {
-                poll_state(state, &ctx.id, &ctx.tracking, inp)?
+                poll_state(state, &ctx.id, &ctx.tracking, inp)
             }
             _ => unreachable!(),
         };
@@ -190,6 +191,7 @@ impl StateMachine for FetchBase {
             }
             Async::NotReady(state) => {
                 if dline.poll().expect("timeouts never fail").is_ready() {
+                    lock.remove(&ctx.id);
                     error!("Deadline reached when fetching {}", ctx.id);
                     Ok(Async::Ready(()))
                 } else {
@@ -325,6 +327,15 @@ fn spawn_fetcher(id: ImageId, reg: Arc<Mutex<Registry>>, tracking: Tracking,
             reg: reg,
             tracking: tracking,
         }, FetchBase(tx, timeout(retry_timeout), State::Start)));
+}
+
+impl fmt::Debug for IndexRef {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            IndexRef::Done(..) => f.write_str("IndexRef::Done"),
+            IndexRef::InProgress(..) => f.write_str("IndexRef::InProgress"),
+        }
+    }
 }
 
 #[cfg(test)]
