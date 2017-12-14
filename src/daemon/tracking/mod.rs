@@ -24,6 +24,7 @@ use proto::{AppendDir, Hash};
 use index::{ImageId};
 use {VPath};
 use machine_id::{MachineId};
+use metrics::{List, Metric};
 use config::{Config};
 use disk::Disk;
 use failure_tracker::{Failures, Policy};
@@ -514,4 +515,11 @@ pub fn start(init: TrackingInit) -> Result<(), String> // actually void
         .map(move |()| sys3.undry_cleanup())
         .map_err(|_| unreachable!()));
     Ok(())
+}
+
+pub fn metrics() -> List {
+    let indexes = "tracking.indexes";
+    vec![
+        (Metric(indexes, "cached"), &*fetch_index::INDEXES),
+    ]
 }

@@ -20,6 +20,7 @@ use index_cache::{IndexData};
 use failure_tracker::HostFailures;
 use mask::Mask;
 use metadata::{Error as MetaError};
+use metrics::Integer;
 use named_mutex::{Mutex, MutexGuard};
 use tk_easyloop::{spawn, timeout};
 use tokio_core::reactor::Timeout;
@@ -28,6 +29,10 @@ use tracking::Tracking;
 
 const RETRY_FOR: u64 = 3600_000;  // retry no more than an hour
 const RETRY_TIMEOUT: u64 = 1000;
+
+lazy_static! {
+    pub static ref INDEXES: Integer = Integer::new();
+}
 
 
 type Registry = HashMap<ImageId, IndexRef>;
@@ -179,6 +184,7 @@ impl StateMachine for FetchBase {
                 }));
                 lock.insert(ctx.id.clone(),
                             IndexRef::Done(Arc::downgrade(&idx.0)));
+                INDEXES.set(lock.len() as i64);
                 tx.send(idx).map_err(|_| warn!("nobody needs our image")).ok();
                 Ok(Async::Ready(()))
             }
@@ -203,7 +209,9 @@ impl Deref for Index {
 
 impl Drop for Inner {
     fn drop(&mut self) {
-        self.registry.lock().remove(&self.data.id);
+        let mut lock = self.registry.lock();
+        lock.remove(&self.data.id);
+        INDEXES.set(lock.len() as i64);
     }
 }
 

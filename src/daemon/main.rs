@@ -40,6 +40,7 @@ extern crate tokio_core;
 extern crate tokio_io;
 extern crate valuable_futures;
 extern crate void;
+extern crate libcantal;
 
 #[macro_use] extern crate log;
 #[macro_use] extern crate lazy_static;
@@ -73,6 +74,7 @@ mod http;
 mod index_cache;
 mod mask;
 mod metadata;
+mod metrics;
 mod named_mutex;
 mod peers;
 mod remote;
@@ -245,7 +247,8 @@ fn main() {
     let (tracking, tracking_init) = tracking::Tracking::new(&config,
         &meta, &disk, &remote, &peers);
 
-    let mut keep_router = None;
+    let metrics = metrics::all();
+    let _guard = libcantal::start(&metrics);
 
     tk_easyloop::run_forever(|| -> Result<(), Box<Error>> {
         meter.spawn_scanner(&tk_easyloop::handle());
@@ -263,7 +266,6 @@ fn main() {
                 .null_service_resolver()
                 .frozen_subscriber())
             .done(), &tk_easyloop::handle());
-        keep_router = Some(router.clone());
 
         http::start(addr, &tracking, &meter)?;
         disk::start(disk_init, &meta)?;

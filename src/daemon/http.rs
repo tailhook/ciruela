@@ -6,23 +6,24 @@ use std::time::{Duration, SystemTime};
 use futures::Async;
 use futures::future::{Future, FutureResult, ok};
 use futures::stream::Stream;
+use libcantal::{Json, Collection};
 use self_meter_http::{Meter, ProcessReport, ThreadReport};
 use serde::Serialize;
 use serde_json;
 use time;
+use tk_bufstream::{ReadBuf, WriteBuf};
 use tk_easyloop::{spawn, handle};
 use tk_easyloop;
-use tk_bufstream::{ReadBuf, WriteBuf};
 use tk_http::Status;
-use tk_http::server::{self, Proto, Encoder, EncoderDone, Error, Config};
 use tk_http::server::{WebsocketHandshake, Head, RecvMode};
+use tk_http::server::{self, Proto, Encoder, EncoderDone, Error, Config};
 use tk_http::websocket::ServerCodec;
 use tk_listen::ListenExt;
 use tokio_core::net::TcpListener;
 use tokio_io::{AsyncRead, AsyncWrite};
 
-
 use mask::Mask;
+use metrics;
 use remote::websocket::Connection;
 use tracking::Tracking;
 
@@ -130,11 +131,13 @@ impl<S> server::Codec<S> for HttpCodec
                     process: ProcessReport<'a>,
                     threads: ThreadReport<'a>,
                     version: &'static str,
+                    metrics: Json<'a, Vec<Box<Collection>>>,
                 }
                 ok(serve_json(e, &Report {
                     process: self.meter.process_report(),
                     threads: self.meter.thread_report(),
                     version: env!("CARGO_PKG_VERSION"),
+                    metrics: Json(&metrics::all()),
                 }))
             }
             Route::Downloading => {
