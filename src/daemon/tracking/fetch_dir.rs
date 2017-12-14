@@ -5,8 +5,14 @@ use tk_easyloop::spawn;
 use void::unreachable;
 
 use disk::{Image};
-use tracking::{Subsystem, Downloading, DOWNLOADING};
+use metrics::Counter;
 use tracking::fetch_blocks::FetchBlocks;
+use tracking::{Subsystem, Downloading, DOWNLOADING};
+
+
+lazy_static! {
+    pub static ref FAILURES: Counter = Counter::new();
+}
 
 
 pub fn start(sys: &Subsystem, cmd: Downloading) {
@@ -107,6 +113,7 @@ fn fetch_blocks(sys: Subsystem, image: Arc<Image>, cmd: Arc<Downloading>)
     let cmd3 = cmd.clone();
     spawn(FetchBlocks::new(&image, &cmd, &sys)
         .map_err(move |()| {
+            FAILURES.incr(1);
             // TODO(tailhook) remove temporary directory
             spawn(sys3.meta.dir_aborted(&cmd3.virtual_path)
                 .map_err(|e| unreachable(e))

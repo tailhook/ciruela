@@ -21,7 +21,7 @@ use index_cache::{IndexData};
 use failure_tracker::HostFailures;
 use mask::Mask;
 use metadata::{Error as MetaError};
-use metrics::Integer;
+use metrics::{Integer, Counter};
 use named_mutex::{Mutex, MutexGuard};
 use tk_easyloop::{spawn, timeout};
 use tokio_core::reactor::Timeout;
@@ -33,6 +33,7 @@ const RETRY_TIMEOUT: u64 = 1000;
 
 lazy_static! {
     pub static ref INDEXES: Integer = Integer::new();
+    pub static ref FAILURES: Counter = Counter::new();
 }
 
 
@@ -193,6 +194,7 @@ impl StateMachine for FetchBase {
                 if dline.poll().expect("timeouts never fail").is_ready() {
                     lock.remove(&ctx.id);
                     error!("Deadline reached when fetching {}", ctx.id);
+                    FAILURES.incr(1);
                     Ok(Async::Ready(()))
                 } else {
                     Ok(Async::NotReady(FetchBase(tx, dline, state)))
