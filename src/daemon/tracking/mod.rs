@@ -534,5 +534,7 @@ pub fn metrics() -> List {
         (Metric(indexes, "download_failed"), &*fetch_index::FAILURES),
         (Metric(images, "downloading"), &*DOWNLOADING),
         (Metric(images, "download_failed"), &*fetch_dir::FAILURES),
+        (Metric(images, "base_dirs"), &*base_dir::BASE_DIRS),
+        (Metric(images, "tracking"), &*base_dir::NUM_DIRS),
     ]
 }

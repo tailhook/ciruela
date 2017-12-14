@@ -11,6 +11,7 @@ use config::Directory;
 use cleanup::{sort_out};
 use disk::{self, Disk};
 use metadata::{self, Meta};
+use metrics::Integer;
 use named_mutex::{Mutex, MutexGuard};
 use peers::config::get_hash;
 use proto::{Hash, BaseDirState};
@@ -21,6 +22,11 @@ use {VPath};
 /// Time hashes are kept in cache so we can skip checking if some peer sends
 /// us the same hash again
 const RETAIN_TIME: u64 = 300_000;
+
+lazy_static! {
+    pub static ref BASE_DIRS: Integer = Integer::new();
+    pub static ref NUM_DIRS: Integer = Integer::new();
+}
 
 
 quick_error! {
@@ -101,6 +107,7 @@ impl BaseDir {
                 });
                 lst.push(new.clone());
                 e.insert(new);
+                NUM_DIRS.incr(dir_data.dirs.len() as i64);
                 // TODO(tailhook) send to gossip
             }
             Entry::Occupied(e) => {
@@ -111,8 +118,9 @@ impl BaseDir {
                     debug!("Updated base dir {:?}: {}",
                         dir_data.path, hash);
                     val.hash.store(hash, Ordering::SeqCst);
-                    val.num_subdirs.store(dir_data.dirs.len(),
-                        Ordering::SeqCst);
+                    let dirs = dir_data.dirs.len();
+                    let oldn = val.num_subdirs.swap(dirs, Ordering::SeqCst);
+                    NUM_DIRS.incr((dirs as i64) - (oldn as i64));
                     let mut table = val.recon_table();
                     let cut_off = Instant::now() -
                         Duration::from_millis(RETAIN_TIME);
@@ -122,6 +130,7 @@ impl BaseDir {
                 }
             }
         }
+        BASE_DIRS.set(state.base_dirs.len() as i64);
     }
 }
 
