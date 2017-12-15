@@ -535,6 +535,8 @@ pub fn metrics() -> List {
     let images = "tracking.images";
     vec![
         (Metric(indexes, "cached"), &*fetch_index::INDEXES),
+        (Metric(indexes, "fetched"), &*fetch_index::FETCHED),
+        (Metric(indexes, "fetching"), &*fetch_index::FETCHING),
         (Metric(indexes, "download_failed"), &*fetch_index::FAILURES),
         (Metric(images, "downloading"), &*DOWNLOADING),
         (Metric(images, "download_failed"), &*fetch_dir::FAILURES),

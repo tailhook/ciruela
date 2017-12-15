@@ -33,6 +33,8 @@ const RETRY_TIMEOUT: u64 = 1000;
 
 lazy_static! {
     pub static ref INDEXES: Integer = Integer::new();
+    pub static ref FETCHING: Integer = Integer::new();
+    pub static ref FETCHED: Counter = Counter::new();
     pub static ref FAILURES: Counter = Counter::new();
 }
 
@@ -186,6 +188,8 @@ impl StateMachine for FetchBase {
                 }));
                 lock.insert(ctx.id.clone(),
                             IndexRef::Done(Arc::downgrade(&idx.0)));
+                FETCHING.decr(1);
+                FETCHED.incr(1);
                 INDEXES.set(lock.len() as i64);
                 tx.send(idx).map_err(|_| warn!("nobody needs our image")).ok();
                 Ok(Async::Ready(()))
@@ -254,12 +258,14 @@ impl Indexes {
                     }
                 };
                 *e.get_mut() = IndexRef::InProgress(Box::new(inp));
+                FETCHING.incr(1);
                 IndexFuture::Future(fut)
             }
             Entry::Vacant(e) => {
                 let (fut, inp) = spawn_try_read(vpath.clone(),
                     index, self.images.clone(), tracking);
                 e.insert(IndexRef::InProgress(Box::new(inp)));
+                FETCHING.incr(1);
                 IndexFuture::Future(fut)
             }
         };
