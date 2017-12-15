@@ -67,6 +67,12 @@ impl BaseDir {
     pub fn downloading(&self) -> usize {
         self.num_downloading.load(Ordering::SeqCst)
     }
+    pub fn incr_downloading(&self) {
+        self.num_downloading.fetch_add(1, Ordering::SeqCst);
+    }
+    pub fn decr_downloading(&self) {
+        self.num_downloading.fetch_sub(1, Ordering::SeqCst);
+    }
     pub fn is_superset_of(&self, hash: Hash) -> bool {
         if self.hash() == hash {
             return true;

@@ -6,8 +6,8 @@ use void::unreachable;
 
 use disk::{Image};
 use metrics::Counter;
-use tracking::fetch_blocks::FetchBlocks;
 use tracking::{Subsystem, Downloading, DOWNLOADING};
+use tracking::fetch_blocks::FetchBlocks;
 
 
 lazy_static! {
@@ -24,6 +24,8 @@ pub fn start(sys: &Subsystem, cmd: Downloading) {
         state.recently_deleted.remove(
             &(cmd.virtual_path.clone(), cmd.image_id.clone()));
         state.in_progress.insert(cmd.clone());
+        state.base_dirs.get(&cmd.virtual_path.parent())
+            .map(|b| b.incr_downloading());
         DOWNLOADING.set(state.in_progress.len() as i64);
     }
     sys.peers.notify_progress(

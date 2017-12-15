@@ -374,6 +374,8 @@ impl Subsystem {
             .insert((cmd.virtual_path.clone(), cmd.image_id.clone()),
                     Instant::now());
         state.in_progress.remove(cmd);
+        state.base_dirs.get(&cmd.virtual_path.parent())
+            .map(|b| b.decr_downloading());
         DOWNLOADING.set(state.in_progress.len() as i64);
         self.remote.notify_aborted_image(
             &cmd.image_id, &cmd.virtual_path, reason.into());
@@ -394,6 +396,8 @@ impl Subsystem {
         {
             let mut state = self.state();
             state.in_progress.remove(cmd);
+            state.base_dirs.get(&cmd.virtual_path.parent())
+                .map(|b| b.decr_downloading());
             DOWNLOADING.set(state.in_progress.len() as i64);
         }
         self.remote.notify_received_image(

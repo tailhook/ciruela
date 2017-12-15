@@ -193,6 +193,7 @@ impl StateMachine for FetchBase {
             Async::NotReady(state) => {
                 if dline.poll().expect("timeouts never fail").is_ready() {
                     lock.remove(&ctx.id);
+                    INDEXES.set(lock.len() as i64);
                     error!("Deadline reached when fetching {}", ctx.id);
                     FAILURES.incr(1);
                     Ok(Async::Ready(()))
@@ -229,10 +230,11 @@ impl Indexes {
     fn lock(&self) -> MutexGuard<Registry> {
         self.images.lock()
     }
-    pub fn get(&self, tracking: &Tracking, vpath: &VPath, index: &ImageId)
+    pub(in tracking) fn get(&self, tracking: &Tracking, vpath: &VPath, index: &ImageId)
         -> IndexFuture
     {
-        match self.lock().entry(index.clone()) {
+        let mut lock = self.lock();
+        let fut = match lock.entry(index.clone()) {
             Entry::Occupied(mut e) => {
                 let (fut, inp) = match *e.get_mut() {
                     IndexRef::Done(ref x) => {
@@ -260,7 +262,9 @@ impl Indexes {
                 e.insert(IndexRef::InProgress(Box::new(inp)));
                 IndexFuture::Future(fut)
             }
-        }
+        };
+        INDEXES.set(lock.len() as i64);
+        fut
     }
 }
 
