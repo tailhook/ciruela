@@ -198,6 +198,7 @@ impl StateMachine for FetchBase {
                 if dline.poll().expect("timeouts never fail").is_ready() {
                     lock.remove(&ctx.id);
                     INDEXES.set(lock.len() as i64);
+                    FETCHING.decr(1);
                     FAILURES.incr(1);
                     error!("Deadline reached when fetching {}", ctx.id);
                     Ok(Async::Ready(()))
