@@ -46,6 +46,7 @@ const AVOID_DOWNLOAD: u64 = 120_000;  // do not try delete image again in 2 min
 lazy_static! {
     pub static ref DOWNLOADING: Integer = Integer::new();
     pub static ref FAILED: Counter = Counter::new();
+    pub static ref SCAN_QUEUE:  Integer = Integer::new();
 }
 
 
@@ -104,7 +105,7 @@ pub struct Data {
     images: fetch_index::Indexes,
     state: Arc<Mutex<State>>,
     cleanup: UnboundedSender<cleanup::Command>,
-    scan: UnboundedSender<(VPath, Instant, bool)>,
+    rescan_chan: UnboundedSender<(VPath, Instant, bool)>,
     config: Arc<Config>,
     meta: Meta,
     disk: Disk,
@@ -219,6 +220,7 @@ impl Tracking {
         self.0.state.lock()
     }
     fn scan_dir(&self, path: VPath) {
+        SCAN_QUEUE.incr(1);
         self.0.rescan_chan.unbounded_send((path, Instant::now(), true))
             .expect("rescan thread is alive");
     }
@@ -361,7 +363,8 @@ impl Subsystem {
         self.0.dry_cleanup.load(Ordering::Relaxed)
     }
     fn rescan_dir(&self, path: VPath) {
-        self.0.scan.unbounded_send((path, Instant::now(), false))
+        SCAN_QUEUE.incr(1);
+        self.0.rescan_chan.unbounded_send((path, Instant::now(), false))
             .expect("can always send in rescan channel");
     }
     pub fn dir_deleted(&self, path: &VPath, image_id: &ImageId) {
@@ -425,7 +428,7 @@ pub fn start(init: TrackingInit) -> Result<(), String> // actually void
         peers: tracking.0.peers.clone(),
         tracking: tracking.clone(),
         cleanup: ctx,
-        scan: tracking.0.rescan_chan.clone(),
+        rescan_chan: tracking.0.rescan_chan.clone(),
         dry_cleanup: AtomicBool::new(true),  // start with no cleanup
     }));
     let sys2 = sys.clone();
@@ -449,6 +452,7 @@ pub fn start(init: TrackingInit) -> Result<(), String> // actually void
         }));
     spawn(rescan_chan
         .for_each(move |(path, time, first_time): (VPath, Instant, bool)| {
+            SCAN_QUEUE.decr(1);
             if sys.state().base_dirs.get(&path)
                 .map(|x| x.last_scan() > time).unwrap_or(false)
             {
@@ -536,6 +540,7 @@ pub fn metrics() -> List {
     let indexes = "tracking.indexes";
     let images = "tracking.images";
     let recon = "tracking.reconciliation";
+    let scan = "tracking.scan";
     vec![
         (Metric(indexes, "cached"), &*fetch_index::INDEXES),
         (Metric(indexes, "fetched"), &*fetch_index::FETCHED),
@@ -552,5 +557,6 @@ pub fn metrics() -> List {
         (Metric(recon, "images_replaced"), &*reconciliation::REPLACED),
         (Metric(recon, "append_rejected"), &*reconciliation::APPEND_REJECTED),
         (Metric(recon, "replace_rejected"), &*reconciliation::REPLACE_REJECTED),
+        (Metric(scan, "queue_size"), &*SCAN_QUEUE),
     ]
 }
