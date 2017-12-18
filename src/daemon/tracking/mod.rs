@@ -535,6 +535,7 @@ pub fn start(init: TrackingInit) -> Result<(), String> // actually void
 pub fn metrics() -> List {
     let indexes = "tracking.indexes";
     let images = "tracking.images";
+    let recon = "tracking.reconciliation";
     vec![
         (Metric(indexes, "cached"), &*fetch_index::INDEXES),
         (Metric(indexes, "fetched"), &*fetch_index::FETCHED),
@@ -545,5 +546,11 @@ pub fn metrics() -> List {
         (Metric(images, "blocks_failed"), &*fetch_dir::BLOCK_FAILURES),
         (Metric(images, "base_dirs"), &*base_dir::BASE_DIRS),
         (Metric(images, "tracking"), &*base_dir::NUM_DIRS),
+        (Metric(recon, "hashes_processed"), &*reconciliation::PROCESSED),
+        (Metric(recon, "hashes_processing"), &*reconciliation::PROCESSING),
+        (Metric(recon, "images_appended"), &*reconciliation::APPENDED),
+        (Metric(recon, "images_replaced"), &*reconciliation::REPLACED),
+        (Metric(recon, "append_rejected"), &*reconciliation::APPEND_REJECTED),
+        (Metric(recon, "replace_rejected"), &*reconciliation::REPLACE_REJECTED),
     ]
 }

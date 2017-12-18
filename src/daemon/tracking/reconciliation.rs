@@ -7,6 +7,7 @@ use proto::Hash;
 use proto::{BaseDirState, AppendDir, ReplaceDir, GetBaseDir};
 use proto::{RequestClient};
 use tracking::Subsystem;
+use metrics::{Counter, Integer};
 use {VPath};
 
 use futures::future::{Future, Loop, loop_fn};
@@ -14,6 +15,15 @@ use tk_easyloop::spawn;
 use tracking::{base_dir};
 use metadata::{Upload, Accept};
 
+
+lazy_static! {
+    pub static ref PROCESSING: Integer = Integer::new();
+    pub static ref PROCESSED: Counter = Counter::new();
+    pub static ref REPLACED: Counter = Counter::new();
+    pub static ref APPENDED: Counter = Counter::new();
+    pub static ref REPLACE_REJECTED: Counter = Counter::new();
+    pub static ref APPEND_REJECTED: Counter = Counter::new();
+}
 
 pub struct ReconPush {
     pub path: VPath,
@@ -39,6 +49,7 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
     // it can choose one, already available when multiple choices are there
     let pair = (path.clone(), hash);
     let pair2 = pair.clone();
+    PROCESSING.incr(1);
     spawn(loop_fn((addr, mid), move |(addr, mid)| {
         let sys = sys.clone();
         let pair = pair.clone(); // TODO(tailhook) optimize?
@@ -139,6 +150,8 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
                                 }));
                     }
                 }
+                debug!("Replacing {:?} {:?} -> {:?}", name,
+                    old_state, sig);
                 spawn(
                     sys.meta.replace_dir(ReplaceDir {
                         path: vpath.clone(),
@@ -150,12 +163,14 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
                         match result {
                             Ok(Upload::Accepted(Accept::New)) => {
                                 info!("Replacing {} -> {:?}", image_id, vpath);
+                                REPLACED.incr(1);
                                 sys.tracking.fetch_dir(
                                     vpath, image_id, true);
                             }
                             Ok(Upload::Accepted(Accept::InProgress)) |
                             Ok(Upload::Accepted(Accept::AlreadyDone)) => {}
                             Ok(Upload::Rejected(reason)) => {
+                                REPLACE_REJECTED.incr(1);
                                 error!("Error reconciling {:?}: {}",
                                     vpath, reason);
                             }
@@ -183,6 +198,7 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
                             Ok(Upload::Accepted(Accept::InProgress)) |
                             Ok(Upload::Accepted(Accept::AlreadyDone)) => {}
                             Ok(Upload::Rejected(reason)) => {
+                                APPEND_REJECTED.incr(1);
                                 error!("Error reconciling {:?}: {}",
                                     vpath, reason);
                             }
@@ -199,6 +215,8 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
     })
     .then(move |_| -> Result<(), ()> {
         sys_drop.state().reconciling.remove(&(path, hash));
+        PROCESSING.decr(1);
+        PROCESSED.incr(1);
         Ok(())
     }));
 }
