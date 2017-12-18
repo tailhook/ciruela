@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 /// Configuration for clustered connection
 ///
@@ -6,6 +7,7 @@ use std::sync::Arc;
 #[derive(Clone, Debug)]
 pub struct Config {
     initial_connections: u32,
+    name_resolution_timeout: Duration,
 }
 
 impl Config {
@@ -13,6 +15,7 @@ impl Config {
     pub fn new() -> Config {
         Config {
             initial_connections: 3,
+            name_resolution_timeout: Duration::new(30, 0),
         }
     }
     /// Set number of connections to initiate when accessing cluster
@@ -40,6 +43,17 @@ impl Config {
     /// value is okay.
     pub fn initial_connections(&mut self, num: u32) -> &mut Self {
         self.initial_connections = num;
+        self
+    }
+    /// Set maximum time for name resolution
+    ///
+    /// This value has two consequnces:
+    ///
+    /// 1. When some of the names can't be resolved we end up retrying this
+    ///    number of seconds (even if upload proceeds much longer)
+    /// 2. When no names could be resolved after the timeout we error upload
+    pub fn name_resolution_timeout(&mut self, timeout: Duration) -> &mut Self {
+        self.name_resolution_timeout = timeout;
         self
     }
     /// Finalize config and return an Arc of a config
