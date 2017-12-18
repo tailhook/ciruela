@@ -24,7 +24,7 @@ use proto::{AppendDir, Hash};
 use index::{ImageId};
 use {VPath};
 use machine_id::{MachineId};
-use metrics::{List, Metric, Integer};
+use metrics::{List, Metric, Integer, Counter};
 use config::{Config};
 use disk::Disk;
 use failure_tracker::{Failures, Policy};
@@ -45,6 +45,7 @@ const AVOID_DOWNLOAD: u64 = 120_000;  // do not try delete image again in 2 min
 
 lazy_static! {
     pub static ref DOWNLOADING: Integer = Integer::new();
+    pub static ref FAILED: Counter = Counter::new();
 }
 
 
@@ -377,6 +378,7 @@ impl Subsystem {
         state.base_dirs.get(&cmd.virtual_path.parent())
             .map(|b| b.decr_downloading());
         DOWNLOADING.set(state.in_progress.len() as i64);
+        FAILED.incr(1);
         self.remote.notify_aborted_image(
             &cmd.image_id, &cmd.virtual_path, reason.into());
         self.rescan_dir(cmd.virtual_path.parent());
@@ -539,7 +541,8 @@ pub fn metrics() -> List {
         (Metric(indexes, "fetching"), &*fetch_index::FETCHING),
         (Metric(indexes, "download_failed"), &*fetch_index::FAILURES),
         (Metric(images, "downloading"), &*DOWNLOADING),
-        (Metric(images, "download_failed"), &*fetch_dir::FAILURES),
+        (Metric(images, "download_failed"), &*FAILED),
+        (Metric(images, "blocks_failed"), &*fetch_dir::BLOCK_FAILURES),
         (Metric(images, "base_dirs"), &*base_dir::BASE_DIRS),
         (Metric(images, "tracking"), &*base_dir::NUM_DIRS),
     ]

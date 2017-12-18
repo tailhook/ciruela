@@ -11,7 +11,7 @@ use tracking::fetch_blocks::FetchBlocks;
 
 
 lazy_static! {
-    pub static ref FAILURES: Counter = Counter::new();
+    pub static ref BLOCK_FAILURES: Counter = Counter::new();
 }
 
 
@@ -115,7 +115,7 @@ fn fetch_blocks(sys: Subsystem, image: Arc<Image>, cmd: Arc<Downloading>)
     let cmd3 = cmd.clone();
     spawn(FetchBlocks::new(&image, &cmd, &sys)
         .map_err(move |()| {
-            FAILURES.incr(1);
+            BLOCK_FAILURES.incr(1);
             // TODO(tailhook) remove temporary directory
             spawn(sys3.meta.dir_aborted(&cmd3.virtual_path)
                 .map_err(|e| unreachable(e))
