@@ -18,7 +18,7 @@ use futures::{Future, Stream};
 use futures::future::{Either, ok};
 use futures::stream::iter_ok;
 use futures::sync::mpsc::{unbounded, UnboundedSender, UnboundedReceiver};
-use tk_easyloop::{spawn, timeout};
+use tk_easyloop::{spawn, timeout, interval};
 
 use proto::{AppendDir, Hash};
 use index::{ImageId};
@@ -42,6 +42,7 @@ pub use self::base_dir::BaseDir;
 
 const DELETED_RETENTION: u64 = 300_000;  // 5 min
 const AVOID_DOWNLOAD: u64 = 120_000;  // do not try delete image again in 2 min
+const RECENT_RETENTION: u64 = 300_000;  // 5 min
 
 lazy_static! {
     pub static ref DOWNLOADING: Integer = Integer::new();
@@ -262,11 +263,7 @@ impl Tracking {
         return res;
     }
     pub fn get_deleted(&self) -> Vec<(VPath, ImageId)> {
-        let retention = Duration::from_millis(DELETED_RETENTION);
-        let mut state = self.state();
-        state.recently_deleted
-            .retain(|_, v| *v + retention > Instant::now());
-        state.recently_deleted.keys().cloned().collect()
+        self.state().recently_deleted.keys().cloned().collect()
     }
     pub fn get_connection_by_mask<P: Policy>(&self,
         vpath: &VPath, id: &ImageId, mask: Mask,
@@ -434,6 +431,7 @@ pub fn start(init: TrackingInit) -> Result<(), String> // actually void
     let sys2 = sys.clone();
     let sys3 = sys.clone();
     let sys4 = sys.clone();
+    let sys5 = sys.clone();
     let meta = tracking.0.meta.clone();
     let trk1 = tracking.clone();
 
@@ -532,6 +530,28 @@ pub fn start(init: TrackingInit) -> Result<(), String> // actually void
         }));
     spawn(timeout(Duration::new(30, 0))
         .map(move |()| sys3.undry_cleanup())
+        .map_err(|_| unreachable!()));
+    spawn(interval(Duration::new(15, 0))
+        .for_each(move |()| {
+            let mut state = sys5.state();
+
+            let cutoff = Instant::now() -
+                Duration::from_millis(RECENT_RETENTION);
+            state.recently_received.retain(|_vpath, hosts| {
+                hosts.retain(|_sockaddr, time| *time > cutoff);
+                hosts.len() > 0
+            });
+            state.recently_received.shrink_to_fit();
+
+            let cutoff = Instant::now() -
+                Duration::from_millis(DELETED_RETENTION);
+            state.recently_deleted.retain(|_, v| *v > cutoff);
+            state.recently_deleted.shrink_to_fit();
+
+            // TODO(tailhook) cleanup recon_table in all base_dirs
+
+            Ok(())
+        })
         .map_err(|_| unreachable!()));
     Ok(())
 }
