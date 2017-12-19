@@ -9,6 +9,7 @@ use serde_cbor::error::Error as CborError;
 use serde_cbor::ser::Serializer as Cbor;
 
 use {VPath};
+use index::ImageId;
 use database::signatures::{State, SignatureEntry};
 use proto::{AppendDir};
 use proto::{ReplaceDir};
@@ -231,6 +232,48 @@ pub fn start_replace(params: ReplaceDir, meta: &Meta)
         state.serialize(&mut Cbor::new(BufWriter::new(file)))
     })?;
     Ok(Upload::Accepted(new))
+}
+
+pub fn resume_upload(vpath: &VPath, meta: &Meta)
+    -> Result<ImageId, Error>
+{
+    let _config = if let Some(cfg) = meta.0.config.dirs.get(vpath.key()) {
+        if vpath.level() != cfg.num_levels {
+            return Err(Error::LevelMismatch(vpath.level(), cfg.num_levels));
+        }
+        cfg
+    } else {
+        return Err(Error::PathNotFound(vpath.clone()));
+    };
+    let dir = meta.signatures()?.ensure_dir(vpath.parent_rel())?;
+    let state_file = format!("{}.state", vpath.final_name());
+    let new_state_file = format!("{}.new.state", vpath.final_name());
+    let mut writing = meta.writing();
+    match writing.entry(vpath.clone()) {
+        Entry::Vacant(e) => {
+            if let Some(state) = dir.read_file(&state_file, read_state)? {
+                dir.rename(&state_file, &new_state_file)?;
+                e.insert(Writing {
+                    image: state.image.clone(),
+                    signatures: state.signatures.clone(),
+                    replacing: false,
+                });
+                return Ok(state.image)
+            } else if let Some(state) = dir.read_file(&new_state_file, read_state)? {
+                e.insert(Writing {
+                    image: state.image.clone(),
+                    signatures: state.signatures.clone(),
+                    replacing: false,
+                });
+                return Ok(state.image)
+            } else {
+                return Err(Error::ResumeNoFile(vpath.clone()));
+            }
+        }
+        Entry::Occupied(_) => {
+            return Err(Error::ResumeConflict(vpath.clone()));
+        }
+    }
 }
 
 pub(in metadata) fn abort_dir(vpath: &VPath, _wr: Writing, meta: &Meta)

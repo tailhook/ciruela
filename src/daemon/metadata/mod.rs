@@ -91,6 +91,15 @@ impl Meta {
             upload::start_replace(params, &meta)
         })
     }
+    pub fn resume_dir(&self, path: &VPath)
+        -> CpuFuture<ImageId, Error>
+    {
+        let meta = self.clone();
+        let path = path.clone();
+        self.0.cpu_pool.spawn_fn(move || {
+            upload::resume_upload(&path, &meta)
+        })
+    }
     pub fn dir_aborted(&self, path: &VPath) -> CpuFuture<(), Void> {
         let meta = self.clone();
         let path: VPath = path.clone();

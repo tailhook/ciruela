@@ -113,5 +113,11 @@ quick_error! {
             display("failed to find hardlinks: {}", e)
             from()
         }
+        ResumeConflict(vpath: VPath) {
+            display("image {:?} is already uploading", vpath)
+        }
+        ResumeNoFile(vpath: VPath) {
+            display("no state file to resume for {:?}", vpath)
+        }
     }
 }

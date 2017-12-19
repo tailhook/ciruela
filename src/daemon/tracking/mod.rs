@@ -20,7 +20,7 @@ use futures::stream::iter_ok;
 use futures::sync::mpsc::{unbounded, UnboundedSender, UnboundedReceiver};
 use tk_easyloop::{spawn, timeout, interval};
 
-use proto::{AppendDir, Hash};
+use proto::{Hash};
 use index::{ImageId};
 use {VPath};
 use machine_id::{MachineId};
@@ -410,9 +410,6 @@ impl Subsystem {
 
 pub fn start(init: TrackingInit) -> Result<(), String> // actually void
 {
-    use metadata::Upload::*;
-    use metadata::Accept::*;
-
     let (ctx, crx) = unbounded();
     let TrackingInit { cmd_chan, rescan_chan, tracking } = init;
     let sys = Subsystem(Arc::new(Data {
@@ -470,44 +467,28 @@ pub fn start(init: TrackingInit) -> Result<(), String> // actually void
                             let dirs = bdir.dirs.clone();
                             BaseDir::commit_scan(bdir, &config, scan_time, &sys);
                             Either::B(iter_ok(dirs)
-                                .for_each(move |(dir, mut state)| {
-                                    let dir = path.join(dir);
-                                    let sig = state.signatures.pop()
-                                        .expect("checked in metadata reader");
-                                    let image_id = state.image.clone();
-                                    let cmd = AppendDir {
-                                        path: dir.clone(),
-                                        image: state.image,
-                                        timestamp: sig.timestamp,
-                                        signatures: vec![sig.signature],
-                                    };
+                                .for_each(move |(dir, state)| {
+                                    let path = path.join(dir);
                                     let sys = sys.clone();
                                     sys.disk.check_exists(&config,
-                                        PathBuf::from(cmd.path.suffix()))
+                                        PathBuf::from(path.suffix()))
                                     .then(move |result| match result {
                                         Ok(true) => Either::A(ok(())),
                                         Err(e) => {
                                             error!("Can't check {:?}: {}",
-                                                cmd.path, e);
+                                                path, e);
                                             Either::A(ok(()))
                                         }
                                         Ok(false) => {
                                             warn!("Resuming download of \
                                                 {:?}: {}",
-                                                cmd.path, cmd.image);
+                                                path, state.image);
                                             Either::B(
-                                                sys.meta.append_dir(cmd)
-                                                .map(move |result| {
-                                                    match result {
-                                                        Accepted(New) => {
-                                                            sys.tracking
-                                                            .fetch_dir(
-                                                                dir,
-                                                                image_id,
-                                                                false);
-                                                        }
-                                                        _ => {}
-                                                    }
+                                                sys.meta.resume_dir(&path)
+                                                .map(move |image_id| {
+                                                    sys.tracking
+                                                    .fetch_dir(
+                                                        path, image_id, false);
                                                 })
                                                 .map_err(|e| {
                                                     error!("Resume download \
