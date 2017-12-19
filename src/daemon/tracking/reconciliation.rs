@@ -2,6 +2,7 @@ use std::collections::{HashMap};
 use std::net::SocketAddr;
 use std::time::Instant;
 
+use cleanup::{sort_out};
 use machine_id::MachineId;
 use proto::Hash;
 use proto::{BaseDirState, AppendDir, ReplaceDir, GetBaseDir};
@@ -12,7 +13,6 @@ use {VPath};
 
 use futures::future::{Future, Loop, loop_fn};
 use tk_easyloop::spawn;
-use tracking::{base_dir};
 use metadata::{Upload, Accept};
 
 
@@ -98,38 +98,79 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
                 }
             })
     })
-    .and_then(move |(addr, dir)| {
-        let config = sys2.config.dirs.get(dir.path.key())
+    .and_then(move |(addr, remote)| {
+        let config = sys2.config.dirs.get(remote.path.key())
             .expect("only configured dirs are reconciled");
-        base_dir::scan(&dir.path, config, &sys2.meta, &sys2.disk)
-        .then(move |result| match result {
-            Ok(state) => Ok((addr, dir, state)),
-            Err(e) => {
-                error!("Error scanning base-dir {:?}: {}", dir.path, e);
-                Err(())
-            }
-        })
+        let path = remote.path.clone();
+        let p1 = remote.path.clone();
+        let p2 = remote.path.clone();
+        sys2.meta.scan_dir(&path)
+            .map_err(move |e| error!("Scanning base-dir {:?}: {}", p1, e))
+        .join(sys2.disk.read_keep_list(config)
+            .map_err(move |e| error!("Reading keep_list {:?}: {}", p2, e)))
+        .map(move |(local, keep_list)| (addr, remote, local, keep_list))
     })
-    .map(move |(_addr, remote, mut local)| {
-        for (name, mut rstate) in remote.dirs {
-            let vpath = local.path.join(&name);
-            let sys = sys3.clone();
-            let sig = match rstate.signatures.pop() {
+    .map(move |(_addr, remote, mut local_dirs, keep_list)| {
+        let config = sys3.config.dirs.get(remote.path.key())
+            .expect("only configured dirs are reconciled");
+        let path = remote.path.clone();
+        let mut possible_dirs = local_dirs.iter().map(|(name, state)| {
+            (path.suffix().join(name), state.clone())
+        }).collect::<HashMap<_, _>>();
+
+        for (name, rstate) in &remote.dirs {
+            let vpath = path.join(name);
+            if sys3.is_recently_deleted(&vpath, &rstate.image) {
+                debug!("Not updating {:?} to {} because it was recently \
+                    deleted", vpath, rstate.image);
+                continue;
+            }
+            let ref image_id = rstate.image;
+            // TODO(tailhook) consume multiple signatures
+            let sig = match rstate.signatures.get(0) {
                 Some(x) => x,
                 None => {
                     warn!("Got image with no signatures: {:?}", vpath);
                     continue;
                 }
             };
-            if sys3.is_recently_deleted(&vpath, &rstate.image) {
-                debug!("Not updating {:?} to {} because it was recently \
-                    deleted", vpath, rstate.image);
+            if let Some(old_state) = local_dirs.get(name) {
+                if &old_state.image == image_id {
+                    // TODO(tailhook) maybe update timestamp
+                    continue;
+                }
+                if old_state.signatures.iter()
+                    .any(|old_s| old_s.timestamp >= sig.timestamp)
+                {
+                    continue;
+                }
+            }
+            possible_dirs.insert(path.suffix().join(name), rstate.clone());
+        }
+        let sorted = sort_out(config,
+            possible_dirs.into_iter().collect(), &keep_list);
+
+        for (name, mut rstate) in remote.dirs {
+            let sub_path = path.suffix().join(&name);
+            let vpath = path.join(&name);
+            if !sorted.used.iter().any(|&(ref p, _)| p == &sub_path) {
+                debug!("Not updating {:?} to {} it's going to be cleaned up \
+                        again", vpath, rstate.image);
                 continue;
             }
+            let sys = sys3.clone();
             // TODO(tailhook) consume multiple signatures
+            let sig = match rstate.signatures.drain(..).next() {
+                Some(x) => x,
+                None => {
+                    warn!("Got image with no signatures: {:?}", vpath);
+                    continue;
+                }
+            };
             let image_id = rstate.image;
-            if let Some(old_state) = local.dirs.remove(&name) {
+            if let Some(old_state) = local_dirs.remove(&name) {
                 if old_state.image == image_id {
+                    // TODO(tailhook) maybe update timestamp
                     continue;
                 }
                 if old_state.signatures.iter()
