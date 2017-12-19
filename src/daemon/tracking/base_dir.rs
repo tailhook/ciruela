@@ -90,6 +90,15 @@ impl BaseDir {
     fn recon_table(&self) -> MutexGuard<HashMap<Hash, Instant>> {
         self.recon_table.lock()
     }
+    pub fn add_parent_hash(&self, hash: Hash) {
+        self.recon_table().insert(hash, Instant::now());
+    }
+    pub fn clean_parent_hashes(&self) {
+        let cut_off = Instant::now() - Duration::from_millis(RETAIN_TIME);
+        let mut table = self.recon_table();
+        table.retain(|_, x| *x >= cut_off);
+        table.shrink_to_fit();
+    }
     pub fn commit_scan(dir_data: BaseDirState, config: &Arc<Directory>,
         scan_time: Instant, sys: &Subsystem)
     {
@@ -127,12 +136,7 @@ impl BaseDir {
                     let dirs = dir_data.dirs.len();
                     let oldn = val.num_subdirs.swap(dirs, Ordering::SeqCst);
                     NUM_DIRS.incr((dirs as i64) - (oldn as i64));
-                    let mut table = val.recon_table();
-                    let cut_off = Instant::now() -
-                        Duration::from_millis(RETAIN_TIME);
-                    table.retain(|_, x| *x >= cut_off);
-                    table.insert(old_hash, Instant::now());
-                    table.shrink_to_fit();
+                    val.add_parent_hash(old_hash);
                 }
             }
         }

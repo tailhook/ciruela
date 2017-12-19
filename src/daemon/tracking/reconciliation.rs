@@ -214,7 +214,9 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
         Ok::<(), ()>(())
     })
     .then(move |_| -> Result<(), ()> {
-        sys_drop.state().reconciling.remove(&(path, hash));
+        let mut state = sys_drop.state();
+        state.base_dirs.get(&path).map(|b| b.add_parent_hash(hash));
+        state.reconciling.remove(&(path, hash));
         PROCESSING.decr(1);
         PROCESSED.incr(1);
         Ok(())

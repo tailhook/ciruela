@@ -548,7 +548,9 @@ pub fn start(init: TrackingInit) -> Result<(), String> // actually void
             state.recently_deleted.retain(|_, v| *v > cutoff);
             state.recently_deleted.shrink_to_fit();
 
-            // TODO(tailhook) cleanup recon_table in all base_dirs
+            for (_, bdir) in &state.base_dirs {
+                bdir.clean_parent_hashes();
+            }
 
             Ok(())
         })
