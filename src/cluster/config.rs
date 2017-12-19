@@ -1,13 +1,12 @@
 use std::sync::Arc;
-use std::time::Duration;
 
 /// Configuration for clustered connection
 ///
 /// More settings will be added as needed.
 #[derive(Clone, Debug)]
 pub struct Config {
-    initial_connections: u32,
-    name_resolution_timeout: Duration,
+    pub(crate) initial_connections: u32,
+    pub(crate) port: u16,
 }
 
 impl Config {
@@ -15,7 +14,7 @@ impl Config {
     pub fn new() -> Config {
         Config {
             initial_connections: 3,
-            name_resolution_timeout: Duration::new(30, 0),
+            port: 24783,
         }
     }
     /// Set number of connections to initiate when accessing cluster
@@ -45,15 +44,12 @@ impl Config {
         self.initial_connections = num;
         self
     }
-    /// Set maximum time for name resolution
+    /// Set ciruela server port
     ///
-    /// This value has two consequnces:
-    ///
-    /// 1. When some of the names can't be resolved we end up retrying this
-    ///    number of seconds (even if upload proceeds much longer)
-    /// 2. When no names could be resolved after the timeout we error upload
-    pub fn name_resolution_timeout(&mut self, timeout: Duration) -> &mut Self {
-        self.name_resolution_timeout = timeout;
+    /// This port is used both for initial connections and when redirecting
+    /// connections to other host names.
+    pub fn port(&mut self, port: u16) -> &mut Self {
+        self.port = port;
         self
     }
     /// Finalize config and return an Arc of a config

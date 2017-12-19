@@ -7,6 +7,7 @@
 //! We might expose individual server connections later, but now we only
 //! have higher level API.
 
+mod addr;
 mod config;
 mod set;
 mod upload;

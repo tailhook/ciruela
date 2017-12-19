@@ -6,6 +6,7 @@ use futures::sync::mpsc::{UnboundedReceiver};
 
 use index::GetIndex;
 use blocks::GetBlock;
+use cluster::addr::AddrCell;
 use cluster::config::Config;
 
 pub struct ConnectionSet<R, I, B> {
@@ -13,6 +14,7 @@ pub struct ConnectionSet<R, I, B> {
     index_source: I,
     block_source: B,
     config: Arc<Config>,
+    initial_addr: AddrCell,
     chan: UnboundedReceiver<()>,
 }
 
@@ -26,6 +28,8 @@ impl<R, I, B> ConnectionSet<R, I, B> {
               R: Resolve + HostResolve + 'static,
     {
         ConnectionSet {
+            initial_addr: AddrCell::new(initial_address,
+                                        config.port, &resolver),
             resolver,
             index_source,
             block_source,
@@ -39,6 +43,7 @@ impl<R, I, B> Future for ConnectionSet<R, I, B> {
     type Item = ();
     type Error = ();
     fn poll(&mut self) -> Result<Async<()>, ()> {
+        self.initial_addr.poll();
         unimplemented!();
     }
 }
