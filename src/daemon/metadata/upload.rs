@@ -236,6 +236,7 @@ pub fn start_replace(params: ReplaceDir, meta: &Meta)
 pub(in metadata) fn abort_dir(vpath: &VPath, _wr: Writing, meta: &Meta)
     -> Result<(), Error>
 {
+    // WARNING: no meta.writing() here, it's already locked
     let new_state_file = format!("{}.new.state", vpath.final_name());
     let dir = meta.signatures()?.ensure_dir(vpath.parent_rel())?;
     dir.remove_file(&new_state_file)?;
@@ -245,6 +246,7 @@ pub(in metadata) fn abort_dir(vpath: &VPath, _wr: Writing, meta: &Meta)
 pub(in metadata) fn commit_dir(vpath: &VPath, _wr: Writing, meta: &Meta)
     -> Result<(), Error>
 {
+    // WARNING: no meta.writing() here, it's already locked
     let state_file = format!("{}.state", vpath.final_name());
     let new_state_file = format!("{}.new.state", vpath.final_name());
     let dir = meta.signatures()?.ensure_dir(vpath.parent_rel())?;

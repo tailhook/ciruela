@@ -97,7 +97,8 @@ impl Meta {
         self.0.cpu_pool.spawn_fn(move || {
             // need to offload to disk thread because we hold ``writing`` lock
             // in disk thread too
-            if let Some(wr) = meta.writing().remove(&path) {
+            let mut lock = meta.writing();
+            if let Some(wr) = lock.remove(&path) {
                 match upload::abort_dir(&path, wr, &meta) {
                     Ok(()) => {}
                     Err(e) => {
@@ -115,7 +116,8 @@ impl Meta {
         let meta = self.clone();
         let path: VPath = path.clone();
         self.0.cpu_pool.spawn_fn(move || {
-            if let Some(wr) = meta.writing().remove(&path) {
+            let mut lock = meta.writing();
+            if let Some(wr) = lock.remove(&path) {
                 match upload::commit_dir(&path, wr, &meta) {
                     Ok(()) => {}
                     Err(e) => {
