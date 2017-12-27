@@ -12,14 +12,18 @@ mod config;
 mod set;
 mod upload;
 mod future;
+mod error;
 
 pub use cluster::config::Config;
 pub use cluster::future::{UploadFuture, UploadOk, UploadFail};
+pub use cluster::error::UploadErr;
 
 use std::sync::Arc;
 
 use abstract_ns::{Name, Resolve, HostResolve};
 use futures::sync::mpsc::{unbounded, UnboundedSender};
+use futures::future::{Future, Shared};
+use futures::sync::oneshot;
 use tk_easyloop::spawn;
 
 use index::{GetIndex, ImageId};
@@ -43,7 +47,10 @@ pub struct Connection {
 /// future which resolves to `true` if upload is okay or `false` if it was
 /// rejected by all nodes.
 #[derive(Debug, Clone)]
-pub struct Upload(Arc<upload::Stats>);
+pub struct Upload {
+    stats: Arc<upload::Stats>,
+    future: Shared<oneshot::Receiver<Result<UploadOk, Arc<UploadErr>>>>,
+}
 
 impl Connection {
     /// Create a connection pool object
@@ -85,8 +92,12 @@ impl Connection {
 
     /// Initiate a new upload
     pub fn upload(&self, image_id: &ImageId, path: &VPath) -> Upload {
-        Upload(Arc::new(upload::Stats {
-        }))
+        let (tx, rx) = oneshot::channel();
+        Upload {
+            stats: Arc::new(upload::Stats {
+            }),
+            future: rx.shared(),
+        }
     }
 }
 
@@ -95,6 +106,7 @@ impl Upload {
     /// to the configuration.
     pub fn future(&self) -> UploadFuture {
         UploadFuture {
+            inner: self.future.clone()
         }
     }
 }
