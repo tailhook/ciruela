@@ -3,11 +3,29 @@ use std::sync::Arc;
 use abstract_ns::{Name, Resolve, HostResolve};
 use futures::{Future, Async};
 use futures::sync::mpsc::{UnboundedReceiver};
+use futures::sync::oneshot;
 
-use index::GetIndex;
+use {VPath};
+use index::{GetIndex, ImageId};
 use blocks::GetBlock;
 use cluster::addr::AddrCell;
 use cluster::config::Config;
+use cluster::upload;
+use cluster::error::UploadErr;
+use cluster::future::UploadOk;
+
+#[derive(Debug)]
+pub enum Message {
+    NewUpload(NewUpload),
+}
+
+#[derive(Debug)]
+pub struct NewUpload {
+    pub(crate) image_id: ImageId,
+    pub(crate) path: VPath,
+    pub(crate) stats: Arc<upload::Stats>,
+    pub(crate) resolve: oneshot::Sender<Result<UploadOk, Arc<UploadErr>>>,
+}
 
 pub struct ConnectionSet<R, I, B> {
     resolver: R,
@@ -15,11 +33,11 @@ pub struct ConnectionSet<R, I, B> {
     block_source: B,
     config: Arc<Config>,
     initial_addr: AddrCell,
-    chan: UnboundedReceiver<()>,
+    chan: UnboundedReceiver<Message>,
 }
 
 impl<R, I, B> ConnectionSet<R, I, B> {
-    pub fn new(chan: UnboundedReceiver<()>,
+    pub fn new(chan: UnboundedReceiver<Message>,
         initial_address: Vec<Name>, resolver: R,
         index_source: I, block_source: B, config: &Arc<Config>)
         -> ConnectionSet<R, I, B>

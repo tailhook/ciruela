@@ -28,6 +28,7 @@ use tk_easyloop::spawn;
 
 use index::{GetIndex, ImageId};
 use blocks::GetBlock;
+use cluster::set::{Message, NewUpload};
 use VPath;
 
 /// Connection to a server or cluster of servers
@@ -38,7 +39,7 @@ use VPath;
 #[derive(Debug)]
 pub struct Connection {
     config: Arc<Config>,
-    chan: UnboundedSender<()>,
+    chan: UnboundedSender<Message>,
 }
 
 /// This structure represents upload
@@ -91,11 +92,23 @@ impl Connection {
     }
 
     /// Initiate a new upload
+    ///
+    /// # Panics
+    ///
+    /// If connection set is already closed
+    // TODO(tailhook) append or replace? where to configure skip errors?
     pub fn upload(&self, image_id: &ImageId, path: &VPath) -> Upload {
         let (tx, rx) = oneshot::channel();
+        let stats = Arc::new(upload::Stats {
+            });
+        self.chan.unbounded_send(Message::NewUpload(NewUpload {
+            image_id: image_id.clone(),
+            path: path.clone(),
+            stats: stats.clone(),
+            resolve: tx,
+        })).expect("connection set is not closed");
         Upload {
-            stats: Arc::new(upload::Stats {
-            }),
+            stats,
             future: rx.shared(),
         }
     }
