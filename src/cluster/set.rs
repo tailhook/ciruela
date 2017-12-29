@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
 use abstract_ns::{Name, Resolve, HostResolve};
+use rand::{thread_rng, sample};
 use futures::{Future, Async};
+use futures::stream::{Stream, Fuse};
 use futures::sync::mpsc::{UnboundedReceiver};
 use futures::sync::oneshot;
 
@@ -33,7 +35,7 @@ pub struct ConnectionSet<R, I, B> {
     block_source: B,
     config: Arc<Config>,
     initial_addr: AddrCell,
-    chan: UnboundedReceiver<Message>,
+    chan: Fuse<UnboundedReceiver<Message>>,
 }
 
 impl<R, I, B> ConnectionSet<R, I, B> {
@@ -51,9 +53,36 @@ impl<R, I, B> ConnectionSet<R, I, B> {
             resolver,
             index_source,
             block_source,
-            chan,
+            chan: chan.fuse(),
             config: config.clone(),
         }
+    }
+    pub fn read_messages(&mut self) {
+        use self::Message::*;
+        loop {
+            let m = match self.chan.poll() {
+                Ok(Async::Ready(Some(m))) => m,
+                Ok(Async::Ready(None)) => break,
+                Ok(Async::NotReady) => break,
+                Err(e) => {
+                    error!("Cluster set channel error: {:?}", e);
+                    break;
+                }
+            };
+            match m {
+                NewUpload(up) => {
+                    self.start_upload(up);
+                }
+            }
+        }
+    }
+
+    pub fn start_upload(&mut self, up: NewUpload) {
+        let addresses = sample(&mut thread_rng(),
+            self.initial_addr.get().addresses_at(0), 3);
+        debug!("Initial addresses to upload {:?}:{}: {:?}",
+            up.path, up.image_id, addresses);
+        unimplemented!();
     }
 }
 
@@ -62,6 +91,7 @@ impl<R, I, B> Future for ConnectionSet<R, I, B> {
     type Error = ();
     fn poll(&mut self) -> Result<Async<()>, ()> {
         self.initial_addr.poll();
+        self.read_messages();
         unimplemented!();
     }
 }

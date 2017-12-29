@@ -1,3 +1,4 @@
+extern crate env_logger;
 extern crate dir_signature;
 extern crate ciruela;
 extern crate failure;
@@ -17,6 +18,7 @@ use ciruela::VPath;
 const DIR: &str = "./src";
 
 fn main() {
+    env_logger::init();
     match run() {
         Ok(()) => exit(0),
         Err(err) => {

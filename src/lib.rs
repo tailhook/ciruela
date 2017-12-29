@@ -16,6 +16,7 @@ extern crate hex;
 extern crate futures;
 extern crate futures_cpupool;
 extern crate tk_http;
+extern crate rand;
 extern crate serde;
 extern crate serde_cbor;
 extern crate serde_bytes;
