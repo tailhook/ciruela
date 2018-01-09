@@ -21,10 +21,9 @@ pub use cluster::error::UploadErr;
 use std::sync::Arc;
 
 use abstract_ns::{Name, Resolve, HostResolve};
-use futures::sync::mpsc::{unbounded, UnboundedSender};
+use futures::sync::mpsc::{UnboundedSender};
 use futures::future::{Future, Shared};
 use futures::sync::oneshot;
-use tk_easyloop::spawn;
 
 use index::{GetIndex, ImageId};
 use blocks::GetBlock;
@@ -78,13 +77,12 @@ impl Connection {
     pub fn new<R, I, B>(initial_address: Vec<Name>, resolver: R,
         index_source: I, block_source: B, config: &Arc<Config>)
         -> Connection
-        where I: GetIndex + 'static,
-              B: GetBlock + 'static,
-              R: Resolve + HostResolve + 'static,
+        where I: GetIndex + Clone + Send + 'static,
+              B: GetBlock + Clone + Send + 'static,
+              R: Resolve + HostResolve + Clone + Send + 'static,
     {
-        let (tx, rx) = unbounded();
-        spawn(set::ConnectionSet::new(rx, initial_address, resolver,
-            index_source, block_source, config));
+        let tx = set::ConnectionSet::spawn(initial_address, resolver,
+            index_source, block_source, config);
         return Connection {
             config: config.clone(),
             chan: tx,

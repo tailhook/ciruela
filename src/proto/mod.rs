@@ -11,7 +11,7 @@ mod index_commands;
 mod block_commands;
 mod p2p_commands;
 
-pub use self::client::{Client, Listener};
+pub use self::client::{Client, ClientFuture, Listener};
 pub use self::hash::{Hash, Builder as HashBuilder};
 pub use self::request::{RequestClient, RequestDispatcher, Registry, Sender};
 pub use self::request::{RequestFuture, PacketStream};

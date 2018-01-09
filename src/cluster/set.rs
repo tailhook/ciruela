@@ -5,9 +5,10 @@ use std::collections::{VecDeque, HashMap};
 use abstract_ns::{Name, Resolve, HostResolve};
 use rand::{thread_rng, sample};
 use futures::{Future, Async};
-use futures::stream::{Stream, Fuse, FuturesUnordered};
-use futures::sync::mpsc::{UnboundedReceiver};
+use futures::stream::{Stream, Fuse};
+use futures::sync::mpsc::{unbounded, UnboundedSender, UnboundedReceiver};
 use futures::sync::oneshot;
+use tk_easyloop::spawn;
 
 use {VPath};
 use index::{GetIndex, ImageId};
@@ -17,11 +18,16 @@ use cluster::config::Config;
 use cluster::upload;
 use cluster::error::UploadErr;
 use cluster::future::UploadOk;
-use proto::Client;
+use proto::{self, Client, ClientFuture};
+use proto::message::Notification;
 
 #[derive(Debug)]
 pub enum Message {
     NewUpload(NewUpload),
+}
+
+struct Listener {
+    chan: UnboundedSender<Message>,
 }
 
 #[derive(Debug)]
@@ -40,6 +46,7 @@ struct Upload {
     connections: HashMap<SocketAddr, Client>,
 }
 
+
 pub struct ConnectionSet<R, I, B> {
     resolver: R,
     index_source: I,
@@ -47,30 +54,38 @@ pub struct ConnectionSet<R, I, B> {
     config: Arc<Config>,
     initial_addr: AddrCell,
     chan: Fuse<UnboundedReceiver<Message>>,
+    chan_tx: UnboundedSender<Message>,
+    pending: HashMap<SocketAddr, ClientFuture>,
+    active: HashMap<SocketAddr, Client>,
     uploads: VecDeque<Upload>,
-    futures: FuturesUnordered<Box<Future<Item=(), Error=()>>>,
 }
 
-impl<R, I, B> ConnectionSet<R, I, B> {
-    pub(crate) fn new(chan: UnboundedReceiver<Message>,
-        initial_address: Vec<Name>, resolver: R,
+impl<R, I, B> ConnectionSet<R, I, B>
+    where I: GetIndex + Clone + Send + 'static,
+          B: GetBlock + Clone + Send + 'static,
+{
+    pub(crate) fn spawn(initial_address: Vec<Name>, resolver: R,
         index_source: I, block_source: B, config: &Arc<Config>)
-        -> ConnectionSet<R, I, B>
+        -> UnboundedSender<Message>
         where I: GetIndex + 'static,
               B: GetBlock + 'static,
               R: Resolve + HostResolve + 'static,
     {
-        ConnectionSet {
+        let (tx, rx) = unbounded();
+        spawn(ConnectionSet {
             initial_addr: AddrCell::new(initial_address,
                                         config.port, &resolver),
             resolver,
             index_source,
             block_source,
-            chan: chan.fuse(),
+            chan: rx.fuse(),
+            chan_tx: tx.clone(),
             config: config.clone(),
             uploads: VecDeque::new(),
-            futures: FuturesUnordered::new(),
-        }
+            pending: HashMap::new(),
+            active: HashMap::new(),
+        });
+        return tx;
     }
     fn read_messages(&mut self) {
         use self::Message::*;
@@ -103,14 +118,22 @@ impl<R, I, B> ConnectionSet<R, I, B> {
     }
 
     fn new_conns(&mut self, up: &mut Upload) {
-        if up.connections.len() >= self.config.initial_connections as usize {
+        if up.connections.len() >= self.config.initial_connections as usize
+            || self.pending.len() >= self.config.initial_connections as usize
+        {
             return;
         }
         let new_addresses = sample(&mut thread_rng(),
             self.initial_addr.get().addresses_at(0)
             .filter(|x| !up.connections.contains_key(x)), 3);
-        for naddr in new_addresses {
-            unimplemented!();
+        for naddr in &new_addresses {
+            if !self.pending.contains_key(&naddr) {
+                self.pending.insert(*naddr, Client::spawn(*naddr,
+                    "ciruela".to_string(),
+                    self.block_source.clone(),
+                    self.index_source.clone(),
+                    Listener { chan: self.chan_tx.clone()}));
+            }
         }
     }
 
@@ -123,24 +146,31 @@ impl<R, I, B> ConnectionSet<R, I, B> {
     }
 }
 
-impl<R, I, B> Future for ConnectionSet<R, I, B> {
+impl<R, I, B> Future for ConnectionSet<R, I, B>
+    where I: GetIndex + Clone + Send + 'static,
+          B: GetBlock + Clone + Send + 'static,
+{
     type Item = ();
     type Error = ();
     fn poll(&mut self) -> Result<Async<()>, ()> {
         self.initial_addr.poll();
         self.read_messages();
         self.poll_connect();
-        match self.futures.poll() {
-            Ok(Async::Ready(Some(()))) => {}
-            Ok(Async::Ready(None)) => {}
-            Ok(Async::NotReady) => {}
-            // reconnect?
-            Err(()) => {}
-        }
+        // poll pending
+        // poll connections
         if self.chan.is_done() && self.uploads.len() == 0 {
             Ok(Async::Ready(()))
         } else {
             Ok(Async::NotReady)
         }
+    }
+}
+
+impl proto::Listener for Listener {
+    fn notification(&self, n: Notification) {
+        unimplemented!();
+    }
+    fn closed(&self) {
+        unimplemented!();
     }
 }
