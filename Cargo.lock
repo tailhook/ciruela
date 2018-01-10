@@ -144,7 +144,7 @@ dependencies = [
 
 [[package]]
 name = "ciruela"
-version = "0.4.4"
+version = "0.4.5"
 dependencies = [
  "abstract-ns 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "argparse 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
