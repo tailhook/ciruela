@@ -18,6 +18,7 @@ use cluster::config::Config;
 use cluster::upload;
 use cluster::error::UploadErr;
 use cluster::future::UploadOk;
+use failure_tracker::HostFailures;
 use proto::{self, Client, ClientFuture};
 use proto::message::Notification;
 
@@ -55,6 +56,7 @@ pub struct ConnectionSet<R, I, B> {
     initial_addr: AddrCell,
     chan: Fuse<UnboundedReceiver<Message>>,
     chan_tx: UnboundedSender<Message>,
+    failures: HostFailures,
     pending: HashMap<SocketAddr, ClientFuture>,
     active: HashMap<SocketAddr, Client>,
     uploads: VecDeque<Upload>,
@@ -82,6 +84,7 @@ impl<R, I, B> ConnectionSet<R, I, B>
             chan_tx: tx.clone(),
             config: config.clone(),
             uploads: VecDeque::new(),
+            failures: HostFailures::new_default(),
             pending: HashMap::new(),
             active: HashMap::new(),
         });
@@ -127,7 +130,9 @@ impl<R, I, B> ConnectionSet<R, I, B>
             self.initial_addr.get().addresses_at(0)
             .filter(|x| !up.connections.contains_key(x)), 3);
         for naddr in &new_addresses {
-            if !self.pending.contains_key(&naddr) {
+            if !self.pending.contains_key(naddr)
+               && self.failures.can_try(*naddr)
+            {
                 self.pending.insert(*naddr, Client::spawn(*naddr,
                     "ciruela".to_string(),
                     self.block_source.clone(),
@@ -139,6 +144,7 @@ impl<R, I, B> ConnectionSet<R, I, B>
 
     fn poll_pending(&mut self) {
         let ref mut active = self.active;
+        let ref mut failures = self.failures;
         self.pending.retain(|addr, future| {
             match future.poll() {
                 Ok(Async::NotReady) => true,
@@ -148,7 +154,7 @@ impl<R, I, B> ConnectionSet<R, I, B>
                 }
                 Err(()) => {
                     // error should have already logged
-                    // TODO(tailhook) failure tracker, ignore for now
+                    failures.add_failure(*addr);
                     false
                 }
             }
@@ -182,7 +188,8 @@ impl<R, I, B> Future for ConnectionSet<R, I, B>
                 break;
             }
         }
-        // poll connections
+        // TODO(tailhook) poll connections
+        // TODO(tailhook) set reconnect timer
         if self.chan.is_done() && self.uploads.len() == 0 {
             Ok(Async::Ready(()))
         } else {

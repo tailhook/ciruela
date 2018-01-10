@@ -34,6 +34,7 @@ extern crate void;
 #[macro_use] extern crate serde_derive;
 #[macro_use] extern crate failure;
 
+mod failure_tracker;
 mod id;
 mod machine_id;
 mod virtual_path;
