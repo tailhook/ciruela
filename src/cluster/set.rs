@@ -137,6 +137,24 @@ impl<R, I, B> ConnectionSet<R, I, B>
         }
     }
 
+    fn poll_pending(&mut self) {
+        let ref mut active = self.active;
+        self.pending.retain(|addr, future| {
+            match future.poll() {
+                Ok(Async::NotReady) => true,
+                Ok(Async::Ready(conn)) => {
+                    active.insert(*addr, conn);
+                    false
+                }
+                Err(()) => {
+                    // error should have already logged
+                    // TODO(tailhook) failure tracker, ignore for now
+                    false
+                }
+            }
+        });
+    }
+
     fn poll_connect(&mut self) {
         for _ in 0..self.uploads.len() {
             let mut cur = self.uploads.pop_front().unwrap();
@@ -155,8 +173,15 @@ impl<R, I, B> Future for ConnectionSet<R, I, B>
     fn poll(&mut self) -> Result<Async<()>, ()> {
         self.initial_addr.poll();
         self.read_messages();
-        self.poll_connect();
-        // poll pending
+        loop {
+            let pending1 = self.pending.len();
+            self.poll_connect();
+            let pending2 = self.pending.len();
+            self.poll_pending();
+            if pending1 == pending2 && pending2 == self.pending.len() {
+                break;
+            }
+        }
         // poll connections
         if self.chan.is_done() && self.uploads.len() == 0 {
             Ok(Async::Ready(()))
