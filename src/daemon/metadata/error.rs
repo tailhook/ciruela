@@ -89,7 +89,7 @@ quick_error! {
             display("can't remove metadata file {:?}: {}", path, e)
             cause(e)
         }
-        SerializeError(e: serde_cbor::Error) {
+        SerializeError(e: serde_cbor::error::Error) {
             description("can't serialize metadata")
             display("can't serialize metadata: {}", e)
             cause(e)

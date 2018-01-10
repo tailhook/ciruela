@@ -59,7 +59,7 @@ fn main() {
     if let Err(_) = env::var("RUST_LOG") {
         env::set_var("RUST_LOG", "warn");
     }
-    env_logger::init().unwrap();
+    env_logger::init();
 
     let mut cmd = None::<String>;
     let mut opt = GlobalOptions::new();

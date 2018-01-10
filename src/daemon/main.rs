@@ -94,27 +94,23 @@ pub use ciruela::index as index;
 
 
 fn init_logging(mid: MachineId, log_mid: bool) {
-    let format = move |record: &log::LogRecord| {
-        if log_mid {
-            format!("{} {} [{}] {}: {}", mid, time::now_utc().rfc3339(),
-                record.location().module_path(),
-                record.level(), record.args())
-        } else {
-            format!("{} [{}] {}: {}", time::now_utc().rfc3339(),
-                record.location().module_path(),
-                record.level(), record.args())
-        }
-    };
+    let mut builder = env_logger::Builder::new();
+    if log_mid {
 
-    let mut builder = env_logger::LogBuilder::new();
-    builder.format(format).filter(None, log::LogLevelFilter::Warn);
+        builder.format(move |buf, record| {
+            use std::io::Write;
+            writeln!(buf, "{} {} [{}] {}: {}", mid, time::now_utc().rfc3339(),
+                record.module_path().unwrap_or("<unknown>"),
+                record.level(), record.args())
+        });
+    }
+    builder.filter(None, log::LevelFilter::Warn);
 
     if let Ok(value) = env::var("RUST_LOG") {
        builder.parse(&value);
     }
 
     builder.init()
-        .expect("can always initialize logging subsystem");
 }
 
 fn main() {

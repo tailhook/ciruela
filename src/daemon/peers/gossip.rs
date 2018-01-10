@@ -7,7 +7,8 @@ use std::collections::{HashSet, HashMap, BTreeMap};
 use crossbeam::sync::ArcCell;
 use futures::{Future, Stream, Async};
 use futures::sync::mpsc::UnboundedReceiver;
-use rand::{thread_rng, sample};
+use rand::{thread_rng};
+use rand::seq::sample_iter;
 use tk_easyloop::{handle, spawn, interval};
 use tokio_core::net::UdpSocket;
 use tokio_core::reactor::Interval;
@@ -79,7 +80,7 @@ impl Gossip {
             while let Ok((len, addr)) = self.socket.recv_from(&mut buf) {
                 let mut buf = io::Cursor::new(&buf[..len]);
                 let pkt: Packet = match Deserialize::deserialize(
-                    &mut Deserializer::new(&mut buf))
+                    &mut Deserializer::from_reader(&mut buf))
                 {
                     Ok(x) => x,
                     Err(e) => {
@@ -157,7 +158,9 @@ impl Gossip {
                     let all = self.peers.get();
                     let mut peers = match self.dir_peers.lock().get(&path.parent()) {
                         Some(peers) => {
-                            sample(&mut thread_rng(), peers, PACKETS_AT_ONCE)
+                            sample_iter(&mut thread_rng(),
+                                peers, PACKETS_AT_ONCE)
+                            .unwrap_or_else(|v| v)
                             .into_iter()
                             .filter_map(|id| all.get(id).map(|p| p.addr))
                             .collect()
@@ -165,8 +168,9 @@ impl Gossip {
                         None => Vec::new(),
                     };
                     if peers.len() < PACKETS_AT_ONCE {
-                        peers.extend(sample(&mut thread_rng(),
-                            all.values(), PACKETS_AT_ONCE)
+                        peers.extend(sample_iter(&mut thread_rng(),
+                                all.values(), PACKETS_AT_ONCE)
+                            .unwrap_or_else(|v| v)
                             .into_iter().map(|p| p.addr));
                     }
                     peers
@@ -197,7 +201,9 @@ impl Gossip {
             self.send_gossip(*addr, &ipr, &deleted);
         }
         let lst = self.peers.get();
-        let hosts = sample(&mut thread_rng(), lst.values(), PACKETS_AT_ONCE);
+        let hosts = sample_iter(&mut thread_rng(),
+            lst.values(), PACKETS_AT_ONCE)
+            .unwrap_or_else(|v| v);
         for host in hosts {
             self.send_gossip(host.addr, &ipr, &deleted);
         }
