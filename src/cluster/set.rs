@@ -205,6 +205,7 @@ impl<R, I, B> Future for ConnectionSet<R, I, B>
         self.read_messages();
         let mut repeat = true;
         while repeat {
+            repeat = false;
             let pending = self.pending.len();
             let active = self.active.len();
             self.poll_connect();
