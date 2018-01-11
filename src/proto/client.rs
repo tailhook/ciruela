@@ -21,6 +21,7 @@ use proto::request::{Sender, Error, RequestDispatcher, RequestClient};
 use proto::request::{Registry};
 
 
+#[derive(Clone)]
 pub struct Client {
     channel: Sender,
 }

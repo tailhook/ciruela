@@ -89,17 +89,31 @@ impl Connection {
         }
     }
 
-    /// Initiate a new upload
+    /// Initiate a new upload (appending a directory)
     ///
     /// # Panics
     ///
     /// If connection set is already closed
     // TODO(tailhook) append or replace? where to configure skip errors?
-    pub fn upload(&self, image_id: &ImageId, path: &VPath) -> Upload {
+    pub fn append(&self, image_id: &ImageId, path: &VPath) -> Upload {
+        self._upload(false, image_id, path)
+    }
+    /// Initiate a new upload (replacing a directory)
+    ///
+    /// # Panics
+    ///
+    /// If connection set is already closed
+    pub fn replace(&self, image_id: &ImageId, path: &VPath) -> Upload {
+        self._upload(true, image_id, path)
+    }
+    fn _upload(&self, replace: bool, image_id: &ImageId, path: &VPath)
+        -> Upload
+    {
         let (tx, rx) = oneshot::channel();
         let stats = Arc::new(upload::Stats {
             });
         self.chan.unbounded_send(Message::NewUpload(NewUpload {
+            replace,
             image_id: image_id.clone(),
             path: path.clone(),
             stats: stats.clone(),

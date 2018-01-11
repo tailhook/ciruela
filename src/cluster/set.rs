@@ -19,8 +19,9 @@ use cluster::upload;
 use cluster::error::UploadErr;
 use cluster::future::UploadOk;
 use failure_tracker::HostFailures;
-use proto::{self, Client, ClientFuture};
+use proto::{self, Client, ClientFuture, RequestClient};
 use proto::message::Notification;
+use proto::{AppendDir, ReplaceDir};
 
 #[derive(Debug)]
 pub enum Message {
@@ -33,6 +34,7 @@ struct Listener {
 
 #[derive(Debug)]
 pub struct NewUpload {
+    pub(crate) replace: bool,
     pub(crate) image_id: ImageId,
     pub(crate) path: VPath,
     pub(crate) stats: Arc<upload::Stats>,
@@ -40,6 +42,7 @@ pub struct NewUpload {
 }
 
 struct Upload {
+    replace: bool,
     path: VPath,
     image_id: ImageId,
     stats: Arc<upload::Stats>,
@@ -112,6 +115,7 @@ impl<R, I, B> ConnectionSet<R, I, B>
 
     fn start_upload(&mut self, up: NewUpload) {
         self.uploads.push_back(Upload {
+            replace: up.replace,
             path: up.path,
             image_id: up.image_id,
             stats: up.stats,
@@ -121,8 +125,9 @@ impl<R, I, B> ConnectionSet<R, I, B>
     }
 
     fn new_conns(&mut self, up: &mut Upload) {
-        if up.connections.len() >= self.config.initial_connections as usize
-            || self.pending.len() >= self.config.initial_connections as usize
+        let initial = self.config.initial_connections as usize;
+        if up.connections.len() >= initial
+            || self.pending.len() + self.active.len() >= initial
         {
             return;
         }
@@ -131,6 +136,7 @@ impl<R, I, B> ConnectionSet<R, I, B>
             .filter(|x| !up.connections.contains_key(x)), 3);
         for naddr in &new_addresses {
             if !self.pending.contains_key(naddr)
+               && !self.active.contains_key(naddr)
                && self.failures.can_try(*naddr)
             {
                 self.pending.insert(*naddr, Client::spawn(*naddr,
@@ -168,6 +174,24 @@ impl<R, I, B> ConnectionSet<R, I, B>
             self.uploads.push_back(cur);
         }
     }
+    fn poll_connections(&mut self) {
+        for up in &mut self.uploads {
+            if up.connections.len() < self.config.initial_connections as usize
+            {
+                for (addr, conn) in &self.active {
+                    if !up.connections.contains_key(addr) {
+                        conn.request(AppendDir {
+                            image: up.image_id.clone(),
+                            timestamp: unimplemented!(),
+                            signatures: unimplemented!(),
+                            path: up.path.clone(),
+                        });
+                        up.connections.insert(*addr, conn.clone());
+                    }
+                }
+            }
+        }
+    }
 }
 
 impl<R, I, B> Future for ConnectionSet<R, I, B>
@@ -179,16 +203,17 @@ impl<R, I, B> Future for ConnectionSet<R, I, B>
     fn poll(&mut self) -> Result<Async<()>, ()> {
         self.initial_addr.poll();
         self.read_messages();
-        loop {
-            let pending1 = self.pending.len();
+        let mut repeat = true;
+        while repeat {
+            let pending = self.pending.len();
+            let active = self.active.len();
             self.poll_connect();
-            let pending2 = self.pending.len();
+            repeat = repeat || pending != self.pending.len();
             self.poll_pending();
-            if pending1 == pending2 && pending2 == self.pending.len() {
-                break;
-            }
+            repeat = repeat || pending != self.pending.len();
+            self.poll_connections();
+            repeat = repeat || active != self.active.len();
         }
-        // TODO(tailhook) poll connections
         // TODO(tailhook) set reconnect timer
         if self.chan.is_done() && self.uploads.len() == 0 {
             Ok(Async::Ready(()))

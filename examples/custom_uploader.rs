@@ -47,7 +47,7 @@ fn run() -> Result<(), Error> {
         let ns = ns_env_config::init(&handle()).expect("init dns");
         let conn = Connection::new(vec!["localhost".parse().unwrap()],
             ns, indexes, block_reader, &config);
-        let up = conn.upload(&image_id, &VPath::from("/virtual-dir/sub-dir"));
+        let up = conn.append(&image_id, &VPath::from("/virtual-dir/sub-dir"));
         up.future()
     })?;
     Ok(())
