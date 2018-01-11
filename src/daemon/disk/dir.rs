@@ -188,8 +188,21 @@ fn remove_by_str(dir: &Dir, name: &str) -> Result<(), Error> {
     };
     for entry in dir_iter {
         let entry = entry.map_err(me_err)?;
-        // TODO(tailhook) fix absent type in entry
-        match entry.simple_type().expect("fs is good") {
+        let typ = match entry.simple_type() {
+            Some(typ) => typ,
+            None => match dir.metadata(&entry) {
+                Ok(m) => m.simple_type(),
+                Err(ref e) if e.kind() == io::ErrorKind::NotFound => {
+                    // already deleted by concurrent process, that's fine
+                    continue;
+                }
+                Err(e) => {
+                    return Err(Error::Delete(
+                        recover_path(dir, &entry.file_name()), e));
+                }
+            }
+        };
+        match typ {
             SimpleType::Dir => {
                 remove_by_entry(&me, &entry)?;
             }
