@@ -48,6 +48,7 @@ mod upload;
 pub use ciruela::{VPath};
 pub use ciruela::blocks as blocks;
 pub use ciruela::index as index;
+pub use ciruela::signature as signature;
 
 use std::env;
 use std::io::{Write, stderr};

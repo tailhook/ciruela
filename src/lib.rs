@@ -47,5 +47,6 @@ mod block_id;
 pub mod blocks;
 pub mod index;
 pub mod cluster;
+pub mod signature;
 
 pub use virtual_path::VPath;

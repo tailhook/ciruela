@@ -28,6 +28,7 @@ use futures::sync::oneshot;
 use index::{GetIndex, ImageId};
 use blocks::GetBlock;
 use cluster::set::{Message, NewUpload};
+use signature::SignedUpload;
 use VPath;
 
 /// Connection to a server or cluster of servers
@@ -95,27 +96,25 @@ impl Connection {
     ///
     /// If connection set is already closed
     // TODO(tailhook) append or replace? where to configure skip errors?
-    pub fn append(&self, image_id: &ImageId, path: &VPath) -> Upload {
-        self._upload(false, image_id, path)
+    pub fn append(&self, upload: SignedUpload) -> Upload {
+        self._upload(false, upload)
     }
     /// Initiate a new upload (replacing a directory)
     ///
     /// # Panics
     ///
     /// If connection set is already closed
-    pub fn replace(&self, image_id: &ImageId, path: &VPath) -> Upload {
-        self._upload(true, image_id, path)
+    pub fn replace(&self, upload: SignedUpload) -> Upload {
+        self._upload(true, upload)
     }
-    fn _upload(&self, replace: bool, image_id: &ImageId, path: &VPath)
+    fn _upload(&self, replace: bool, upload: SignedUpload)
         -> Upload
     {
         let (tx, rx) = oneshot::channel();
         let stats = Arc::new(upload::Stats {
             });
         self.chan.unbounded_send(Message::NewUpload(NewUpload {
-            replace,
-            image_id: image_id.clone(),
-            path: path.clone(),
+            replace, upload,
             stats: stats.clone(),
             resolve: tx,
         })).expect("connection set is not closed");

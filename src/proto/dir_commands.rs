@@ -5,6 +5,7 @@ use index::ImageId;
 use machine_id::MachineId;
 use proto::{Signature, SigData, Request, Response};
 use serialize::timestamp;
+// use signature::SignedUpload;
 use time_util::to_ms;
 use {VPath};
 
@@ -50,6 +51,16 @@ impl AppendDir {
             timestamp: to_ms(self.timestamp),
         }
     }
+    /*
+    pub fn new(up: &SignedUpload) -> AppendDir {
+        AppendDir {
+            image: up.image_id.clone(),
+            timestamp: up.timestamp,
+            signatures: up.signatures.clone(),
+            path: up.path.clone(),
+        }
+    }
+    */
 }
 
 impl ReplaceDir {
@@ -60,6 +71,17 @@ impl ReplaceDir {
             timestamp: to_ms(self.timestamp),
         }
     }
+    /*
+    pub fn new(up: &SignedUpload, old: Option<&ImageId>) -> ReplaceDir {
+        ReplaceDir {
+            image: up.image_id.clone(),
+            timestamp: up.timestamp,
+            signatures: up.signatures.clone(),
+            path: up.path.clone(),
+            old_image: old.map(|x| x.clone()),
+        }
+    }
+    */
 }
 
 impl Request for AppendDir {

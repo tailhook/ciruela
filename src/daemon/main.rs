@@ -88,6 +88,8 @@ mod tracking;
 #[path="../time_util.rs"] mod time_util;
 #[path="../hexlify.rs"] mod hexlify;
 #[path="../failure_tracker.rs"] mod failure_tracker;
+#[path="../signature.rs"] mod signature;
+#[path="../block_id.rs"] mod block_id;
 pub use ciruela::{VPath};
 pub use ciruela::blocks as blocks;
 pub use ciruela::index as index;

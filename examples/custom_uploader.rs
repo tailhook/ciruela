@@ -4,8 +4,12 @@ extern crate ciruela;
 extern crate failure;
 extern crate tk_easyloop;
 extern crate ns_env_config;
+extern crate ssh_keys;
 
+use std::fs::File;
+use std::io::Read;
 use std::process::exit;
+use std::time::SystemTime;
 
 use failure::{Error, ResultExt};
 use tk_easyloop::handle;
@@ -14,8 +18,13 @@ use ciruela::blocks::ThreadedBlockReader;
 use ciruela::index::InMemoryIndexes;
 use ciruela::cluster::{Connection, Config};
 use ciruela::VPath;
+use ciruela::signature::sign_upload;
+use ssh_keys::openssh::parse_private_key;
+use ssh_keys::PrivateKey;
+
 
 const DIR: &str = "./src";
+
 
 fn main() {
     env_logger::init();
@@ -28,7 +37,21 @@ fn main() {
     }
 }
 
+fn read_keys() -> Result<Vec<PrivateKey>, Error> {
+    let mut f = File::open("ciruela-example.key")
+        .context("error reading ciruela-example.key")?;
+    let mut keybuf = String::with_capacity(1024);
+    f.read_to_string(&mut keybuf)
+        .context("error reading ciruela-example.key")?;
+    let keys = parse_private_key(&keybuf)
+        .context("error reading ciruela-example.key")?;
+    return Ok(keys);
+}
+
 fn run() -> Result<(), Error> {
+
+    let dest = VPath::from("/virtual-dir/sub-dir");
+
     let mut cfg = ScannerConfig::new();
     cfg.auto_threads();
     cfg.hash(HashType::blake2b_256());
@@ -36,18 +59,25 @@ fn run() -> Result<(), Error> {
     cfg.print_progress();
     let mut indexbuf = Vec::new();
     v1::scan(&cfg, &mut indexbuf).context(DIR)?;
+
+    let keys = read_keys()?;
+
     let indexes = InMemoryIndexes::new();
     let block_reader = ThreadedBlockReader::new();
     let image_id = indexes.register_index(&indexbuf)
         .expect("register is okay");
     block_reader.register_dir(DIR, &indexbuf)
         .expect("register is okay");
+
+    let timestamp = SystemTime::now();
+    let upload = sign_upload(&dest, &image_id, timestamp, &keys);
+
     let config = Config::new().done();
     tk_easyloop::run(|| {
         let ns = ns_env_config::init(&handle()).expect("init dns");
         let conn = Connection::new(vec!["localhost".parse().unwrap()],
             ns, indexes, block_reader, &config);
-        let up = conn.append(&image_id, &VPath::from("/virtual-dir/sub-dir"));
+        let up = conn.append(upload);
         up.future()
     })?;
     Ok(())

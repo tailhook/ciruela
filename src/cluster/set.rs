@@ -18,6 +18,7 @@ use cluster::config::Config;
 use cluster::upload;
 use cluster::error::UploadErr;
 use cluster::future::UploadOk;
+use signature::SignedUpload;
 use failure_tracker::HostFailures;
 use proto::{self, Client, ClientFuture, RequestClient};
 use proto::message::Notification;
@@ -35,16 +36,14 @@ struct Listener {
 #[derive(Debug)]
 pub struct NewUpload {
     pub(crate) replace: bool,
-    pub(crate) image_id: ImageId,
-    pub(crate) path: VPath,
+    pub(crate) upload: SignedUpload,
     pub(crate) stats: Arc<upload::Stats>,
     pub(crate) resolve: oneshot::Sender<Result<UploadOk, Arc<UploadErr>>>,
 }
 
 struct Upload {
     replace: bool,
-    path: VPath,
-    image_id: ImageId,
+    upload: SignedUpload,
     stats: Arc<upload::Stats>,
     resolve: oneshot::Sender<Result<UploadOk, Arc<UploadErr>>>,
     connections: HashMap<SocketAddr, Client>,
@@ -116,8 +115,7 @@ impl<R, I, B> ConnectionSet<R, I, B>
     fn start_upload(&mut self, up: NewUpload) {
         self.uploads.push_back(Upload {
             replace: up.replace,
-            path: up.path,
-            image_id: up.image_id,
+            upload: up.upload,
             stats: up.stats,
             resolve: up.resolve,
             connections: HashMap::new(),
@@ -181,10 +179,10 @@ impl<R, I, B> ConnectionSet<R, I, B>
                 for (addr, conn) in &self.active {
                     if !up.connections.contains_key(addr) {
                         conn.request(AppendDir {
-                            image: up.image_id.clone(),
-                            timestamp: unimplemented!(),
-                            signatures: unimplemented!(),
-                            path: up.path.clone(),
+                            image: up.upload.image_id.clone(),
+                            timestamp: up.upload.timestamp.clone(),
+                            signatures: up.upload.signatures.clone(),
+                            path: up.upload.path.clone(),
                         });
                         up.connections.insert(*addr, conn.clone());
                     }
