@@ -5,6 +5,7 @@ extern crate failure;
 extern crate tk_easyloop;
 extern crate ns_env_config;
 extern crate ssh_keys;
+extern crate rand;
 
 use std::fs::File;
 use std::io::Read;
@@ -19,6 +20,7 @@ use ciruela::index::InMemoryIndexes;
 use ciruela::cluster::{Connection, Config};
 use ciruela::VPath;
 use ciruela::signature::sign_upload;
+use rand::Rng;
 use ssh_keys::openssh::parse_private_key;
 use ssh_keys::PrivateKey;
 
@@ -50,7 +52,9 @@ fn read_keys() -> Result<Vec<PrivateKey>, Error> {
 
 fn run() -> Result<(), Error> {
 
-    let dest = VPath::from("/virtual-dir/sub-dir");
+    let dest = VPath::from(
+        format!("/dir1/custom_uploader/{}",
+        rand::thread_rng().gen::<u32>()));
 
     let mut cfg = ScannerConfig::new();
     cfg.auto_threads();
