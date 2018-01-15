@@ -20,16 +20,19 @@ use cluster::error::UploadErr;
 use cluster::future::UploadOk;
 use signature::SignedUpload;
 use failure_tracker::HostFailures;
-use proto::{self, Client, ClientFuture, RequestClient};
+use proto::{self, Client, ClientFuture, RequestClient, RequestFuture};
 use proto::message::Notification;
 use proto::{AppendDir, ReplaceDir};
+use proto::{AppendDirAck, ReplaceDirAck};
 
 #[derive(Debug)]
 pub enum Message {
     NewUpload(NewUpload),
+    Closed(SocketAddr),
 }
 
 struct Listener {
+    addr: SocketAddr,
     chan: UnboundedSender<Message>,
 }
 
@@ -47,6 +50,12 @@ struct Upload {
     stats: Arc<upload::Stats>,
     resolve: oneshot::Sender<Result<UploadOk, Arc<UploadErr>>>,
     connections: HashMap<SocketAddr, Client>,
+    futures: HashMap<SocketAddr, RFuture>,
+}
+
+enum RFuture {
+    Append(RequestFuture<AppendDirAck>),
+    Replace(RequestFuture<ReplaceDirAck>),
 }
 
 
@@ -108,6 +117,9 @@ impl<R, I, B> ConnectionSet<R, I, B>
                 NewUpload(up) => {
                     self.start_upload(up);
                 }
+                Closed(addr) => {
+                    self.active.remove(&addr).expect("duplicate close");
+                }
             }
         }
     }
@@ -119,6 +131,7 @@ impl<R, I, B> ConnectionSet<R, I, B>
             stats: up.stats,
             resolve: up.resolve,
             connections: HashMap::new(),
+            futures: HashMap::new(),
         });
     }
 
@@ -141,7 +154,10 @@ impl<R, I, B> ConnectionSet<R, I, B>
                     "ciruela".to_string(),
                     self.block_source.clone(),
                     self.index_source.clone(),
-                    Listener { chan: self.chan_tx.clone()}));
+                    Listener {
+                        addr: *naddr,
+                        chan: self.chan_tx.clone()
+                    }));
             }
         }
     }
@@ -172,18 +188,22 @@ impl<R, I, B> ConnectionSet<R, I, B>
             self.uploads.push_back(cur);
         }
     }
-    fn poll_connections(&mut self) {
+    fn wakeup_uploads(&mut self) {
         for up in &mut self.uploads {
             if up.connections.len() < self.config.initial_connections as usize
             {
                 for (addr, conn) in &self.active {
                     if !up.connections.contains_key(addr) {
-                        conn.request(AppendDir {
-                            image: up.upload.image_id.clone(),
-                            timestamp: up.upload.timestamp.clone(),
-                            signatures: up.upload.signatures.clone(),
-                            path: up.upload.path.clone(),
-                        });
+                        if up.replace {
+                            unimplemented!();
+                        }
+                        up.futures.insert(*addr,
+                            RFuture::Append(conn.request(AppendDir {
+                                image: up.upload.image_id.clone(),
+                                timestamp: up.upload.timestamp.clone(),
+                                signatures: up.upload.signatures.clone(),
+                                path: up.upload.path.clone(),
+                            })));
                         up.connections.insert(*addr, conn.clone());
                     }
                 }
@@ -205,13 +225,11 @@ impl<R, I, B> Future for ConnectionSet<R, I, B>
         while repeat {
             repeat = false;
             let pending = self.pending.len();
-            let active = self.active.len();
             self.poll_connect();
             repeat = repeat || pending != self.pending.len();
             self.poll_pending();
             repeat = repeat || pending != self.pending.len();
-            self.poll_connections();
-            repeat = repeat || active != self.active.len();
+            self.wakeup_uploads();
         }
         // TODO(tailhook) set reconnect timer
         if self.chan.is_done() && self.uploads.len() == 0 {
@@ -227,6 +245,7 @@ impl proto::Listener for Listener {
         unimplemented!();
     }
     fn closed(&self) {
-        unimplemented!();
+        debug!("Connection to {} closed", self.addr);
+        self.chan.unbounded_send(Message::Closed(self.addr)).ok();
     }
 }
