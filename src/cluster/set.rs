@@ -120,12 +120,26 @@ impl<R, I, B> ConnectionSet<R, I, B>
                     self.start_upload(up);
                 }
                 Notification(addr, ReceivedImage(img)) => {
-                    debug!("Host {} received image {:?}", addr, img);
-                    // TODO(tailhook)
+                    debug!("Host {}({}) received image {:?}[{}]",
+                        img.hostname, addr, img.path, img.id);
+                    for up in &mut self.uploads {
+                        if up.upload.image_id == img.id &&
+                            up.upload.path == img.path
+                        {
+                            up.stats.received_image(addr, &img);
+                        }
+                    }
                 }
                 Notification(addr, AbortedImage(img)) => {
-                    debug!("Host {} aborted image {:?}", addr, img);
-                    // TODO(tailhook)
+                    warn!("Host {}({}) aborted image {:?}[{}]: {}",
+                        img.hostname, addr, img.path, img.id, img.reason);
+                    for up in &mut self.uploads {
+                        if up.upload.image_id == img.id &&
+                            up.upload.path == img.path
+                        {
+                            up.stats.aborted_image(addr, &img);
+                        }
+                    }
                 }
                 Notification(addr, n) => {
                     debug!("Host {} sent notification {:?}", addr, n);

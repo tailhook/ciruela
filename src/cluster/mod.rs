@@ -111,8 +111,7 @@ impl Connection {
         -> Upload
     {
         let (tx, rx) = oneshot::channel();
-        let stats = Arc::new(upload::Stats {
-            });
+        let stats = Arc::new(upload::Stats::new());
         self.chan.unbounded_send(Message::NewUpload(NewUpload {
             replace, upload,
             stats: stats.clone(),
