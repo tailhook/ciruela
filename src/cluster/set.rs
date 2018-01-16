@@ -197,6 +197,7 @@ impl<R, I, B> ConnectionSet<R, I, B>
                         if up.replace {
                             unimplemented!();
                         }
+                        conn.register_index(&up.upload.image_id);
                         up.futures.insert(*addr,
                             RFuture::Append(conn.request(AppendDir {
                                 image: up.upload.image_id.clone(),

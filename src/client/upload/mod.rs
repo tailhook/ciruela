@@ -236,7 +236,7 @@ fn do_upload(gopt: GlobalOptions, opt: options::UploadOptions)
                             let host_port = format!("{}:{}", host4, port);
                             Client::spawn(addr, host_port,
                                 blocks.clone(), indexes.clone(), tracker)
-                            .and_then(move |mut cli| {
+                            .and_then(move |cli| {
                                 info!("Connected to {}", addr);
                                 cli.register_index(&image_id);
                                 if replace {

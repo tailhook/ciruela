@@ -181,7 +181,7 @@ impl Client {
             chan: rx,
         }
     }
-    pub fn register_index(&mut self, id: &ImageId) {
+    pub fn register_index(&self, id: &ImageId) {
         self.channel.notification(
             PublishImage {
                 id: id.clone(),
