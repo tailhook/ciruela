@@ -209,7 +209,7 @@ disconnect from the network and also to display progress.
                                  ; of the index file but in binary form)
         path: text,              ; path where image was stored
         machine_id: bytes,       ; machine-id of the receiver
-        hostname: text,        ; hostname of the receiver
+        hostname: text,          ; hostname of the receiver
         forwarded: bool,         ; whether message originated from this host
                                  ; or forwarded
     }
