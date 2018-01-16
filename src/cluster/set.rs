@@ -28,6 +28,7 @@ use proto::{AppendDirAck, ReplaceDirAck};
 #[derive(Debug)]
 pub enum Message {
     NewUpload(NewUpload),
+    Notification(SocketAddr, Notification),
     Closed(SocketAddr),
 }
 
@@ -102,6 +103,7 @@ impl<R, I, B> ConnectionSet<R, I, B>
         return tx;
     }
     fn read_messages(&mut self) {
+        use proto::message::Notification::*;
         use self::Message::*;
         loop {
             let m = match self.chan.poll() {
@@ -116,6 +118,17 @@ impl<R, I, B> ConnectionSet<R, I, B>
             match m {
                 NewUpload(up) => {
                     self.start_upload(up);
+                }
+                Notification(addr, ReceivedImage(img)) => {
+                    debug!("Host {} received image {:?}", addr, img);
+                    // TODO(tailhook)
+                }
+                Notification(addr, AbortedImage(img)) => {
+                    debug!("Host {} aborted image {:?}", addr, img);
+                    // TODO(tailhook)
+                }
+                Notification(addr, n) => {
+                    debug!("Host {} sent notification {:?}", addr, n);
                 }
                 Closed(addr) => {
                     self.active.remove(&addr).expect("duplicate close");
@@ -243,7 +256,7 @@ impl<R, I, B> Future for ConnectionSet<R, I, B>
 
 impl proto::Listener for Listener {
     fn notification(&self, n: Notification) {
-        unimplemented!();
+        self.chan.unbounded_send(Message::Notification(self.addr, n)).ok();
     }
     fn closed(&self) {
         debug!("Connection to {} closed", self.addr);
