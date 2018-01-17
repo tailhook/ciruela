@@ -8,7 +8,9 @@ use futures::{Future, Async};
 use futures::stream::{Stream, Fuse};
 use futures::sync::mpsc::{unbounded, UnboundedSender, UnboundedReceiver};
 use futures::sync::oneshot;
-use tk_easyloop::spawn;
+use tk_easyloop::{spawn, timeout};
+use tokio_core::reactor::Timeout;
+use valuable_futures::Async as VAsync;
 
 use {VPath};
 use index::{GetIndex, ImageId};
@@ -52,6 +54,8 @@ struct Upload {
     resolve: oneshot::Sender<Result<UploadOk, Arc<UploadErr>>>,
     connections: HashMap<SocketAddr, Client>,
     futures: HashMap<SocketAddr, RFuture>,
+    early: Timeout,
+    deadline: Timeout,
 }
 
 enum RFuture {
@@ -159,6 +163,8 @@ impl<R, I, B> ConnectionSet<R, I, B>
             resolve: up.resolve,
             connections: HashMap::new(),
             futures: HashMap::new(),
+            early: timeout(self.config.early_timeout),
+            deadline: timeout(self.config.maximum_timeout),
         });
     }
 
@@ -215,6 +221,7 @@ impl<R, I, B> ConnectionSet<R, I, B>
             self.uploads.push_back(cur);
         }
     }
+
     fn wakeup_uploads(&mut self) {
         for up in &mut self.uploads {
             if up.connections.len() < self.config.initial_connections as usize
@@ -238,6 +245,29 @@ impl<R, I, B> ConnectionSet<R, I, B>
             }
         }
     }
+
+    fn poll_uploads(&mut self) {
+        for _ in 0..self.uploads.len() {
+            let cur = self.uploads.pop_front().unwrap();
+            match self.poll_upload(cur) {
+                VAsync::Ready(()) => {},
+                VAsync::NotReady(cur) => self.uploads.push_back(cur),
+            }
+        }
+    }
+
+    fn poll_upload(&mut self, mut up: Upload) -> VAsync<(), Upload> {
+        if up.deadline.poll().expect("timeout is infallible").is_ready() {
+            error!("Error uploading {:?}[{}]: deadline reached. \
+                Current stats {:?}",
+                up.upload.path, up.upload.image_id, up.stats);
+            up.resolve.send(Err(
+                Arc::new(UploadErr::DeadlineReached)))
+                .ok();
+            return VAsync::Ready(());
+        }
+        VAsync::NotReady(up)
+    }
 }
 
 impl<R, I, B> Future for ConnectionSet<R, I, B>
@@ -252,12 +282,20 @@ impl<R, I, B> Future for ConnectionSet<R, I, B>
         let mut repeat = true;
         while repeat {
             repeat = false;
+
             let pending = self.pending.len();
             self.poll_connect();
             repeat = repeat || pending != self.pending.len();
+
+            let pending = self.pending.len();
             self.poll_pending();
             repeat = repeat || pending != self.pending.len();
+
             self.wakeup_uploads();
+
+            let uploads = self.uploads.len();
+            self.poll_uploads();
+            repeat = repeat || uploads != self.uploads.len();
         }
         // TODO(tailhook) set reconnect timer
         if self.chan.is_done() && self.uploads.len() == 0 {

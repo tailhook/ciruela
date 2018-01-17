@@ -25,6 +25,7 @@ extern crate tk_easyloop;
 extern crate tk_bufstream;
 extern crate tokio_core;
 extern crate tokio_io;
+extern crate valuable_futures;
 extern crate void;
 
 #[macro_use] extern crate log;
