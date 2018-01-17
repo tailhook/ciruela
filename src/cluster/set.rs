@@ -257,6 +257,45 @@ impl<R, I, B> ConnectionSet<R, I, B>
     }
 
     fn poll_upload(&mut self, mut up: Upload) -> VAsync<(), Upload> {
+        {
+            let ref stats = up.stats;
+            up.futures.retain(|addr, capsule| {
+                match capsule {
+                    &mut RFuture::Append(ref mut fut) => {
+                        match fut.poll() {
+                            Ok(Async::NotReady) => true,
+                            Ok(Async::Ready(resp)) => {
+                                stats.add_response(
+                                    resp.accepted,
+                                    resp.reject_reason,
+                                    resp.hosts);
+                                false
+                            }
+                            Err(e) => {
+                                error!("AppendDir error at {}: {}", addr, e);
+                                false
+                            }
+                        }
+                    }
+                    &mut RFuture::Replace(ref mut fut) => {
+                        match fut.poll() {
+                            Ok(Async::NotReady) => true,
+                            Ok(Async::Ready(resp)) => {
+                                stats.add_response(
+                                    resp.accepted,
+                                    resp.reject_reason,
+                                    resp.hosts);
+                                false
+                            }
+                            Err(e) => {
+                                error!("ReplaceDir error at {}: {}", addr, e);
+                                false
+                            }
+                        }
+                    }
+                }
+            });
+        }
         if up.deadline.poll().expect("timeout is infallible").is_ready() {
             error!("Error uploading {:?}[{}]: deadline reached. \
                 Current stats {:?}",

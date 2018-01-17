@@ -56,4 +56,10 @@ impl Stats {
         book.aborted_hostnames.insert(
             info.hostname.clone(), info.reason.clone());
     }
+    pub(crate) fn add_response(&self,
+        accepted: bool, reject_reason: Option<String>,
+        hosts: HashMap<MachineId, String>)
+    {
+        warn!("Response {} {:?} {:?}", accepted, reject_reason, hosts);
+    }
 }
