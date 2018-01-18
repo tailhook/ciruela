@@ -3,7 +3,8 @@ use std::net::SocketAddr;
 use std::collections::{VecDeque, HashMap};
 
 use abstract_ns::{Name, Resolve, HostResolve};
-use rand::{thread_rng, sample};
+use rand::{thread_rng};
+use rand::seq::sample_iter;
 use futures::{Future, Async};
 use futures::stream::{Stream, Fuse};
 use futures::sync::mpsc::{unbounded, UnboundedSender, UnboundedReceiver};
@@ -176,9 +177,10 @@ impl<R, I, B> ConnectionSet<R, I, B>
         {
             return;
         }
-        let new_addresses = sample(&mut thread_rng(),
+        let new_addresses = sample_iter(&mut thread_rng(),
             self.initial_addr.get().addresses_at(0)
-            .filter(|x| !up.connections.contains_key(x)), 3);
+            .filter(|x| !up.connections.contains_key(x)), 3)
+            .unwrap_or_else(|v| v);
         for naddr in &new_addresses {
             if !self.pending.contains_key(naddr)
                && !self.active.contains_key(naddr)
