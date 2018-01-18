@@ -1,7 +1,10 @@
+mod uploads;
+
 use std::process::exit;
 
 use gumdrop::Options;
 
+use keys::read_keys;
 use global_options::GlobalOptions;
 
 
@@ -84,7 +87,22 @@ pub fn cli(gopt: GlobalOptions, args: Vec<String>) -> ! {
         println!("{}", SyncOptions::usage());
         exit(0);
     } else {
-        println!("{:#?}", opts);
+        let keys = match read_keys(&opts.identity, &opts.key_from_env) {
+            Ok(keys) => keys,
+            Err(e) => {
+                error!("{}", e);
+                warn!("Images haven't started to upload.");
+                exit(2);
+            }
+        };
+        let uploads = match uploads::prepare(&opts) {
+            Ok(uploads) => uploads,
+            Err(e) => {
+                error!("{}", e);
+                warn!("Images haven't started to upload.");
+                exit(1);
+            }
+        };
+        unimplemented!();
     }
-    unimplemented!();
 }

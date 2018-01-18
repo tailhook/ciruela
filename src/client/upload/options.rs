@@ -1,13 +1,13 @@
-use std::env::{self, home_dir};
-use std::io::{self, Read, Write, stderr};
-use std::fs::File;
-use std::path::{Path, PathBuf};
+use std::io::{Write, stderr};
+use std::path::{PathBuf};
 use std::str::FromStr;
 
 use abstract_ns::Name;
 use argparse::{ArgumentParser, ParseOption, Collect, StoreTrue, StoreFalse};
 use ssh_keys::PrivateKey;
-use ssh_keys::openssh::parse_private_key;
+
+use keys::read_keys;
+
 
 #[derive(Clone, Debug)]
 pub struct TargetUrl {
@@ -26,46 +26,6 @@ pub struct UploadOptions {
     pub fail_on_conflict: bool,
 }
 
-fn keys_from_file(filename: &Path, allow_non_existent: bool,
-    res: &mut Vec<PrivateKey>)
-    -> Result<(), String>
-{
-    let mut f = match File::open(filename) {
-        Ok(f) => f,
-        Err(ref e)
-        if e.kind() == io::ErrorKind::NotFound && allow_non_existent
-        => {
-            return Ok(());
-        }
-        Err(e) => return Err(format!("{}", e)),
-    };
-    let mut keybuf = String::with_capacity(1024);
-    f.read_to_string(&mut keybuf)
-        .map_err(|e| format!("{}", e))?;
-    let keys = parse_private_key(&keybuf)
-        .map_err(|e| format!("{}", e))?;
-    res.extend(keys);
-    Ok(())
-}
-
-fn keys_from_env(name: &str, allow_non_existent: bool,
-    res: &mut Vec<PrivateKey>)
-    -> Result<(), String>
-{
-    let value = match env::var(name) {
-        Ok(x) => x,
-        Err(ref e)
-        if matches!(e, &env::VarError::NotPresent) && allow_non_existent
-        => {
-            return Ok(());
-        }
-        Err(e) => return Err(format!("{}", e)),
-    };
-    let keys = parse_private_key(&value)
-        .map_err(|e| format!("{}", e))?;
-    res.extend(keys);
-    Ok(())
-}
 
 impl UploadOptions {
     pub fn new() -> UploadOptions {
@@ -131,59 +91,13 @@ impl UploadOptions {
                 "Argument `-d` or `--directory` is required").ok();
             return Err(1);
         };
-        let no_default = self.identities.len() == 0 &&
-            self.key_vars.len() == 0;
-        if no_default {
-            match home_dir() {
-                Some(home) => {
-                    let path = home.join(".ssh/id_ed25519");
-                    keys_from_file(&path, true, &mut self.private_keys)
-                        .map_err(|e| {
-                            error!("Can't read key file {:?}: {}", path, e);
-                            2
-                        })?;
-                    let path = home.join(".ssh/id_ciruela");
-                    keys_from_file(&path, true, &mut self.private_keys)
-                        .map_err(|e| {
-                            error!("Can't read key file {:?}: {}", path, e);
-                            2
-                        })?;
-                    let path = home.join(".ciruela/id_ed25519");
-                    keys_from_file(&path, true, &mut self.private_keys)
-                        .map_err(|e| {
-                            error!("Can't read key file {:?}: {}", path, e);
-                            2
-                        })?;
-                }
-                None => {
-                    warn!("Cannot find home dir. \
-                        Use `-i` or `-k` options to specify \
-                        identity (private key) explicitly.");
-                }
-            }
-            keys_from_env("CIRUELA_KEY", true, &mut self.private_keys)
-                .map_err(|e| {
-                    error!("Can't read env key CIRUELA_KEY: {}", e);
-                    2
-                })?;
-        } else {
-            for ident in &self.identities {
-                keys_from_file(&Path::new(&ident), false,
-                    &mut self.private_keys)
-                .map_err(|e| {
-                    error!("Can't read key file {:?}: {}", ident, e);
-                    2
-                })?;
-            }
-            for name in &self.key_vars {
-                keys_from_env(&name, false, &mut self.private_keys)
-                .map_err(|e| {
-                    error!("Can't read env key {:?}: {}", name, e);
-                    2
-                })?;
+        self.private_keys = match read_keys(&self.identities, &self.key_vars) {
+            Ok(keys) => keys,
+            Err(e) => {
+                error!("{}", e);
+                return Err(2);
             }
         };
-        info!("Read {} private keys", self.private_keys.len());
         Ok(self)
     }
 }

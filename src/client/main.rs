@@ -35,6 +35,7 @@ extern crate void;
 
 mod global_options;
 mod name;
+mod keys;
 
 // Commands
 mod upload;
