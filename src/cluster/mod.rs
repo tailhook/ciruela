@@ -8,6 +8,7 @@
 //! have higher level API.
 
 mod addr;
+mod completion;
 mod config;
 mod set;
 mod upload;

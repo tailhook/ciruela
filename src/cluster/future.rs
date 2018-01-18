@@ -45,3 +45,11 @@ impl Future for UploadFuture {
         }
     }
 }
+
+impl UploadOk {
+    pub(crate) fn new() -> UploadOk {
+        UploadOk {
+            _private: (),
+        }
+    }
+}

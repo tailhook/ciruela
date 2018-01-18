@@ -18,6 +18,7 @@ use blocks::GetBlock;
 use cluster::addr::AddrCell;
 use cluster::config::Config;
 use cluster::upload;
+use cluster::completion;
 use cluster::error::UploadErr;
 use cluster::future::UploadOk;
 use signature::SignedUpload;
@@ -266,6 +267,7 @@ impl<R, I, B> ConnectionSet<R, I, B>
                             Ok(Async::NotReady) => true,
                             Ok(Async::Ready(resp)) => {
                                 stats.add_response(
+                                    *addr,
                                     resp.accepted,
                                     resp.reject_reason,
                                     resp.hosts);
@@ -282,6 +284,7 @@ impl<R, I, B> ConnectionSet<R, I, B>
                             Ok(Async::NotReady) => true,
                             Ok(Async::Ready(resp)) => {
                                 stats.add_response(
+                                    *addr,
                                     resp.accepted,
                                     resp.reject_reason,
                                     resp.hosts);
@@ -296,6 +299,19 @@ impl<R, I, B> ConnectionSet<R, I, B>
                 }
             });
         }
+
+        let early_timeout = up.early.poll()
+            .expect("timeout is infallible").is_ready();
+
+        // Never exit when request is hanging. This is still bounded because
+        // we have timeouts in connection inself.
+        if up.futures.len() == 0 {
+            if completion::check(&up.stats, &self.config, early_timeout) {
+                up.resolve.send(Ok(UploadOk::new())).ok();
+                return VAsync::Ready(())
+            }
+        }
+
         if up.deadline.poll().expect("timeout is infallible").is_ready() {
             error!("Error uploading {:?}[{}]: deadline reached. \
                 Current stats {:?}",
