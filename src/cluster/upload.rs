@@ -22,6 +22,10 @@ struct Bookkeeping {
     rejected_ips: HashMap<SocketAddr, String>,
 }
 
+/// Current upload statistics
+///
+/// We're trying to be conservative of what can be published here so that
+/// we don't have to break backwards compatibility in the future.
 #[derive(Debug)]
 pub struct Stats {
     book: RwLock<Bookkeeping>,
@@ -92,7 +96,7 @@ impl Stats {
     }
 }
 
-pub(crate) fn check(stats: &Stats, config: &Config, early_timeout: bool)
+pub(crate) fn check(stats: &Stats, _config: &Config, _early_timeout: bool)
     -> Option<Result<UploadOk, ErrorKind>>
 {
     let book = stats.book.read()

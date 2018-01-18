@@ -14,8 +14,7 @@ use tk_easyloop::{spawn, timeout};
 use tokio_core::reactor::Timeout;
 use valuable_futures::Async as VAsync;
 
-use {VPath};
-use index::{GetIndex, ImageId};
+use index::GetIndex;
 use blocks::GetBlock;
 use cluster::addr::AddrCell;
 use cluster::config::Config;
@@ -231,17 +230,25 @@ impl<R, I, B> ConnectionSet<R, I, B>
             {
                 for (addr, conn) in &self.active {
                     if !up.connections.contains_key(addr) {
-                        if up.replace {
-                            unimplemented!();
-                        }
                         conn.register_index(&up.upload.image_id);
-                        up.futures.insert(*addr,
-                            RFuture::Append(conn.request(AppendDir {
-                                image: up.upload.image_id.clone(),
-                                timestamp: up.upload.timestamp.clone(),
-                                signatures: up.upload.signatures.clone(),
-                                path: up.upload.path.clone(),
-                            })));
+                        if up.replace {
+                            up.futures.insert(*addr,
+                                RFuture::Replace(conn.request(ReplaceDir {
+                                    old_image: None,
+                                    image: up.upload.image_id.clone(),
+                                    timestamp: up.upload.timestamp.clone(),
+                                    signatures: up.upload.signatures.clone(),
+                                    path: up.upload.path.clone(),
+                                })));
+                        } else {
+                            up.futures.insert(*addr,
+                                RFuture::Append(conn.request(AppendDir {
+                                    image: up.upload.image_id.clone(),
+                                    timestamp: up.upload.timestamp.clone(),
+                                    signatures: up.upload.signatures.clone(),
+                                    path: up.upload.path.clone(),
+                                })));
+                        }
                         up.connections.insert(*addr, conn.clone());
                     }
                 }

@@ -11,8 +11,10 @@ use cluster::upload::Stats;
 /// refused to accept the image
 #[derive(Debug, Fail, Clone)]
 pub enum ErrorKind {
+    /// Deadline reached when doing upload
     #[fail(display="deadline reached")]
     DeadlineReached,
+    /// Some hosts rejected the download
     #[fail(display="some hosts rejected the download")]
     Rejected,
 }

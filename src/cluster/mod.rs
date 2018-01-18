@@ -15,8 +15,9 @@ mod future;
 mod error;
 
 pub use cluster::config::Config;
+pub use cluster::upload::Stats;
 pub use cluster::future::{UploadFuture, UploadOk, UploadFail};
-pub use cluster::error::UploadErr;
+pub use cluster::error::{UploadErr, ErrorKind};
 
 use std::sync::Arc;
 
@@ -25,11 +26,10 @@ use futures::sync::mpsc::{UnboundedSender};
 use futures::future::{Future, Shared};
 use futures::sync::oneshot;
 
-use index::{GetIndex, ImageId};
+use index::GetIndex;
 use blocks::GetBlock;
 use cluster::set::{Message, NewUpload};
 use signature::SignedUpload;
-use VPath;
 
 /// Connection to a server or cluster of servers
 ///
