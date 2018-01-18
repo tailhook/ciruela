@@ -11,6 +11,7 @@ extern crate env_logger;
 extern crate failure;
 extern crate futures;
 extern crate futures_cpupool;
+extern crate gumdrop;
 extern crate hex;
 extern crate ns_router;
 extern crate ns_std_threaded;
@@ -25,6 +26,7 @@ extern crate tokio_core;
 extern crate tokio_io;
 extern crate void;
 
+#[macro_use] extern crate gumdrop_derive;
 #[macro_use] extern crate log;
 #[macro_use] extern crate matches;
 #[macro_use] extern crate mopa;
@@ -36,6 +38,7 @@ mod name;
 
 // Commands
 mod upload;
+mod sync;
 
 // common modules for lib and daemon, we don't expose them in the lib because
 // that would mean keep backwards compatibility
@@ -85,6 +88,9 @@ fn main() {
     match cmd.as_ref().map(|x| &x[..]) {
         Some("upload") => {
             upload::cli(opt, args);
+        }
+        Some("sync") => {
+            sync::cli(opt, args);
         }
         None => {
             writeln!(&mut stderr(), "\
