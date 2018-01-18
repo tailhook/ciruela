@@ -1,3 +1,4 @@
+use std::cmp::min;
 use std::sync::Arc;
 use std::net::SocketAddr;
 use std::collections::{VecDeque, HashMap};
@@ -19,7 +20,6 @@ use blocks::GetBlock;
 use cluster::addr::AddrCell;
 use cluster::config::Config;
 use cluster::upload;
-use cluster::completion;
 use cluster::error::UploadErr;
 use cluster::future::UploadOk;
 use signature::SignedUpload;
@@ -305,12 +305,31 @@ impl<R, I, B> ConnectionSet<R, I, B>
         let early_timeout = up.early.poll()
             .expect("timeout is infallible").is_ready();
 
+        let num_init_addr = if self.initial_addr.is_done() {
+            min(
+                // TODO(tailhook) simplify in new abstract-ns
+                self.initial_addr.get().at(0).addresses().count() as u32,
+                self.config.initial_connections)
+        } else {
+            self.config.initial_connections
+        };
         // Never exit when request is hanging. This is still bounded because
         // we have timeouts in connection inself.
-        if up.futures.len() == 0 {
-            if completion::check(&up.stats, &self.config, early_timeout) {
-                up.resolve.send(Ok(UploadOk::new())).ok();
-                return VAsync::Ready(())
+        if up.futures.len() == 0 &&
+            up.stats.total_responses() >= num_init_addr
+        {
+            match upload::check(&up.stats, &self.config, early_timeout) {
+                Some(Ok(result)) => {
+                    up.resolve.send(Ok(result)).ok();
+                    return VAsync::Ready(())
+                }
+                Some(Err(kind)) => {
+                    up.resolve.send(Err(Arc::new(
+                        UploadErr::NetworkError(kind, up.stats.clone())
+                    ))).ok();
+                    return VAsync::Ready(())
+                }
+                None => {}
             }
         }
 
@@ -318,9 +337,19 @@ impl<R, I, B> ConnectionSet<R, I, B>
             error!("Error uploading {:?}[{}]: deadline reached. \
                 Current stats {:?}",
                 up.upload.path, up.upload.image_id, up.stats);
-            up.resolve.send(Err(
-                Arc::new(UploadErr::DeadlineReached)))
-                .ok();
+            match upload::check(&up.stats, &self.config, early_timeout) {
+                Some(Ok(result)) => {
+                    up.resolve.send(Ok(result)).ok();
+                    return VAsync::Ready(())
+                }
+                Some(Err(kind)) => {
+                    up.resolve.send(Err(Arc::new(
+                        UploadErr::NetworkError(kind, up.stats.clone())
+                    ))).ok();
+                    return VAsync::Ready(())
+                }
+                None => {}
+            }
             return VAsync::Ready(());
         }
         VAsync::NotReady(up)

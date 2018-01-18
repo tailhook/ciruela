@@ -88,4 +88,7 @@ impl AddrCell {
             Fetching(ref b) => b.as_ref().as_ref(),
         }
     }
+    pub fn is_done(&self) -> bool {
+        matches!(self, &AddrCell::Ready(..))
+    }
 }
