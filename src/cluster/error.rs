@@ -17,6 +17,9 @@ pub enum ErrorKind {
     /// Some hosts rejected the download
     #[fail(display="some hosts rejected the download")]
     Rejected,
+    #[doc(hidden)]
+    #[fail(display="undefined error")]
+    __Nonexhaustive,
 }
 
 /// Error when uploading image
@@ -29,4 +32,7 @@ pub enum UploadErr {
     // TODO(tailhook) maybe make stats here
     #[fail(display="network error: {}", _0)]
     NetworkError(ErrorKind, Arc<Stats>),
+    #[doc(hidden)]
+    #[fail(display="undefined error")]
+    __Nonexhaustive,
 }
