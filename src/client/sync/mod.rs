@@ -4,6 +4,9 @@ use std::process::exit;
 
 use gumdrop::Options;
 
+use ciruela::blocks::ThreadedBlockReader;
+use ciruela::index::InMemoryIndexes;
+
 use keys::read_keys;
 use global_options::GlobalOptions;
 
@@ -95,7 +98,13 @@ pub fn cli(gopt: GlobalOptions, args: Vec<String>) -> ! {
                 exit(2);
             }
         };
-        let uploads = match uploads::prepare(&opts) {
+
+        let indexes = InMemoryIndexes::new();
+        let block_reader = ThreadedBlockReader::new();
+
+        let uploads = match
+            uploads::prepare(&opts, &keys, &gopt, &indexes, &block_reader)
+        {
             Ok(uploads) => uploads,
             Err(e) => {
                 error!("{}", e);
