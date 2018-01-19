@@ -1,11 +1,16 @@
 mod uploads;
+mod network;
 
 use std::process::exit;
+use std::mem;
 
+use abstract_ns::Name;
+use failure::{Error, ResultExt};
 use gumdrop::Options;
 
 use ciruela::blocks::ThreadedBlockReader;
 use ciruela::index::InMemoryIndexes;
+use ciruela::cluster::Config;
 
 use keys::read_keys;
 use global_options::GlobalOptions;
@@ -63,6 +68,32 @@ struct SyncOptions {
 }
 
 
+pub fn convert_clusters(src: &Vec<String>, multi: bool)
+    -> Result<Vec<Vec<Name>>, Error>
+{
+    if multi {
+        let mut result = Vec::new();
+        let mut cur = Vec::new();
+        for name in src {
+            if name == "--" {
+                if cur.len() > 0 {
+                    result.push(mem::replace(&mut cur, Vec::new()));
+                }
+            } else {
+                let name = name.parse::<Name>()
+                    .context(format!("bad name {:?}", name))?;
+                cur.push(name);
+            }
+        }
+        return Ok(result);
+    } else {
+        return Ok(vec![src.iter().map(|name| {
+            name.parse::<Name>().context(format!("bad name {:?}", name))
+        }).collect::<Result<_, _>>()?]);
+    }
+}
+
+
 pub fn cli(gopt: GlobalOptions, args: Vec<String>) -> ! {
     let opts = match SyncOptions::parse_args_default(&args) {
         Ok(opts) => opts,
@@ -98,6 +129,14 @@ pub fn cli(gopt: GlobalOptions, args: Vec<String>) -> ! {
                 exit(2);
             }
         };
+        let clusters = match convert_clusters(&opts.clusters, opts.multiple) {
+            Ok(names) => names,
+            Err(e) => {
+                error!("{}", e);
+                warn!("Images haven't started to upload.");
+                exit(2);
+            }
+        };
 
         let indexes = InMemoryIndexes::new();
         let block_reader = ThreadedBlockReader::new();
@@ -112,6 +151,19 @@ pub fn cli(gopt: GlobalOptions, args: Vec<String>) -> ! {
                 exit(1);
             }
         };
-        unimplemented!();
+
+        let config = Config::new()
+            .port(gopt.destination_port)
+            .done();
+        match
+            network::upload(config, clusters, uploads, &indexes, &block_reader)
+        {
+            Ok(()) => {}
+            Err(e) => {
+                error!("{}", e);
+                exit(3);
+            }
+        }
+        exit(0);
     }
 }

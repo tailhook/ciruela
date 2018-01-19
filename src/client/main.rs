@@ -15,6 +15,7 @@ extern crate gumdrop;
 extern crate hex;
 extern crate ns_router;
 extern crate ns_std_threaded;
+extern crate ns_env_config;
 extern crate serde;
 extern crate serde_bytes;
 extern crate serde_cbor;

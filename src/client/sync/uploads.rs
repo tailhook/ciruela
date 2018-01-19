@@ -14,6 +14,7 @@ use global_options::GlobalOptions;
 use sync::SyncOptions;
 
 
+#[derive(Debug, Clone)]
 pub enum Upload {
     Append(SignedUpload),
     WeakAppend(SignedUpload),
