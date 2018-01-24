@@ -72,7 +72,7 @@ pub fn read_keys(identities: &Vec<String>, key_vars: &Vec<String>)
             }
         }
         keys_from_env("CIRUELA_KEY", true, &mut private_keys)
-            .context(format_args!("Can't read env key CIRUELA_KEY"))?;
+            .context(format!("Can't read env key CIRUELA_KEY"))?;
     } else {
         for ident in identities {
             keys_from_file(&Path::new(&ident), false,
