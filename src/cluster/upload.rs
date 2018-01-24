@@ -102,7 +102,7 @@ pub(crate) fn check(stats: &Stats, _config: &Config, _early_timeout: bool)
     let book = stats.book.read()
         .expect("bookkeeping is not poisoned");
     // TODO(tailhook) this is very simplistic preliminary check
-    if book.accepted_ips.is_superset(&book.done_ips) {
+    if book.done_ips.is_superset(&book.accepted_ips) {
         // TODO(tailhook) check kinds of rejectsion
         if book.rejected_ips.len() > 0 {
             return Some(Err(ErrorKind::Rejected));
