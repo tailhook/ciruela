@@ -28,14 +28,16 @@ struct Bookkeeping {
 /// we don't have to break backwards compatibility in the future.
 #[derive(Debug)]
 pub struct Stats {
+    weak_errors: bool,
     book: RwLock<Bookkeeping>,
     total_responses: AtomicUsize,
 }
 
 
 impl Stats {
-    pub(crate) fn new() -> Stats {
+    pub(crate) fn new(weak: bool) -> Stats {
         Stats {
+            weak_errors: weak,
             book: RwLock::new(Bookkeeping {
                 accepted_ips: HashSet::new(),
                 done_ips: HashSet::new(),
@@ -76,18 +78,34 @@ impl Stats {
     {
         let mut book = self.book.write()
             .expect("bookkeeping is not poisoned");
-        if !accepted {
-            warn!("Rejected because of {:?} try {:?}", reject_reason, hosts);
-            let res = book.rejected_ips.insert(source,
-                reject_reason.unwrap_or_else(|| String::from("unknown")));
-            if res.is_none() {
-                self.total_responses.fetch_add(1, Ordering::Relaxed);
+        match (accepted, reject_reason.as_ref().map(|x| &x[..])) {
+            (false, Some("already_exists"))
+            | (false, Some("already_uploading_different_version"))
+            if self.weak_errors => {
+                warn!("Rejected because of {:?}, but that's fine",
+                    reject_reason);
+                let res = book.accepted_ips.insert(source);
+                if res {
+                    self.total_responses.fetch_add(1, Ordering::Relaxed);
+                }
+                book.done_ips.insert(source);
+                // TODO(tailhook) mark other dicts as done too
             }
-        } else {
-            debug!("Accepted from {}", source);
-            let res = book.accepted_ips.insert(source);
-            if res {
-                self.total_responses.fetch_add(1, Ordering::Relaxed);
+            (false, _) => {
+                warn!("Rejected because of {:?} try {:?}",
+                    reject_reason, hosts);
+                let res = book.rejected_ips.insert(source,
+                    reject_reason.unwrap_or_else(|| String::from("unknown")));
+                if res.is_none() {
+                    self.total_responses.fetch_add(1, Ordering::Relaxed);
+                }
+            }
+            (true, _) => {
+                debug!("Accepted from {}", source);
+                let res = book.accepted_ips.insert(source);
+                if res {
+                    self.total_responses.fetch_add(1, Ordering::Relaxed);
+                }
             }
         }
     }

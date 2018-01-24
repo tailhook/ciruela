@@ -43,6 +43,7 @@ struct Listener {
 #[derive(Debug)]
 pub struct NewUpload {
     pub(crate) replace: bool,
+    pub(crate) weak: bool,
     pub(crate) upload: SignedUpload,
     pub(crate) stats: Arc<upload::Stats>,
     pub(crate) resolve: oneshot::Sender<Result<UploadOk, Arc<UploadErr>>>,
@@ -50,6 +51,7 @@ pub struct NewUpload {
 
 struct Upload {
     replace: bool,
+    weak: bool,
     upload: SignedUpload,
     stats: Arc<upload::Stats>,
     resolve: oneshot::Sender<Result<UploadOk, Arc<UploadErr>>>,
@@ -159,6 +161,7 @@ impl<R, I, B> ConnectionSet<R, I, B>
     fn start_upload(&mut self, up: NewUpload) {
         self.uploads.push_back(Upload {
             replace: up.replace,
+            weak: up.weak,
             upload: up.upload,
             stats: up.stats,
             resolve: up.resolve,

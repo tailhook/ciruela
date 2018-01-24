@@ -31,8 +31,7 @@ pub fn upload(config: Arc<Config>, clusters: Vec<Vec<Name>>,
                 let up = match upload {
                     Upload::Append(a) => conn.append(a.clone()),
                     Upload::Replace(r) => conn.append(r.clone()),
-                    // TODO(tailhook) fix weak append
-                    Upload::WeakAppend(a) => conn.append(a.clone()),
+                    Upload::WeakAppend(a) => conn.append_weak(a.clone()),
                 };
                 up.future()
             }))

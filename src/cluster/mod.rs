@@ -95,9 +95,19 @@ impl Connection {
     /// # Panics
     ///
     /// If connection set is already closed
-    // TODO(tailhook) append or replace? where to configure skip errors?
     pub fn append(&self, upload: SignedUpload) -> Upload {
-        self._upload(false, upload)
+        self._upload(false, false, upload)
+    }
+    /// Initiate a new upload (appending a directory, if not exists)
+    ///
+    /// This is basically same as 'append()` but ignores errors when directory
+    /// already exists (or currently downloading) but has different contents.
+    ///
+    /// # Panics
+    ///
+    /// If connection set is already closed
+    pub fn append_weak(&self, upload: SignedUpload) -> Upload {
+        self._upload(false, true, upload)
     }
     /// Initiate a new upload (replacing a directory)
     ///
@@ -105,15 +115,15 @@ impl Connection {
     ///
     /// If connection set is already closed
     pub fn replace(&self, upload: SignedUpload) -> Upload {
-        self._upload(true, upload)
+        self._upload(true, false, upload)
     }
-    fn _upload(&self, replace: bool, upload: SignedUpload)
+    fn _upload(&self, replace: bool, weak: bool, upload: SignedUpload)
         -> Upload
     {
         let (tx, rx) = oneshot::channel();
-        let stats = Arc::new(upload::Stats::new());
+        let stats = Arc::new(upload::Stats::new(weak));
         self.chan.unbounded_send(Message::NewUpload(NewUpload {
-            replace, upload,
+            replace, upload, weak,
             stats: stats.clone(),
             resolve: tx,
         })).expect("connection set is not closed");
