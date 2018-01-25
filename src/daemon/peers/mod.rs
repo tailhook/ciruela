@@ -134,6 +134,16 @@ impl Peers {
         self.by_host.lock()
     }
 
+    pub fn get_all_downloading(&self) -> HashSet<VPath> {
+        let mut result = HashSet::new();
+        for host in self.by_host.lock().values() {
+            for path in host.downloading.keys() {
+                result.insert(path.clone());
+            }
+        }
+        result
+    }
+
     // check if this image is stalled across the whole cluster
     // Note: If there are no peers known for this directory, we consider
     // this as this is a sole owner of the directory. In the block fetching

@@ -65,8 +65,8 @@ pub struct State {
     /// This probably means that they have respective image. Unless their
     /// image is currently in-progress. We know in-progress data from
     /// gossip subsystem.
-    // TODO(tailhook) cleanup them
     recently_received: HashMap<VPath, HashMap<SocketAddr, Instant>>,
+    recently_downloaded: HashMap<VPath, ImageId>,
 }
 
 pub struct ShortProgress {
@@ -144,6 +144,7 @@ impl Tracking {
                 base_dir_list: Vec::new(),
                 reconciling: HashMap::new(),
                 recently_received: HashMap::new(),
+                recently_downloaded: HashMap::new(),
             }, "tracking_state")),
             meta: meta.clone(),
             disk: disk.clone(),
@@ -398,6 +399,8 @@ impl Subsystem {
         {
             let mut state = self.state();
             state.in_progress.remove(cmd);
+            state.recently_downloaded
+                .insert(cmd.virtual_path.clone(), cmd.image_id.clone());
             state.base_dirs.get(&cmd.virtual_path.parent())
                 .map(|b| b.decr_downloading());
             DOWNLOADING.set(state.in_progress.len() as i64);
@@ -514,6 +517,7 @@ pub fn start(init: TrackingInit) -> Result<(), String> // actually void
         .map_err(|_| unreachable!()));
     spawn(interval(Duration::new(15, 0))
         .for_each(move |()| {
+            let cluster_downloading = sys5.peers.get_all_downloading();
             let mut state = sys5.state();
 
             let cutoff = Instant::now() -
@@ -528,6 +532,11 @@ pub fn start(init: TrackingInit) -> Result<(), String> // actually void
                 Duration::from_millis(DELETED_RETENTION);
             state.recently_deleted.retain(|_, v| *v > cutoff);
             state.recently_deleted.shrink_to_fit();
+
+            state.recently_downloaded.retain(|k, _| {
+                cluster_downloading.contains(k)
+            });
+            state.recently_downloaded.shrink_to_fit();
 
             for (_, bdir) in &state.base_dirs {
                 bdir.clean_parent_hashes();
