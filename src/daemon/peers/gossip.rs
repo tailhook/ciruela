@@ -48,6 +48,7 @@ pub struct Downloading {
 
 pub struct HostData {
     pub downloading: HashMap<VPath, Downloading>,
+    pub complete: BTreeMap<VPath, ImageId>,
     pub deleted: HashSet<(VPath, ImageId)>,
 }
 
@@ -103,7 +104,9 @@ impl Gossip {
                     self.peers.set(peers);
                 }
                 match pkt.message {
-                    Message::BaseDirs { in_progress, deleted, base_dirs } => {
+                    Message::BaseDirs { in_progress, complete,
+                                        deleted, base_dirs }
+                    => {
                         for (vpath, hash) in base_dirs {
                             self.dir_peers.lock().entry(vpath.clone())
                                 .or_insert_with(HashSet::new)
@@ -117,6 +120,7 @@ impl Gossip {
                             self.by_host.lock()
                                 .insert(pkt.machine_id.clone(), HostData {
                                     deleted,
+                                    complete,
                                     downloading:
                                         in_progress.into_iter().map(|(k, v)| {
                                             let (
@@ -135,6 +139,7 @@ impl Gossip {
                             .or_insert_with(|| HostData {
                                 downloading: HashMap::new(),
                                 deleted: HashSet::new(),
+                                complete: BTreeMap::new(),
                             })
                             .downloading.insert(path, Downloading {
                                 image: image,
@@ -142,6 +147,27 @@ impl Gossip {
                                 source: source,
                                 stalled: false,
                             });
+                    }
+                    Message::Complete { path, image } => {
+                        {
+                            let mut hosts = self.by_host.lock();
+                            let host = hosts.entry(pkt.machine_id.clone())
+                                .or_insert_with(|| HostData {
+                                    downloading: HashMap::new(),
+                                    deleted: HashSet::new(),
+                                    complete: BTreeMap::new(),
+                                });
+                            host.downloading.remove(&path);
+                            host.complete.insert(path.clone(), image.clone());
+                        }
+                        match self.peers.get().get(&pkt.machine_id) {
+                            Some(peer) => {
+                                self.tracking.remote()
+                                    .forward_notify_received_image(
+                                        &image, &path, peer);
+                            }
+                            None => {}
+                        }
                     }
                 }
             }
@@ -152,11 +178,15 @@ impl Gossip {
     }
     fn write_messages(&mut self) {
         while let Ok(Async::Ready(Some(msg))) = self.messages.poll() {
-            let peers = match msg {
-                Message::BaseDirs {..} => unreachable!(),
-                Message::Downloading { ref path, .. } => {
-                    let all = self.peers.get();
-                    let mut peers = match self.dir_peers.lock().get(&path.parent()) {
+            let peers = {
+                let hint_path = match msg {
+                    Message::BaseDirs {..} => unreachable!(),
+                    Message::Downloading { ref path, .. } => path,
+                    Message::Complete { ref path, .. } => path,
+                };
+                let all = self.peers.get();
+                let mut peers =
+                    match self.dir_peers.lock().get(&hint_path.parent()) {
                         Some(peers) => {
                             sample_iter(&mut thread_rng(),
                                 peers, PACKETS_AT_ONCE)
@@ -167,14 +197,13 @@ impl Gossip {
                         }
                         None => Vec::new(),
                     };
-                    if peers.len() < PACKETS_AT_ONCE {
-                        peers.extend(sample_iter(&mut thread_rng(),
-                                all.values(), PACKETS_AT_ONCE)
-                            .unwrap_or_else(|v| v)
-                            .into_iter().map(|p| p.addr));
-                    }
-                    peers
+                if peers.len() < PACKETS_AT_ONCE {
+                    peers.extend(sample_iter(&mut thread_rng(),
+                            all.values(), PACKETS_AT_ONCE)
+                        .unwrap_or_else(|v| v)
+                        .into_iter().map(|p| p.addr));
                 }
+                peers
             };
             let packet = Packet {
                 machine_id: self.machine_id.clone(),
@@ -197,19 +226,21 @@ impl Gossip {
         // We ping them until they respond, and are removed from future
         let ipr = self.tracking.get_in_progress();
         let deleted = self.tracking.get_deleted();
+        let complete = self.tracking.get_complete();
         for (addr, _) in &self.future_peers {
-            self.send_gossip(*addr, &ipr, &deleted);
+            self.send_gossip(*addr, &ipr, &complete, &deleted);
         }
         let lst = self.peers.get();
         let hosts = sample_iter(&mut thread_rng(),
             lst.values(), PACKETS_AT_ONCE)
             .unwrap_or_else(|v| v);
         for host in hosts {
-            self.send_gossip(host.addr, &ipr, &deleted);
+            self.send_gossip(host.addr, &ipr, &complete, &deleted);
         }
     }
     fn send_gossip(&self, addr: SocketAddr,
         in_progress: &BTreeMap<VPath, ShortProgress>,
+        complete: &BTreeMap<VPath, ImageId>,
         deleted: &Vec<(VPath, ImageId)>)
     {
         let mut buf = Vec::with_capacity(1400);
@@ -231,7 +262,7 @@ impl Gossip {
                         (k, (&s.image_id, &s.mask, s.source, s.stalled))
                     })
                     .collect(),
-                deleted: deleted,
+                deleted, complete,
                 base_dirs: &base_dirs,
             }
         };

@@ -266,6 +266,10 @@ impl Tracking {
     pub fn get_deleted(&self) -> Vec<(VPath, ImageId)> {
         self.state().recently_deleted.keys().cloned().collect()
     }
+    pub fn get_complete(&self) -> BTreeMap<VPath, ImageId> {
+        self.state().recently_downloaded.iter()
+            .map(|(x, y)| (x.clone(), y.clone())).collect()
+    }
     pub fn get_connection_by_mask<P: Policy>(&self,
         vpath: &VPath, id: &ImageId, mask: Mask,
         failures: &Failures<SocketAddr, P>)
@@ -407,6 +411,8 @@ impl Subsystem {
         }
         self.remote.notify_received_image(
             &cmd.image_id, &cmd.virtual_path);
+        self.peers.notify_complete(
+            &cmd.virtual_path, &cmd.image_id);
         self.rescan_dir(cmd.virtual_path.parent());
     }
 }

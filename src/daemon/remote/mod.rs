@@ -10,6 +10,7 @@ use std::time::{Duration};
 
 use proto::{ReceivedImage, AbortedImage};
 use proto::{Registry};
+use peers::Peer;
 use index::{ImageId};
 use {VPath};
 use machine_id::{MachineId};
@@ -111,13 +112,27 @@ impl Remote {
         cli.clone()
     }
     pub fn notify_received_image(&self, id: &ImageId, path: &VPath) {
+        self._received_image(id, path, None);
+    }
+    pub fn forward_notify_received_image(&self, id: &ImageId, path: &VPath,
+        peer: &Peer)
+    {
+        self._received_image(id, path, Some(peer));
+    }
+    pub fn _received_image(&self, id: &ImageId, path: &VPath,
+        source: Option<&Peer>)
+    {
         for conn in self.inner().incoming.iter() {
             if conn.has_image(id) {
                 conn.notification(ReceivedImage {
                     id: id.clone(),
-                    hostname: self.0.hostname.clone(),
-                    machine_id: self.0.machine_id.clone(),
-                    forwarded: false,
+                    hostname:
+                        source.map(|x| x.hostname.to_string())
+                            .unwrap_or(self.0.hostname.clone()),
+                    machine_id:
+                        source.map(|x| x.id.clone())
+                            .unwrap_or(self.0.machine_id.clone()),
+                    forwarded: source.is_some(),
                     path: path.clone(),
                 })
             }

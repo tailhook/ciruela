@@ -16,11 +16,13 @@ pub struct Packet {
 pub enum Message {
     BaseDirs {
         in_progress: BTreeMap<VPath, (ImageId, Mask, bool, bool)>,
+        complete: BTreeMap<VPath, ImageId>,
         deleted: HashSet<(VPath, ImageId)>,
         base_dirs: BTreeMap<VPath, Hash>,
     },
     Downloading { path: VPath, image: ImageId, mask: Mask,
                   source: bool },
+    Complete { path: VPath, image: ImageId },
 }
 
 #[derive(Serialize, Debug)]
@@ -36,6 +38,7 @@ pub enum MessageRef<'a> {
         in_progress: BTreeMap<&'a VPath, (&'a ImageId, &'a Mask, bool, bool)>,
         deleted: &'a Vec<(VPath, ImageId)>,
         base_dirs: &'a BTreeMap<VPath, Hash>,
+        complete: &'a BTreeMap<VPath, ImageId>,
     },
     Downloading { path: &'a VPath, image: &'a ImageId, mask: &'a Mask,
                   source: bool},

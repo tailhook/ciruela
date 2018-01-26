@@ -29,10 +29,10 @@ use peers::gossip::{HostData};
 
 #[derive(Debug, Clone)]
 pub struct Peer {
-    id: MachineId,
-    addr: SocketAddr,
-    hostname: String,
-    name: String,
+    pub id: MachineId,
+    pub addr: SocketAddr,
+    pub hostname: String,
+    pub name: String,
 }
 
 #[derive(Clone)]
@@ -85,6 +85,12 @@ impl Peers {
             mask, source,
         }).expect("gossip subsystem crashed");
     }
+    pub fn notify_complete(&self, path: &VPath, image_id: &ImageId) {
+        self.messages.unbounded_send(Message::Complete {
+            path: path.clone(),
+            image: image_id.clone(),
+        }).expect("gossip subsystem crashed");
+    }
     pub fn addrs_by_mask(&self, vpath: &VPath,
         targ_id: &ImageId, targ_mask: Mask)
         -> Vec<SocketAddr>
@@ -92,6 +98,18 @@ impl Peers {
         let mut result = Vec::new();
         let peers = self.peers.get();
         for (mid, host) in self.by_host.lock().iter() {
+            // First return complete, they are less loaded probably
+            // But they are less likely to contain image in FS cache, so...
+            // TODO(tailhook) use another check when premature notification
+            // is fixed
+            if let Some(img) = host.complete.get(vpath) {
+                if img == targ_id {
+                    if let Some(peer) = peers.get(mid) {
+                        result.push(peer.addr)
+                    }
+                }
+            }
+            // first return then partially downloaded
             if let Some(dw) = host.downloading.get(vpath) {
                 if &dw.image == targ_id && dw.mask.is_superset_of(targ_mask) {
                     if let Some(peer) = peers.get(mid) {
