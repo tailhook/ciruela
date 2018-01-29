@@ -1,3 +1,4 @@
+use std::cmp::{min, max};
 use std::net::SocketAddr;
 use std::sync::{RwLock};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -13,6 +14,7 @@ use machine_id::MachineId;
 #[derive(Debug)]
 struct Bookkeeping {
     accepted_ips: HashSet<SocketAddr>,
+    discovered_ids: HashSet<MachineId>,
     done_ips: HashSet<SocketAddr>,
     done_ids: HashSet<MachineId>,
     done_hostnames: HashSet<String>,
@@ -39,6 +41,7 @@ impl Stats {
         Stats {
             weak_errors: weak,
             book: RwLock::new(Bookkeeping {
+                discovered_ids: HashSet::new(),
                 accepted_ips: HashSet::new(),
                 done_ips: HashSet::new(),
                 done_ids: HashSet::new(),
@@ -59,6 +62,7 @@ impl Stats {
             book.done_ips.insert(addr);
         }
         book.done_ids.insert(info.machine_id.clone());
+        book.discovered_ids.insert(info.machine_id.clone());
         book.done_hostnames.insert(info.hostname.clone());
     }
     pub(crate) fn aborted_image(&self, addr: SocketAddr, info: &AbortedImage) {
@@ -102,6 +106,7 @@ impl Stats {
             }
             (true, _) => {
                 debug!("Accepted from {}", source);
+                book.discovered_ids.extend(hosts.keys().cloned());
                 let res = book.accepted_ips.insert(source);
                 if res {
                     self.total_responses.fetch_add(1, Ordering::Relaxed);
@@ -114,18 +119,39 @@ impl Stats {
     }
 }
 
-pub(crate) fn check(stats: &Stats, _config: &Config, _early_timeout: bool)
+pub(crate) fn check(stats: &Stats, config: &Config, early_timeout: bool)
     -> Option<Result<UploadOk, ErrorKind>>
 {
     let book = stats.book.read()
         .expect("bookkeeping is not poisoned");
     // TODO(tailhook) this is very simplistic preliminary check
+
     if book.done_ips.is_superset(&book.accepted_ips) {
-        // TODO(tailhook) check kinds of rejectsion
-        if book.rejected_ips.len() > 0 {
-            return Some(Err(ErrorKind::Rejected));
-        } else {
-            return Some(Ok(UploadOk::new()));
+        if early_timeout {
+            let fract_hosts = (
+                book.discovered_ids.len() as f32 *
+                config.early_fraction).ceil() as usize;
+            let hosts = min(book.discovered_ids.len(),
+                max(config.early_hosts as usize, fract_hosts));
+            debug!("Downloaded ids {}/{}/{}",
+                book.done_ids.len(), hosts, book.discovered_ids.len());
+            if book.done_ids.len() > hosts {
+                // TODO(tailhook) check kinds of rejection
+                if book.rejected_ips.len() > 0 {
+                    return Some(Err(ErrorKind::Rejected));
+                } else {
+                    return Some(Ok(UploadOk::new()));
+                }
+            }
+        } else if book.done_ids.is_superset(&book.discovered_ids) {
+            debug!("Early downloaded ids {}/{}",
+                book.done_ids.len(), book.discovered_ids.len());
+            // TODO(tailhook) check kinds of rejection
+            if book.rejected_ips.len() > 0 {
+                return Some(Err(ErrorKind::Rejected));
+            } else {
+                return Some(Ok(UploadOk::new()));
+            }
         }
     }
     return None;
