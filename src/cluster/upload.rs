@@ -124,8 +124,8 @@ pub(crate) fn check(stats: &Stats, config: &Config, early_timeout: bool)
 {
     let book = stats.book.read()
         .expect("bookkeeping is not poisoned");
-    // TODO(tailhook) this is very simplistic preliminary check
-
+    trace!("Current state {:?}{}", book,
+        if early_timeout { " early" } else { "" });
     if book.done_ips.is_superset(&book.accepted_ips) {
         if early_timeout {
             let fract_hosts = (
