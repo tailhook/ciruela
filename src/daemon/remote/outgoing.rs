@@ -1,9 +1,11 @@
 use std::net::SocketAddr;
+use std::time::Duration;
 
 use futures::{Future, Stream};
+use futures::future::Either;
 use futures::sync::mpsc::UnboundedReceiver;
 use tokio_core::net::TcpStream;
-use tk_easyloop::{spawn, handle};
+use tk_easyloop::{spawn, handle, timeout};
 use tk_http::websocket::client::{HandshakeProto, SimpleAuthorizer};
 use tk_http::websocket::{Loop};
 
@@ -12,6 +14,17 @@ use proto::{StreamExt};
 use remote::websocket::{Dispatcher, Connection};
 use remote::{Remote, Token};
 use tracking::Tracking;
+
+
+/// Connection timeout for server to server connections
+///
+/// It's usually cheap enough to reconnect to other host,
+/// or retry connection again. More specifically
+/// 1. If connection is timed out because of network loss, reconnect will just
+///    work
+/// 2. If connection is timed out because target machine is slow, we're probably
+///    should avoid connecting to the node if possible
+const CONNECTION_TIMEO_MS: u64 = 500;
 
 
 fn closed(():()) -> &'static str {
@@ -34,6 +47,20 @@ pub fn connect(sys: &Remote, tracking: &Tracking, reg: &Registry,
             HandshakeProto::new(sock, SimpleAuthorizer::new(
                 "ciruela_internal", "/"))
             .map_err(|e| error!("Handshake error: {}", e))
+        })
+        .select2(timeout(Duration::from_millis(CONNECTION_TIMEO_MS)))
+        .then(move |v| match v {
+            Ok(Either::A((v, _))) => Ok(v),
+            Ok(Either::B(((), _))) => {
+                error!("Connection to {} timed out after {} ms",
+                    addr, CONNECTION_TIMEO_MS);
+                Err(())
+            }
+            Err(Either::A((e, _))) => {
+                error!("Connection to {} failed: {:?}", addr, e);
+                Err(())
+            }
+            Err(Either::B(_)) => unreachable!(),
         })
         .and_then(move |(out, inp, ())| {
             debug!("Established outgoing connection to {}", addr);
