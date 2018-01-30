@@ -325,6 +325,8 @@ impl<R, I, B> ConnectionSet<R, I, B>
         };
         // Never exit when request is hanging. This is still bounded because
         // we have timeouts in connection inself.
+        trace!("Pending futures: {}, responses: {}", up.futures.len(),
+               up.stats.total_responses());
         if up.futures.len() == 0 &&
             up.stats.total_responses() >= num_init_addr
         {
