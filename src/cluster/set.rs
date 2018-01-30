@@ -315,21 +315,11 @@ impl<R, I, B> ConnectionSet<R, I, B>
         let early_timeout = up.early.poll()
             .expect("timeout is infallible").is_ready();
 
-        let num_init_addr = if self.initial_addr.is_done() {
-            min(
-                // TODO(tailhook) simplify in new abstract-ns
-                self.initial_addr.get().at(0).addresses().count() as u32,
-                self.config.initial_connections)
-        } else {
-            self.config.initial_connections
-        };
         // Never exit when request is hanging. This is still bounded because
         // we have timeouts in connection inself.
         trace!("Pending futures: {}, responses: {}", up.futures.len(),
                up.stats.total_responses());
-        if up.futures.len() == 0 &&
-            up.stats.total_responses() >= num_init_addr
-        {
+        if up.futures.len() == 0 && up.stats.total_responses() > 0 {
             match upload::check(&up.stats, &self.config, early_timeout) {
                 Some(Ok(result)) => {
                     up.resolve.send(Ok(result)).ok();
