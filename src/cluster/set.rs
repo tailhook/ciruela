@@ -1,4 +1,3 @@
-use std::cmp::min;
 use std::sync::Arc;
 use std::net::SocketAddr;
 use std::collections::{VecDeque, HashMap};
