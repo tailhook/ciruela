@@ -47,6 +47,7 @@ struct Dispatcher {
 enum ClusterRoute {
     Downloading,
     Deleted,
+    Complete,
 }
 
 enum Route {
@@ -224,6 +225,17 @@ impl<S> server::Codec<S> for HttpCodec
                             .collect::<Vec<_>>())
                     }).collect::<BTreeMap<_, _>>()))
             }
+            Route::Cluster(ClusterRoute::Complete) => {
+                let dl = &*self.tracking.peers().get_host_data();
+                ok(serve_json(e, &dl
+                    .iter().map(|(machine_id, data)| {
+                        (format!("{}", machine_id), data.complete.iter()
+                            .map(|(ref vpath, ref id)| {
+                                (vpath.clone(), id.to_string())
+                            })
+                            .collect::<Vec<_>>())
+                    }).collect::<BTreeMap<_, _>>()))
+            }
             Route::BadRequest => {
                 e.status(Status::BadRequest);
                 e.add_length(BAD_REQUEST.as_bytes().len() as u64).unwrap();
@@ -303,6 +315,8 @@ impl Route {
         } else if path.starts_with("/cluster/") {
             if path == "/cluster/downloading/" {
                 return Route::Cluster(ClusterRoute::Downloading);
+            } else if path == "/cluster/complete/" {
+                return Route::Cluster(ClusterRoute::Complete);
             } else if path == "/cluster/deleted/" {
                 return Route::Cluster(ClusterRoute::Deleted);
             } else {
