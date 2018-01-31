@@ -135,7 +135,7 @@ pub(crate) fn check(stats: &Stats, config: &Config, early_timeout: bool)
                 max(config.early_hosts as usize, fract_hosts));
             debug!("Downloaded ids {}/{}/{}",
                 book.done_ids.len(), hosts, book.discovered_ids.len());
-            if book.done_ids.len() > hosts {
+            if book.done_ids.len() >= hosts {
                 // TODO(tailhook) check kinds of rejection
                 if book.rejected_ips.len() > 0 {
                     return Some(Err(ErrorKind::Rejected));
