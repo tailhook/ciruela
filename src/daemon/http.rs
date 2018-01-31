@@ -347,6 +347,10 @@ pub fn start(addr: SocketAddr, tracking: &Tracking, meter: &Meter)
                 }, &tk_easyloop::handle())
             .map_err(|e| { debug!("Connection error: {}", e); })
         })
-        .listen(1000));
+        .listen(1000)
+        .then(|value| -> Result<(), ()> {
+            error!("Unexpected closure of listening socket: {:?}", value);
+            panic!("Listening socket closed unexpectedly");
+        }));
     Ok(())
 }
