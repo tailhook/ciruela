@@ -54,7 +54,7 @@ pub fn start(sys: &Subsystem, cmd: Downloading) {
                 match res {
                     Ok(img) => {
                         let img = Arc::new(img);
-                        debug!("Created dir");
+                        debug!("Created dir for {:?}", cmd.virtual_path);
                         cmd.index_fetched(&img.index);
                         sys.peers.notify_progress(&cmd.virtual_path,
                             &cmd.image_id, cmd.mask.get(),
