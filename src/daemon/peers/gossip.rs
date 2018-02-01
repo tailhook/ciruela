@@ -114,6 +114,16 @@ impl Gossip {
                             self.tracking.reconcile_dir(vpath, hash, addr,
                                 pkt.machine_id.clone());
                         }
+                        match self.peers.get().get(&pkt.machine_id) {
+                            Some(peer) => {
+                                for (path, image) in &complete {
+                                    self.tracking.remote()
+                                        .forward_notify_received_image(
+                                            &image, &path, peer);
+                                }
+                            }
+                            None => {}
+                        }
                         if in_progress.len() == 0 && deleted.len() == 0 {
                             self.by_host.lock().remove(&pkt.machine_id);
                         } else {
