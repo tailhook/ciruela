@@ -199,6 +199,8 @@ fn main() {
     let config = match config::read_dirs(&config_dir.join("configs")) {
         Ok(configs) => {
             Arc::new(config::Config {
+                machine_id: machine_id.clone(),
+                hostname: hostname.clone(),
                 port: port,
                 db_dir: db_dir,
                 config_dir: config_dir,

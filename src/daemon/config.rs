@@ -3,12 +3,15 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
+use machine_id::MachineId;
 use scan_dir::ScanDir;
 use quire::validate::{Directory as Dir, Structure, Numeric, Scalar, Sequence};
 use quire::{parse_config, Options, ErrorList};
 
 
 pub struct Config {
+    pub machine_id: MachineId,
+    pub hostname: String,
     pub port: u16,
     pub db_dir: PathBuf,
     pub config_dir: PathBuf,

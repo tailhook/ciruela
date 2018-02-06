@@ -22,6 +22,7 @@ use tk_listen::ListenExt;
 use tokio_core::net::TcpListener;
 use tokio_io::{AsyncRead, AsyncWrite};
 
+use machine_id::MachineId;
 use mask::Mask;
 use metrics;
 use remote::websocket::Connection;
@@ -130,15 +131,19 @@ impl<S> server::Codec<S> for HttpCodec
             Route::Status => {
                 #[derive(Serialize)]
                 struct Report<'a> {
+                    machine_id: &'a MachineId,
+                    hostname: &'a str,
+                    version: &'static str,
                     process: ProcessReport<'a>,
                     threads: ThreadReport<'a>,
-                    version: &'static str,
                     metrics: Json<'a, Vec<Box<Collection>>>,
                 }
                 ok(serve_json(e, &Report {
+                    machine_id: &self.tracking.config().machine_id,
+                    hostname: &self.tracking.config().hostname,
+                    version: env!("CARGO_PKG_VERSION"),
                     process: self.meter.process_report(),
                     threads: self.meter.thread_report(),
-                    version: env!("CARGO_PKG_VERSION"),
                     metrics: Json(&metrics::all()),
                 }))
             }
