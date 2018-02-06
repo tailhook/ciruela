@@ -30,7 +30,7 @@ pub fn upload(config: Arc<Config>, clusters: Vec<Vec<Name>>,
             join_all(uploads.clone().into_iter().map(move |upload| {
                 let up = match upload {
                     Upload::Append(a) => conn.append(a.clone()),
-                    Upload::Replace(r) => conn.append(r.clone()),
+                    Upload::Replace(r) => conn.replace(r.clone()),
                     Upload::WeakAppend(a) => conn.append_weak(a.clone()),
                 };
                 up.future()
