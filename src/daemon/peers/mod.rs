@@ -152,6 +152,14 @@ impl Peers {
         self.by_host.lock()
     }
 
+    // this is only for calling from UI, probably not safe in different threads
+    pub fn get_peers_by_dir(&self)
+        -> MutexGuard<HashMap<VPath, HashSet<MachineId>>>
+    {
+        self.dir_peers.lock()
+    }
+
+    // this is only for calling from UI, probably not safe in different threads
     pub fn get_all_downloading(&self) -> HashSet<VPath> {
         let mut result = HashSet::new();
         for host in self.by_host.lock().values() {

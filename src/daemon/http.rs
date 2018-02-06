@@ -48,6 +48,7 @@ enum ClusterRoute {
     Downloading,
     Deleted,
     Complete,
+    ByDir,
 }
 
 enum Route {
@@ -236,6 +237,10 @@ impl<S> server::Codec<S> for HttpCodec
                             .collect::<Vec<_>>())
                     }).collect::<BTreeMap<_, _>>()))
             }
+            Route::Cluster(ClusterRoute::ByDir) => {
+                let peers = &*self.tracking.peers().get_peers_by_dir();
+                ok(serve_json(e, &peers))
+            }
             Route::BadRequest => {
                 e.status(Status::BadRequest);
                 e.add_length(BAD_REQUEST.as_bytes().len() as u64).unwrap();
@@ -319,6 +324,8 @@ impl Route {
                 return Route::Cluster(ClusterRoute::Complete);
             } else if path == "/cluster/deleted/" {
                 return Route::Cluster(ClusterRoute::Deleted);
+            } else if path == "/cluster/dirs/" {
+                return Route::Cluster(ClusterRoute::ByDir);
             } else {
                 return Route::NotFound;
             }
