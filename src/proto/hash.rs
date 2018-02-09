@@ -2,9 +2,10 @@ use std::fmt;
 use std::io;
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use serde::de::{Visitor, Error};
+use serde::de::{Visitor, Unexpected, Error};
 use serde_cbor::ser::to_writer;
 
+use hex::{FromHex};
 use hexlify::Hex;
 use blake2::digest::VariableOutput;
 use digest_writer;
@@ -84,13 +85,27 @@ impl<'a> Visitor<'a> for HashVisitor {
             return Err(E::invalid_length(value.len(), &self));
         }
     }
+    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+        where E: Error
+    {
+        if value.len() == 64 {
+            let vec: Vec<u8> = FromHex::from_hex(value)
+                .map_err(|_| E::invalid_value(
+                    Unexpected::Str(value), &"hex coded string"))?;
+            let mut val = [0u8; 32];
+            val.copy_from_slice(&vec);
+            Ok(Hash(val))
+        } else {
+            return Err(E::invalid_length(value.len(), &self));
+        }
+    }
 }
 
 impl<'a> Deserialize<'a> for Hash {
     fn deserialize<D>(deserializer: D) -> Result<Hash, D::Error>
         where D: Deserializer<'a>
     {
-        deserializer.deserialize_bytes(HashVisitor)
+        deserializer.deserialize_any(HashVisitor)
     }
 }
 
@@ -98,6 +113,10 @@ impl Serialize for Hash {
     fn serialize<S>(&self, ser: S) -> Result<S::Ok, S::Error>
         where S: Serializer
     {
-        ser.serialize_bytes(&self.0)
+        if ser.is_human_readable() {
+            ser.serialize_str(&self.to_string())
+        } else {
+            ser.serialize_bytes(&self.0)
+        }
     }
 }

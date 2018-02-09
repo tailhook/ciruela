@@ -2,7 +2,7 @@ use std::io;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
-use std::collections::{HashSet, HashMap, BTreeMap};
+use std::collections::{HashSet, HashMap, BTreeMap, BTreeSet};
 
 use crossbeam::sync::ArcCell;
 use futures::{Future, Stream, Async};
@@ -16,12 +16,15 @@ use serde::Deserialize;
 use serde_cbor::de::Deserializer;
 
 use {VPath};
+use config::Config;
 use index::{ImageId};
 use machine_id::{MachineId};
 use mask::Mask;
 use named_mutex::Mutex;
 use peers::Peer;
 use peers::packets::{Packet, Message, PacketRef, MessageRef};
+use peers::two_way_map::ConfigMap;
+use proto::Hash;
 use serde_cbor::ser::to_writer;
 use tracking::{Tracking, ShortProgress};
 
@@ -57,10 +60,13 @@ struct Gossip {
     tracking: Tracking,
     interval: Interval,
     machine_id: MachineId,
+    config: Arc<Config>,
+    config_hash: Hash,
+    config_list: BTreeSet<VPath>,
     messages: UnboundedReceiver<Message>,
     peers: Arc<ArcCell<HashMap<MachineId, Peer>>>,
-    dir_peers: Arc<Mutex<HashMap<VPath, HashSet<MachineId>>>>,
     by_host: Arc<Mutex<HashMap<MachineId, HostData>>>,
+    configs: Arc<Mutex<ConfigMap>>,
     /// A list of peers with unknown ids, read from file
     /// only used if we use `peers.txt` (not `--cantal`)
     future_peers: HashMap<SocketAddr, String>,
@@ -103,14 +109,14 @@ impl Gossip {
                         });
                     self.peers.set(peers);
                 }
+                if pkt.your_config != Some(self.config_hash) {
+                    self.send_config(addr, &pkt.machine_id);
+                }
                 match pkt.message {
                     Message::BaseDirs { in_progress, complete,
                                         deleted, base_dirs }
                     => {
                         for (vpath, hash) in base_dirs {
-                            self.dir_peers.lock().entry(vpath.clone())
-                                .or_insert_with(HashSet::new)
-                                .insert(pkt.machine_id.clone());
                             self.tracking.reconcile_dir(vpath, hash, addr,
                                 pkt.machine_id.clone());
                         }
@@ -179,6 +185,9 @@ impl Gossip {
                             None => {}
                         }
                     }
+                    Message::ConfigSync { paths } => {
+                        self.configs.lock().set(pkt.machine_id, paths)
+                    }
                 }
             }
             if !self.socket.poll_read().is_ready() {
@@ -186,17 +195,15 @@ impl Gossip {
             }
         }
     }
-    fn write_messages(&mut self) {
-        while let Ok(Async::Ready(Some(msg))) = self.messages.poll() {
-            let peers = {
-                let hint_path = match msg {
-                    Message::BaseDirs {..} => unreachable!(),
-                    Message::Downloading { ref path, .. } => path,
-                    Message::Complete { ref path, .. } => path,
-                };
+    fn dest_for_packet(&self, msg: &Message) -> Vec<SocketAddr> {
+        match *msg {
+            Message::BaseDirs {..} => unreachable!(),
+            Message::ConfigSync { .. } => unreachable!(),
+            Message::Downloading { ref path, .. } |
+            Message::Complete { ref path, .. } => {
                 let all = self.peers.get();
                 let mut peers =
-                    match self.dir_peers.lock().get(&hint_path.parent()) {
+                    match self.configs.lock().by_dir(&path.key_vpath()) {
                         Some(peers) => {
                             sample_iter(&mut thread_rng(),
                                 peers, PACKETS_AT_ONCE)
@@ -213,10 +220,16 @@ impl Gossip {
                         .unwrap_or_else(|v| v)
                         .into_iter().map(|p| p.addr));
                 }
-                peers
-            };
+                return peers;
+            }
+        }
+    }
+    fn write_messages(&mut self) {
+        while let Ok(Async::Ready(Some(msg))) = self.messages.poll() {
+            let peers = self.dest_for_packet(&msg);
             let packet = Packet {
                 machine_id: self.machine_id.clone(),
+                your_config: Some(self.config_hash.clone()),
                 message: msg,
             };
             let mut buf = Vec::with_capacity(1400);
@@ -238,17 +251,17 @@ impl Gossip {
         let deleted = self.tracking.get_deleted();
         let complete = self.tracking.get_complete();
         for (addr, _) in &self.future_peers {
-            self.send_gossip(*addr, &ipr, &complete, &deleted);
+            self.send_gossip(*addr, None, &ipr, &complete, &deleted);
         }
         let lst = self.peers.get();
         let hosts = sample_iter(&mut thread_rng(),
-            lst.values(), PACKETS_AT_ONCE)
+            lst.iter(), PACKETS_AT_ONCE)
             .unwrap_or_else(|v| v);
-        for host in hosts {
-            self.send_gossip(host.addr, &ipr, &complete, &deleted);
+        for (id, host) in hosts {
+            self.send_gossip(host.addr, Some(id), &ipr, &complete, &deleted);
         }
     }
-    fn send_gossip(&self, addr: SocketAddr,
+    fn send_gossip(&self, addr: SocketAddr, id: Option<&MachineId>,
         in_progress: &BTreeMap<VPath, ShortProgress>,
         complete: &BTreeMap<VPath, ImageId>,
         deleted: &Vec<(VPath, ImageId)>)
@@ -263,9 +276,11 @@ impl Gossip {
                 None => break,
             }
         }
-
+        let hash = id
+            .and_then(|id| self.configs.lock().get(&id).map(|x| x.hash));
         let packet = PacketRef {
             machine_id: &self.machine_id,
+            your_config: &hash,
             message: MessageRef::BaseDirs {
                 in_progress: in_progress.iter()
                     .map(|(k, s)| {
@@ -278,6 +293,22 @@ impl Gossip {
         };
         to_writer(&mut buf, &packet).expect("can serialize packet");
         debug!("Sending ping to {} [{}]", addr, buf.len());
+        self.socket.send_to(&buf, &addr)
+            .map_err(|e| {
+                warn!("Error sending message to {:?}: {}", addr, e)
+            }).ok();
+    }
+    fn send_config(&self, addr: SocketAddr, id: &MachineId) {
+        let mut buf = Vec::with_capacity(1400);
+
+        let hash = self.configs.lock().get(id).map(|x| x.hash);
+        let packet = PacketRef {
+            machine_id: &self.machine_id,
+            your_config: &hash,
+            message: MessageRef::ConfigSync { paths: &self.config_list },
+        };
+        to_writer(&mut buf, &packet).expect("can serialize packet");
+        debug!("Sending config to {} [{}]", addr, buf.len());
         self.socket.send_to(&buf, &addr)
             .map_err(|e| {
                 warn!("Error sending message to {:?}: {}", addr, e)
@@ -297,17 +328,23 @@ impl Future for Gossip {
 pub fn start(addr: SocketAddr,
     peers: Arc<ArcCell<HashMap<MachineId, Peer>>>,
     by_host: Arc<Mutex<HashMap<MachineId, HostData>>>,
-    dir_peers: Arc<Mutex<HashMap<VPath, HashSet<MachineId>>>>,
+    configs: Arc<Mutex<ConfigMap>>,
     messages: UnboundedReceiver<Message>,
     machine_id: MachineId,
+    config: Arc<Config>,
     tracking: &Tracking, future_peers: HashMap<SocketAddr, String>)
     -> Result<(), io::Error>
 {
+    let config_list = config.dirs.keys()
+        .map(|x| VPath::from(format!("/{}", x)))
+        .collect();
+    let config_hash = Hash::for_object(&config_list);
     spawn(Gossip {
         interval: interval(Duration::from_millis(GOSSIP_INTERVAL)),
         socket: UdpSocket::bind(&addr, &handle())?,
         tracking: tracking.clone(),
-        peers, machine_id, future_peers, by_host, dir_peers, messages,
+        peers, machine_id, future_peers, by_host, messages,
+        config, config_list, config_hash, configs,
     });
     Ok(())
 }

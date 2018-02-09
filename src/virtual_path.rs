@@ -28,6 +28,13 @@ impl VPath {
         self.0.iter().nth(1).and_then(|x| x.to_str())
         .expect("valid virtual path")
     }
+    /// Returns a `key`, i.e. the first component
+    pub fn key_vpath(&self) -> VPath {
+        // TODO(tailhook) optimize it
+        self.0.iter().nth(1).and_then(|x| x.to_str())
+        .map(|x| VPath::from(format!("/{}", x)))
+        .expect("valid virtual path")
+    }
     /// Returns a level of a directory
     ///
     /// Level is number of path components not counting a key

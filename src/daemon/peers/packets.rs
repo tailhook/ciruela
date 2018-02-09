@@ -3,12 +3,13 @@ use {VPath};
 use proto::Hash;
 use machine_id::MachineId;
 use mask::Mask;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashSet, BTreeSet};
 
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Packet {
     pub machine_id: MachineId,
+    pub your_config: Option<Hash>,
     pub message: Message,
 }
 
@@ -23,11 +24,13 @@ pub enum Message {
     Downloading { path: VPath, image: ImageId, mask: Mask,
                   source: bool },
     Complete { path: VPath, image: ImageId },
+    ConfigSync { paths: BTreeSet<VPath>  },
 }
 
 #[derive(Serialize, Debug)]
 pub struct PacketRef<'a> {
     pub machine_id: &'a MachineId,
+    pub your_config: &'a Option<Hash>,
     pub message: MessageRef<'a>,
 }
 
@@ -42,4 +45,5 @@ pub enum MessageRef<'a> {
     },
     Downloading { path: &'a VPath, image: &'a ImageId, mask: &'a Mask,
                   source: bool},
+    ConfigSync { paths: &'a BTreeSet<VPath>  },
 }

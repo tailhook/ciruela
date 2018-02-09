@@ -2,6 +2,7 @@ mod cantal;
 mod file;
 mod gossip;
 mod packets;
+mod two_way_map;
 pub mod config;
 
 use std::collections::{HashMap, HashSet};
@@ -25,6 +26,7 @@ use named_mutex::{Mutex, MutexGuard};
 use self::packets::Message;
 use tracking::Tracking;
 use peers::gossip::{HostData};
+use peers::two_way_map::ConfigMap;
 
 
 #[derive(Debug, Clone)]
@@ -38,7 +40,7 @@ pub struct Peer {
 #[derive(Clone)]
 pub struct Peers {
     by_host: Arc<Mutex<HashMap<MachineId, HostData>>>,
-    dir_peers: Arc<Mutex<HashMap<VPath, HashSet<MachineId>>>>,
+    configs: Arc<Mutex<ConfigMap>>,
     peers: Arc<ArcCell<HashMap<MachineId, Peer>>>,
     messages: UnboundedSender<Message>,
 }
@@ -48,7 +50,7 @@ pub struct PeersInit {
     cell: Arc<ArcCell<HashMap<MachineId, Peer>>>,
     peer_file: Option<PathBuf>,
     by_host: Arc<Mutex<HashMap<MachineId, HostData>>>,
-    dir_peers: Arc<Mutex<HashMap<VPath, HashSet<MachineId>>>>,
+    configs: Arc<Mutex<ConfigMap>>,
     messages: UnboundedReceiver<Message>,
 }
 
@@ -61,18 +63,15 @@ impl Peers {
             "peers_host_data"));
         let (tx, rx) = unbounded();
         let cell = Arc::new(ArcCell::new(Arc::new(HashMap::new())));
-        let dir_peers = Arc::new(Mutex::new(HashMap::new(), "dir_peers"));
+        let configs = Arc::new(Mutex::new(ConfigMap::new(), "dir_peers"));
         (Peers {
             by_host: by_host.clone(),
             messages: tx,
             peers: cell.clone(),
-            dir_peers: dir_peers.clone(),
+            configs: configs.clone(),
         }, PeersInit {
-            cell: cell,
-            peer_file: peer_file,
+            cell, peer_file, by_host, configs,
             machine_id,
-            by_host: by_host,
-            dir_peers: dir_peers,
             messages: rx,
         })
     }
@@ -123,7 +122,7 @@ impl Peers {
     pub fn addrs_by_basedir(&self, vpath: &VPath)
         -> Vec<SocketAddr>
     {
-        self.dir_peers.lock().get(vpath)
+        self.configs.lock().by_dir(&vpath.key_vpath())
         .map(|ids| {
             let peers = self.peers.get();
             ids.iter()
@@ -135,7 +134,7 @@ impl Peers {
     pub fn servers_by_basedir(&self, vpath: &VPath)
         -> HashMap<MachineId, String>
     {
-        self.dir_peers.lock().get(vpath)
+        self.configs.lock().by_dir(&vpath.key_vpath())
         .map(|ids| {
             let peers = self.peers.get();
             ids.iter()
@@ -153,10 +152,10 @@ impl Peers {
     }
 
     // this is only for calling from UI, probably not safe in different threads
-    pub fn get_peers_by_dir(&self)
-        -> MutexGuard<HashMap<VPath, HashSet<MachineId>>>
+    pub fn get_configs(&self)
+        -> MutexGuard<ConfigMap>
     {
-        self.dir_peers.lock()
+        self.configs.lock()
     }
 
     // this is only for calling from UI, probably not safe in different threads
@@ -176,8 +175,8 @@ impl Peers {
     // code we don't drop the image in at least two minutes, it's expected
     // that two minutes is enought to syncrhonize `dir_peers`.
     pub fn check_stalled(&self, path: &VPath, image: &ImageId) -> bool {
-        let needed_peers = self.dir_peers.lock()
-            .get(&path.parent()).cloned().unwrap_or_else(HashSet::new);
+        let needed_peers = self.configs.lock()
+            .by_dir(&path.key_vpath()).cloned().unwrap_or_else(HashSet::new);
         let hdata = self.by_host.lock();
         let mut stalled = 0;
         let mut deleted = 0;
@@ -224,25 +223,27 @@ pub fn start(me: PeersInit, addr: SocketAddr,
     router: &Router, tracking: &Tracking)
     -> Result<(), Box<::std::error::Error>>
 {
+    let config = config.clone();
     if let Some(peer_file) = me.peer_file {
         let tracking = tracking.clone();
         let id = me.machine_id.clone();
         let dw = me.by_host.clone();
         let tx = me.messages;
-        let dp = me.dir_peers;
+        let cfgs = me.configs;
         let cell = me.cell;
         spawn(
             file::read_peers(peer_file, disk, router, config.port)
             .and_then(move |fut| {
-                gossip::start(addr, cell, dw, dp, tx, id, &tracking, fut)
+                gossip::start(addr, cell, dw, cfgs, tx, id,
+                    config, &tracking, fut)
                     .expect("can start gossip");
                 Ok(())
             }));
     } else {
         cantal::spawn_fetcher(&me.cell, config.port);
         gossip::start(addr,
-            me.cell, me.by_host, me.dir_peers, me.messages, me.machine_id,
-            tracking, HashMap::new())?;
+            me.cell, me.by_host, me.configs, me.messages, me.machine_id,
+            config, tracking, HashMap::new())?;
     }
     Ok(())
 }
