@@ -92,7 +92,7 @@ impl Remote {
         for sa in inp {
             if let Some(con) = state.outgoing.get(&sa) {
                 conn.push(con.clone());
-            } else if state.failures.can_try(sa) {
+            } else if state.failures.can_try(&sa) {
                 not_conn.push(sa);
             }
         }

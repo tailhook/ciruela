@@ -65,7 +65,7 @@ pub fn connect(sys: &Remote, tracking: &Tracking, reg: &Registry,
         .and_then(move |(out, inp, ())| {
             debug!("Established outgoing connection to {}", addr);
             // consider connection as non-failed right after handshake
-            sys.inner().failures.reset(addr);
+            sys.inner().failures.reset(&addr);
             let disp = Dispatcher::new(cli, &reg, &tracking);
             let rx = rx.map_err(closed as fn(()) -> &'static str);
             let rx = rx.packetize(&reg);

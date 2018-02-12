@@ -279,7 +279,7 @@ impl Tracking {
         // local network
         let items = self.0.peers.addrs_by_mask(vpath, id, mask);
         let (conn, not_conn) = self.0.remote.split_connected(
-            items.into_iter().filter(|a| failures.can_try(*a)));
+            items.into_iter().filter(|a| failures.can_try(a)));
         if conn.len() > 0 {
             return thread_rng().choose(&conn).cloned();
         }
@@ -300,7 +300,7 @@ impl Tracking {
         // from. First connected hosts, then any one
         if let Some(dict) = self.state().recently_received.get(vpath) {
             let (conn, not_conn) = self.0.remote.split_connected(
-                dict.keys().filter(|addr| failures.can_try(**addr))
+                dict.keys().filter(|addr| failures.can_try(*addr))
                 .cloned());
             if conn.len() > 0 {
                 return thread_rng().choose(&conn).cloned();
@@ -329,7 +329,7 @@ impl Tracking {
         // makes sense for this specific case.
         let items = self.0.peers.addrs_by_basedir(&vpath.parent());
         let (conn, not_conn) = self.0.remote.split_connected(
-            items.into_iter().filter(|addr| failures.can_try(*addr)));
+            items.into_iter().filter(|addr| failures.can_try(addr)));
         if conn.len() > 0 {
             return thread_rng().choose(&conn).cloned();
         }

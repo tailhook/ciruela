@@ -1,8 +1,8 @@
 use std::sync::Arc;
 use std::net::SocketAddr;
-use std::collections::{VecDeque, HashMap};
+use std::collections::{VecDeque, HashMap, HashSet};
 
-use abstract_ns::{Name, Resolve, HostResolve};
+use abstract_ns::{Name, Resolve, HostResolve, Address, IpList, Error};
 use rand::{thread_rng};
 use rand::seq::sample_iter;
 use futures::{Future, Async};
@@ -21,7 +21,7 @@ use cluster::upload;
 use cluster::error::UploadErr;
 use cluster::future::UploadOk;
 use signature::SignedUpload;
-use failure_tracker::HostFailures;
+use failure_tracker::{HostFailures, DnsFailures};
 use proto::{self, Client, ClientFuture, RequestClient, RequestFuture};
 use proto::message::Notification;
 use proto::{AppendDir, ReplaceDir};
@@ -58,6 +58,7 @@ struct Upload {
     futures: HashMap<SocketAddr, RFuture>,
     early: Timeout,
     deadline: Timeout,
+    candidate_hosts: HashSet<Name>,
 }
 
 enum RFuture {
@@ -78,11 +79,15 @@ pub struct ConnectionSet<R, I, B> {
     pending: HashMap<SocketAddr, ClientFuture>,
     active: HashMap<SocketAddr, Client>,
     uploads: VecDeque<Upload>,
+    pending_addrs: HashMap<Name, Box<Future<Item=IpList, Error=Error>>>,
+    failed_addrs: DnsFailures,
+    addrs: HashMap<Name, Address>,
 }
 
 impl<R, I, B> ConnectionSet<R, I, B>
     where I: GetIndex + Clone + Send + 'static,
           B: GetBlock + Clone + Send + 'static,
+          R: Resolve + HostResolve + 'static,
 {
     pub(crate) fn spawn(initial_address: Vec<Name>, resolver: R,
         index_source: I, block_source: B, config: &Arc<Config>)
@@ -105,6 +110,9 @@ impl<R, I, B> ConnectionSet<R, I, B>
             failures: HostFailures::new_default(),
             pending: HashMap::new(),
             active: HashMap::new(),
+            pending_addrs: HashMap::new(),
+            failed_addrs: DnsFailures::new_default(),
+            addrs: HashMap::new(),
         });
         return tx;
     }
@@ -168,6 +176,7 @@ impl<R, I, B> ConnectionSet<R, I, B>
             futures: HashMap::new(),
             early: timeout(self.config.early_timeout),
             deadline: timeout(self.config.maximum_timeout),
+            candidate_hosts: HashSet::new(),
         });
     }
 
@@ -178,30 +187,64 @@ impl<R, I, B> ConnectionSet<R, I, B>
         {
             return;
         }
-        let new_addresses = sample_iter(&mut thread_rng(),
-            self.initial_addr.get().addresses_at(0)
-            .filter(|x| !up.connections.contains_key(x)), 3)
+
+        let mut rng = thread_rng();
+
+        // first try already resolved discovered hosts
+        let mut new_addresses = sample_iter(&mut rng,
+            up.candidate_hosts.iter()
+                .filter_map(|h| self.addrs.get(h).and_then(|a| a.pick_one()))
+                .filter(|a| !up.stats.is_rejected(*a))
+                .filter(|a| !self.pending.contains_key(a))
+                .filter(|a| !self.active.contains_key(a))
+                .filter(|a| self.failures.can_try(a)),
+            initial)
             .unwrap_or_else(|v| v);
-        for naddr in &new_addresses {
-            if !self.pending.contains_key(naddr)
-               && !self.active.contains_key(naddr)
-               && self.failures.can_try(*naddr)
-            {
-                self.pending.insert(*naddr, Client::spawn(*naddr,
-                    "ciruela".to_string(),
-                    self.block_source.clone(),
-                    self.index_source.clone(),
-                    Listener {
-                        addr: *naddr,
-                        chan: self.chan_tx.clone()
-                    }));
+        let slots_left = initial.saturating_sub(new_addresses.len());
+        if slots_left > 0 {
+
+            // then start resolving some discovered hosts
+            let to_resolve = sample_iter(&mut rng,
+                up.candidate_hosts.iter()
+                    .filter(|h| self.failed_addrs.can_try(h))
+                    .filter(|h| self.addrs.get(h).is_none())
+                    .filter(|h| self.pending_addrs.get(h).is_none()),
+                slots_left)
+                .unwrap_or_else(|v| v);
+            for host in to_resolve {
+                self.pending_addrs.insert(
+                    host.clone(), Box::new(self.resolver.resolve_host(host)));
             }
+
+            // and fallback to just initial addresses
+            new_addresses.extend(sample_iter(&mut rng,
+                self.initial_addr.get().addresses_at(0)
+                .filter(|x| !up.connections.contains_key(x))
+                .filter(|a| !up.stats.is_rejected(*a))
+                .filter(|a| !self.pending.contains_key(a))
+                .filter(|a| !self.active.contains_key(a))
+                .filter(|a| self.failures.can_try(a)),
+                slots_left)
+                .unwrap_or_else(|v| v));
+        }
+        for naddr in &new_addresses {
+            self.pending.insert(*naddr, Client::spawn(*naddr,
+                "ciruela".to_string(),
+                self.block_source.clone(),
+                self.index_source.clone(),
+                Listener {
+                    addr: *naddr,
+                    chan: self.chan_tx.clone()
+                }));
         }
     }
 
     fn poll_pending(&mut self) {
+        let ref config = self.config;
         let ref mut active = self.active;
         let ref mut failures = self.failures;
+        let ref mut failed_addrs = self.failed_addrs;
+        let ref mut addrs = self.addrs;
         self.pending.retain(|addr, future| {
             match future.poll() {
                 Ok(Async::NotReady) => true,
@@ -212,6 +255,21 @@ impl<R, I, B> ConnectionSet<R, I, B>
                 Err(()) => {
                     // error should have already logged
                     failures.add_failure(*addr);
+                    false
+                }
+            }
+        });
+        self.pending_addrs.retain(|name, future| {
+            match future.poll() {
+                Ok(Async::NotReady) => true,
+                Ok(Async::Ready(ip_list)) => {
+                    addrs.insert(name.clone(),
+                        ip_list.with_port(config.port));
+                    false
+                }
+                Err(e) => {
+                    info!("Can't resolve name {}: {}", name, e);
+                    failed_addrs.add_failure(name.clone());
                     false
                 }
             }
@@ -271,12 +329,16 @@ impl<R, I, B> ConnectionSet<R, I, B>
     fn poll_upload(&mut self, mut up: Upload) -> VAsync<(), Upload> {
         {
             let ref stats = up.stats;
+            let ref mut candidates = up.candidate_hosts;
             up.futures.retain(|addr, capsule| {
                 match capsule {
                     &mut RFuture::Append(ref mut fut) => {
                         match fut.poll() {
                             Ok(Async::NotReady) => true,
                             Ok(Async::Ready(resp)) => {
+                                candidates
+                                    .extend(resp.hosts.iter().filter_map(
+                                        |(_, h)| h.parse().ok()));
                                 stats.add_response(
                                     *addr,
                                     resp.accepted,
@@ -294,6 +356,9 @@ impl<R, I, B> ConnectionSet<R, I, B>
                         match fut.poll() {
                             Ok(Async::NotReady) => true,
                             Ok(Async::Ready(resp)) => {
+                                candidates
+                                    .extend(resp.hosts.iter().filter_map(
+                                        |(_, h)| h.parse().ok()));
                                 stats.add_response(
                                     *addr,
                                     resp.accepted,
@@ -360,6 +425,7 @@ impl<R, I, B> ConnectionSet<R, I, B>
 impl<R, I, B> Future for ConnectionSet<R, I, B>
     where I: GetIndex + Clone + Send + 'static,
           B: GetBlock + Clone + Send + 'static,
+          R: Resolve + HostResolve + 'static,
 {
     type Item = ();
     type Error = ();
@@ -375,8 +441,10 @@ impl<R, I, B> Future for ConnectionSet<R, I, B>
             repeat = repeat || pending != self.pending.len();
 
             let pending = self.pending.len();
+            let paddrs = self.pending_addrs.len();
             self.poll_pending();
             repeat = repeat || pending != self.pending.len();
+            repeat = repeat || paddrs != self.pending_addrs.len();
 
             self.wakeup_uploads();
 

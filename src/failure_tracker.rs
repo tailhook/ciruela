@@ -4,11 +4,14 @@ use std::net::SocketAddr;
 use std::hash::Hash;
 use std::time::{Instant, Duration};
 
+use abstract_ns::Name;
+
 
 const RETRY_TIME: u64 = 1000;
 
 
 pub type HostFailures = Failures<SocketAddr, DefaultPolicy>;
+pub type DnsFailures = Failures<Name, DefaultPolicy>;
 
 #[derive(Debug)]
 pub struct DefaultPolicy;
@@ -36,7 +39,7 @@ impl Policy for DefaultPolicy {
         return since > retry_time * entry.subsequent;
     }
 }
-impl<K: Copy + Eq + Hash> Failures<K, DefaultPolicy> {
+impl<K: Clone + Eq + Hash> Failures<K, DefaultPolicy> {
     pub fn new_default() -> Failures<K, DefaultPolicy> {
         Failures {
             policy: DefaultPolicy,
@@ -45,7 +48,7 @@ impl<K: Copy + Eq + Hash> Failures<K, DefaultPolicy> {
     }
 }
 
-impl<K: Copy + Eq + Hash, P: Policy> Failures<K, P> {
+impl<K: Clone + Eq + Hash, P: Policy> Failures<K, P> {
     pub fn add_failure(&mut self, name: K) {
         let entry = self.items.entry(name)
             .or_insert(Failure {
@@ -55,11 +58,11 @@ impl<K: Copy + Eq + Hash, P: Policy> Failures<K, P> {
         entry.subsequent = entry.subsequent.saturating_add(1);
         entry.last = Instant::now();
     }
-    pub fn reset(&mut self, name: K) {
-        self.items.remove(&name);
+    pub fn reset(&mut self, name: &K) {
+        self.items.remove(name);
     }
-    pub fn can_try(&self, name: K) -> bool {
-        self.items.get(&name)
+    pub fn can_try(&self, name: &K) -> bool {
+        self.items.get(name)
             .map(|f| self.policy.can_try(f))
             .unwrap_or(true)
     }

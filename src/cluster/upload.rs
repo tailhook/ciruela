@@ -15,12 +15,14 @@ use machine_id::MachineId;
 struct Bookkeeping {
     accepted_ips: HashSet<SocketAddr>,
     discovered_ids: HashSet<MachineId>,
+    discovered_hosts: HashSet<String>,
     done_ips: HashSet<SocketAddr>,
     done_ids: HashSet<MachineId>,
     done_hostnames: HashSet<String>,
     aborted_ips: HashMap<SocketAddr, String>,
     aborted_ids: HashMap<MachineId, String>,
     aborted_hostnames: HashMap<String, String>,
+    rejected_no_config: HashSet<SocketAddr>,
     rejected_ips: HashMap<SocketAddr, String>,
 }
 
@@ -35,13 +37,13 @@ pub struct Stats {
     total_responses: AtomicUsize,
 }
 
-
 impl Stats {
     pub(crate) fn new(weak: bool) -> Stats {
         Stats {
             weak_errors: weak,
             book: RwLock::new(Bookkeeping {
                 discovered_ids: HashSet::new(),
+                discovered_hosts: HashSet::new(),
                 accepted_ips: HashSet::new(),
                 done_ips: HashSet::new(),
                 done_ids: HashSet::new(),
@@ -50,6 +52,7 @@ impl Stats {
                 aborted_ids: HashMap::new(),
                 aborted_hostnames: HashMap::new(),
                 rejected_ips: HashMap::new(),
+                rejected_no_config: HashSet::new(),
             }),
             total_responses: AtomicUsize::new(0),
         }
@@ -95,6 +98,10 @@ impl Stats {
                 book.done_ips.insert(source);
                 // TODO(tailhook) mark other dicts as done too
             }
+            (false, Some("no_config")) => {
+                warn!("Info {} rejects directory", source);
+                book.rejected_no_config.insert(source);
+            }
             (false, _) => {
                 warn!("Rejected because of {:?} try {:?}",
                     reject_reason, hosts);
@@ -106,16 +113,25 @@ impl Stats {
             }
             (true, _) => {
                 debug!("Accepted from {}", source);
-                book.discovered_ids.extend(hosts.keys().cloned());
                 let res = book.accepted_ips.insert(source);
                 if res {
                     self.total_responses.fetch_add(1, Ordering::Relaxed);
                 }
             }
         }
+        for (id, val) in hosts {
+            book.discovered_ids.insert(id);
+            book.discovered_hosts.insert(val);
+        }
     }
     pub(crate) fn total_responses(&self) -> u32 {
         self.total_responses.load(Ordering::Relaxed) as u32
+    }
+    pub(crate) fn is_rejected(&self, addr: SocketAddr) -> bool {
+        let book = self.book.read()
+            .expect("bookkeeping is not poisoned");
+        return book.rejected_ips.contains_key(&addr) ||
+            book.rejected_no_config.contains(&addr);
     }
 }
 
@@ -146,7 +162,6 @@ pub(crate) fn check(stats: &Stats, config: &Config, early_timeout: bool)
         } else if book.done_ids.is_superset(&book.discovered_ids) {
             debug!("Early downloaded ids {}/{}",
                 book.done_ids.len(), book.discovered_ids.len());
-            // TODO(tailhook) check kinds of rejection
             if book.rejected_ips.len() > 0 {
                 return Some(Err(ErrorKind::Rejected));
             } else {
