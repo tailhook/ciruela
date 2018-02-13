@@ -182,9 +182,15 @@ impl<R, I, B> ConnectionSet<R, I, B>
 
     fn new_conns(&mut self, up: &mut Upload) {
         let initial = self.config.initial_connections as usize;
-        if up.connections.len() >= initial
-            || self.pending.len() + self.active.len() >= initial
-        {
+        if up.connections.len() >= initial {
+            return;
+        }
+        let valid =
+            self.pending.keys()
+                .filter(|a| !up.stats.is_rejected(**a)).count() +
+            self.active.keys()
+                .filter(|a| !up.stats.is_rejected(**a)).count();
+        if valid >= initial {
             return;
         }
 
@@ -289,7 +295,10 @@ impl<R, I, B> ConnectionSet<R, I, B>
             if up.connections.len() < self.config.initial_connections as usize
             {
                 for (addr, conn) in &self.active {
-                    if !up.connections.contains_key(addr) {
+                    // TODO(tailhook)
+                    if !up.connections.contains_key(addr)
+                        && !up.stats.is_rejected(*addr)
+                    {
                         conn.register_index(&up.upload.image_id);
                         if up.replace {
                             up.futures.insert(*addr,
@@ -330,6 +339,7 @@ impl<R, I, B> ConnectionSet<R, I, B>
         {
             let ref stats = up.stats;
             let ref mut candidates = up.candidate_hosts;
+            let ref mut connections = up.connections;
             up.futures.retain(|addr, capsule| {
                 match capsule {
                     &mut RFuture::Append(ref mut fut) => {
@@ -344,6 +354,9 @@ impl<R, I, B> ConnectionSet<R, I, B>
                                     resp.accepted,
                                     resp.reject_reason,
                                     resp.hosts);
+                                if !resp.accepted {
+                                    connections.remove(addr);
+                                }
                                 false
                             }
                             Err(e) => {
@@ -364,6 +377,9 @@ impl<R, I, B> ConnectionSet<R, I, B>
                                     resp.accepted,
                                     resp.reject_reason,
                                     resp.hosts);
+                                if !resp.accepted {
+                                    connections.remove(addr);
+                                }
                                 false
                             }
                             Err(e) => {
