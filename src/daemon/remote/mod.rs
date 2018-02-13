@@ -54,7 +54,8 @@ impl Remote {
             machine_id: my_id.clone(),
             websock_config: WsConfig::new()
                 .ping_interval(Duration::new(1200, 0)) // no pings
-                .inactivity_timeout(Duration::new(5, 0))
+                .message_timeout(Duration::new(120, 0))
+                .byte_timeout(Duration::new(5, 0))
                 .max_packet_size(101 << 20)
                 .done(),
             conn: Mutex::new(Connections {

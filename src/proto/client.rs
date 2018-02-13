@@ -1,4 +1,5 @@
 use std::net::SocketAddr;
+use std::time::Duration;
 
 use futures::{Async, Future};
 use futures::future::{FutureResult, ok};
@@ -144,7 +145,11 @@ impl Client {
     {
         let (tx, rx) = oneshot();
         let (ctx, crx) = Sender::channel();
-        let wcfg = Config::new().done();
+        let wcfg = Config::new()
+            .message_timeout(Duration::new(120, 0))
+            .byte_timeout(Duration::new(5, 0))
+            .ping_interval(Duration::new(1, 0))
+            .done();
         let requests = Registry::new();
         spawn(
             TcpStream::connect(&addr, &handle())
