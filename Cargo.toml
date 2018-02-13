@@ -30,8 +30,7 @@ tokio-io = "0.1.1"
 futures = "0.1.16"
 time = "0.1.37"
 tk-bufstream = "0.3.0"
-# tk-http = { version="0.3.7", default-features=false }
-tk-http = { git="https://github.com/swindon-rs/tk-http", rev="ea03828", default-features=false }
+tk-http = { version="0.3.8", default-features=false }
 ssh-keys = "0.1.0"
 dir-signature = "0.2.3"
 tk-easyloop = "0.1.1"

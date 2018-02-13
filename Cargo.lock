@@ -200,7 +200,7 @@ dependencies = [
  "tk-bufstream 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "tk-cantal 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "tk-easyloop 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "tk-http 0.3.7 (git+https://github.com/swindon-rs/tk-http?rev=ea03828)",
+ "tk-http 0.3.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "tk-listen 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-core 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-io 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -292,7 +292,7 @@ dependencies = [
  "chrono 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "regex 0.2.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "termcolor 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "termcolor 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -813,7 +813,7 @@ dependencies = [
  "self-meter 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.27 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.9 (registry+https://github.com/rust-lang/crates.io-index)",
- "tk-http 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tk-http 0.3.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-core 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -952,10 +952,10 @@ dependencies = [
 
 [[package]]
 name = "termcolor"
-version = "0.3.3"
+version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "wincolor 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wincolor 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -1011,7 +1011,7 @@ dependencies = [
  "serde_derive 1.0.27 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_millis 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "tk-http 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tk-http 0.3.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "tk-pool 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-core 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-io 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1029,27 +1029,7 @@ dependencies = [
 
 [[package]]
 name = "tk-http"
-version = "0.3.7"
-source = "git+https://github.com/swindon-rs/tk-http?rev=ea03828#ea03828327472b44d7f5d9016bf026e99fe6d528"
-dependencies = [
- "byteorder 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "futures 0.1.18 (registry+https://github.com/rust-lang/crates.io-index)",
- "httparse 1.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "log 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "matches 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "netbuf 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "quick-error 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "rand 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "sha1 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "tk-bufstream 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "tokio-core 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)",
- "tokio-io 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "url 1.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "tk-http"
-version = "0.3.7"
+version = "0.3.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "byteorder 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1211,7 +1191,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "wincolor"
-version = "0.1.5"
+version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "winapi 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1346,15 +1326,14 @@ dependencies = [
 "checksum syn 0.12.12 (registry+https://github.com/rust-lang/crates.io-index)" = "9e1c669ed757c0ebd04337f6a5bb972d05e0c08fe2540dd3ee3dd9e4daf1604c"
 "checksum synom 0.11.3 (registry+https://github.com/rust-lang/crates.io-index)" = "a393066ed9010ebaed60b9eafa373d4b1baac186dd7e008555b0f702b51945b6"
 "checksum synstructure 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)" = "3a761d12e6d8dcb4dcf952a7a89b475e3a9d69e4a69307e01a470977642914bd"
-"checksum termcolor 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)" = "9065bced9c3e43453aa3d56f1e98590b8455b341d2fa191a1090c0dd0b242c75"
+"checksum termcolor 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)" = "73e83896da740a4541a6f21606b35f2aa4bada5b65d89dc61114bf9d6ff2dc7e"
 "checksum termion 1.5.1 (registry+https://github.com/rust-lang/crates.io-index)" = "689a3bdfaab439fd92bc87df5c4c78417d3cbe537487274e9b0b2dce76e92096"
 "checksum thread_local 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)" = "279ef31c19ededf577bfd12dfae728040a21f635b06a24cd670ff510edd38963"
 "checksum time 0.1.39 (registry+https://github.com/rust-lang/crates.io-index)" = "a15375f1df02096fb3317256ce2cee6a1f42fc84ea5ad5fc8c421cfe40c73098"
 "checksum tk-bufstream 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "9bb87b067cbeb3362045e3f97e40ff3bd5b369bd1b23e6e8d308354534b83237"
 "checksum tk-cantal 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "e25917e834c25cfbe0417b4e9d2e9453deab0f822c56ec260fb5d72e282e638d"
 "checksum tk-easyloop 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "291a100e486fc0ec2ff46122abf096f7481fdf2a15c251da8bad6c25fbc48ab1"
-"checksum tk-http 0.3.7 (git+https://github.com/swindon-rs/tk-http?rev=ea03828)" = "<none>"
-"checksum tk-http 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)" = "2daaba780e9640bd6d9b8fecd3900fa210ff13e6c5136059720e9a8b73afab6b"
+"checksum tk-http 0.3.8 (registry+https://github.com/rust-lang/crates.io-index)" = "5c64be3f5a9e4b241f737d87975689631dd66d6f805d4a1fbe74c34e56221cdf"
 "checksum tk-listen 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "7a1b83ad6efb44e5f428a08fbe3cd8267d64d8fad71880003f3a3211a4e52669"
 "checksum tk-pool 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)" = "920f07d823ddd2fdef70b49e599c1bc90dbe4bd6b5a32a88bc314fc58f5132fa"
 "checksum tokio-core 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)" = "52b4e32d8edbf29501aabb3570f027c6ceb00ccef6538f4bddba0200503e74e8"
@@ -1374,6 +1353,6 @@ dependencies = [
 "checksum winapi-build 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "2d315eee3b34aca4797b2da6b13ed88266e6d612562a0c46390af8299fc699bc"
 "checksum winapi-i686-pc-windows-gnu 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "ac3b87c63620426dd9b991e5ce0329eff545bccbbb34f3be09ff6fb6ab51b7b6"
 "checksum winapi-x86_64-pc-windows-gnu 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
-"checksum wincolor 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)" = "0878187fa88838d2006c0a76f30d64797098426245b375383f60acb6aed8a203"
+"checksum wincolor 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)" = "eeb06499a3a4d44302791052df005d5232b927ed1a9658146d842165c4de7767"
 "checksum winutil 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "7daf138b6b14196e3830a588acf1e86966c694d3e8fb026fb105b8b5dca07e6e"
 "checksum ws2_32-sys 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "d59cefebd0c892fa2dd6de581e937301d8552cb44489cdff035c6187cb63fa5e"
