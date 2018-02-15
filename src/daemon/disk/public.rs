@@ -190,28 +190,35 @@ impl Disk {
         let dir = dir.clone();
         self.pool.spawn_fn(move || {
             if let Some(ref fpath) = dir.keep_list_file {
-                File::open(fpath)
-                .map(|f| BufReader::new(f))
-                .and_then(|f| {
-                    let mut result = Vec::new();
-                    for line in f.lines() {
-                        let line = line?;
-                        let line = line.trim();
-                        if line.starts_with('#') {
-                            continue;
+                let res = File::open(fpath)
+                    .map(|f| BufReader::new(f))
+                    .and_then(|f| {
+                        let mut result = Vec::new();
+                        for line in f.lines() {
+                            let line = line?;
+                            let line = line.trim();
+                            if line.starts_with('#') {
+                                continue;
+                            }
+                            let line = line.trim_left_matches('/');
+                            let p = PathBuf::from(line);
+                            if p.iter().count() == dir.num_levels {
+                                result.push(p);
+                            } else {
+                                warn!("invalid path {:?} in keep list {:?}",
+                                    p, fpath);
+                            }
                         }
-                        let line = line.trim_left_matches('/');
-                        let p = PathBuf::from(line);
-                        if p.iter().count() == dir.num_levels {
-                            result.push(p);
-                        } else {
-                            warn!("invalid path {:?} in keep list {:?}",
-                                p, fpath);
-                        }
+                        Ok(result)
+                    });
+                match res {
+                    Err(ref e) if e.kind() == io::ErrorKind::NotFound => {
+                        warn!("Keep list {:?} not found", fpath);
+                        Ok(Vec::new())
                     }
-                    Ok(result)
-                })
-                .map_err(|e| Error::ReadKeepList(fpath.to_path_buf(), e))
+                    Err(e) => Err(Error::ReadKeepList(fpath.to_path_buf(), e)),
+                    Ok(v) => Ok(v),
+                }
             } else {
                 Ok(Vec::new())
             }
