@@ -38,6 +38,7 @@ use signature::SignedUpload;
 /// uploading).
 #[derive(Debug)]
 pub struct Connection {
+    cluster_name: Vec<Name>,
     config: Arc<Config>,
     chan: UnboundedSender<Message>,
 }
@@ -82,9 +83,10 @@ impl Connection {
               B: GetBlock + Clone + Send + 'static,
               R: Resolve + HostResolve + Clone + Send + 'static,
     {
-        let tx = set::ConnectionSet::spawn(initial_address, resolver,
+        let tx = set::ConnectionSet::spawn(initial_address.clone(), resolver,
             index_source, block_source, config);
         return Connection {
+            cluster_name: initial_address,
             config: config.clone(),
             chan: tx,
         }
@@ -121,7 +123,8 @@ impl Connection {
         -> Upload
     {
         let (tx, rx) = oneshot::channel();
-        let stats = Arc::new(upload::Stats::new(weak));
+        let stats = Arc::new(upload::Stats::new(
+            &self.cluster_name, &upload.path, weak));
         self.chan.unbounded_send(Message::NewUpload(NewUpload {
             replace, upload, weak,
             stats: stats.clone(),

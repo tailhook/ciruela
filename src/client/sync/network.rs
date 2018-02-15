@@ -37,6 +37,8 @@ pub fn upload(config: Arc<Config>, clusters: Vec<Vec<Name>>,
             }))
         }))
     })?;
-    println!("Result {:?}", res);
+    for res in res.iter().flat_map(|x| x) {
+        println!("{}", res);
+    }
     Ok(())
 }

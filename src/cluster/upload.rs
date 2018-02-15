@@ -1,14 +1,18 @@
 use std::cmp::{min, max};
-use std::net::SocketAddr;
-use std::sync::{Arc, RwLock};
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::collections::{HashMap, HashSet};
+use std::fmt;
+use std::net::SocketAddr;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, RwLock};
+use std::time::Instant;
 
+use abstract_ns::Name;
 use proto::{ReceivedImage, AbortedImage};
 use cluster::future::UploadOk;
 use cluster::error::ErrorKind;
 use cluster::config::Config;
 
+use VPath;
 use machine_id::MachineId;
 
 #[derive(Debug)]
@@ -32,14 +36,22 @@ struct Bookkeeping {
 /// we don't have to break backwards compatibility in the future.
 #[derive(Debug)]
 pub struct Stats {
+    pub(crate) cluster_name: Vec<Name>,
+    pub(crate) started: Instant,
+    pub(crate) path: VPath,
     weak_errors: bool,
     book: RwLock<Bookkeeping>,
     total_responses: AtomicUsize,
 }
 
 impl Stats {
-    pub(crate) fn new(weak: bool) -> Stats {
+    pub(crate) fn new(cluster_name: &Vec<Name>, path: &VPath, weak: bool)
+        -> Stats
+    {
         Stats {
+            cluster_name: cluster_name.clone(),
+            started: Instant::now(),
+            path: path.clone(),
             weak_errors: weak,
             book: RwLock::new(Bookkeeping {
                 discovered_ids: HashSet::new(),
@@ -133,6 +145,47 @@ impl Stats {
         return book.rejected_ips.contains_key(&addr) ||
             book.rejected_no_config.contains(&addr);
     }
+    pub(crate) fn fmt_downloaded(&self, f: &mut fmt::Formatter) -> fmt::Result
+    {
+        let book = self.book.read()
+            .expect("bookkeeping is not poisoned");
+        f.write_str("fetched from ")?;
+        if book.done_ids.len() > 3 {
+            write!(f, "{} hosts", book.done_ids.len())?;
+        } else {
+            fmt_iter(f, &book.done_hostnames)?;
+        }
+        if book.discovered_ids.len() > book.done_ids.len() {
+            write!(f, " (out of {} hosts)", book.discovered_ids.len())?;
+        }
+        if !book.rejected_ips.is_empty() {
+            f.write_str(", rejected by")?;
+            fmt_iter(f,
+                book.rejected_ips.iter()
+                .map(|(k, v)| format!("{}: {}", k, v)))?;
+        }
+        if !book.aborted_ids.is_empty() {
+            f.write_str(", aborted by")?;
+            fmt_iter(f,
+                book.aborted_hostnames.iter()
+                .map(|(k, v)| format!("{}: {}", k, v)))?;
+        }
+        Ok(())
+    }
+}
+
+fn fmt_iter<I: IntoIterator>(f: &mut fmt::Formatter, iter: I) -> fmt::Result
+    where I::Item: fmt::Display,
+{
+    let mut iter = iter.into_iter();
+    match iter.next() {
+        Some(x) => write!(f, "{}", x)?,
+        None => return Ok(()),
+    }
+    for item in iter {
+        write!(f, ", {}", item)?;
+    }
+    Ok(())
 }
 
 pub(crate) fn check(stats: &Arc<Stats>, config: &Config, early_timeout: bool)
@@ -152,8 +205,7 @@ pub(crate) fn check(stats: &Arc<Stats>, config: &Config, early_timeout: bool)
             debug!("Downloaded ids {}/{}/{}",
                 book.done_ids.len(), hosts, book.discovered_ids.len());
             if book.done_ids.len() >= hosts {
-                // TODO(tailhook) check kinds of rejection
-                if book.rejected_ips.len() > 0 {
+                if book.rejected_ips.len() > 0 || book.aborted_ids.len() > 0 {
                     return Some(Err(ErrorKind::Rejected));
                 } else {
                     return Some(Ok(UploadOk::new(stats)));
@@ -162,7 +214,7 @@ pub(crate) fn check(stats: &Arc<Stats>, config: &Config, early_timeout: bool)
         } else if book.done_ids.is_superset(&book.discovered_ids) {
             debug!("Early downloaded ids {}/{}",
                 book.done_ids.len(), book.discovered_ids.len());
-            if book.rejected_ips.len() > 0 {
+            if book.rejected_ips.len() > 0 || book.aborted_ips.len() > 0 {
                 return Some(Err(ErrorKind::Rejected));
             } else {
                 return Some(Ok(UploadOk::new(stats)));

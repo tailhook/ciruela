@@ -1,4 +1,6 @@
+use std::fmt;
 use std::sync::Arc;
+use std::time::Instant;
 
 use cluster::error::UploadErr;
 use cluster::upload::Stats;
@@ -18,6 +20,7 @@ pub struct UploadFuture {
 #[derive(Debug, Clone)]
 pub struct UploadOk {
     stats: Arc<Stats>,
+    finished: Instant,
 }
 
 /// Error uploading image
@@ -51,6 +54,31 @@ impl UploadOk {
     pub(crate) fn new(stats: &Arc<Stats>) -> UploadOk {
         UploadOk {
             stats: stats.clone(),
+            finished: Instant::now(),
         }
+    }
+}
+
+impl fmt::Display for UploadOk {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str("Upload to ")?;
+        let ref s = self.stats;
+        let d = self.finished.duration_since(s.started);
+        if self.stats.cluster_name.len() == 1 {
+            f.write_str(self.stats.cluster_name[0].as_ref())?;
+        } else {
+            write!(f, "{} hosts", self.stats.cluster_name.len())?;
+        }
+        f.write_str(": ")?;
+        s.fmt_downloaded(f)?;
+        if d.as_secs() < 1 {
+            write!(f, " in 0.{:03}s", d.subsec_nanos() / 1_000_000)?;
+        } else if d.as_secs() < 10 {
+            write!(f, " in {}.{:01}s", d.as_secs(),
+                d.subsec_nanos() / 100_000_000)?;
+        } else {
+            write!(f, " in {}s", d.as_secs())?;
+        }
+        Ok(())
     }
 }
