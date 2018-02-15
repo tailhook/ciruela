@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use cluster::error::UploadErr;
+use cluster::upload::Stats;
 use failure::err_msg;
 use futures::future::Shared;
 use futures::sync::oneshot;
@@ -16,7 +17,7 @@ pub struct UploadFuture {
 /// Result of the upload
 #[derive(Debug, Clone)]
 pub struct UploadOk {
-    _private: ()
+    stats: Arc<Stats>,
 }
 
 /// Error uploading image
@@ -47,9 +48,9 @@ impl Future for UploadFuture {
 }
 
 impl UploadOk {
-    pub(crate) fn new() -> UploadOk {
+    pub(crate) fn new(stats: &Arc<Stats>) -> UploadOk {
         UploadOk {
-            _private: (),
+            stats: stats.clone(),
         }
     }
 }

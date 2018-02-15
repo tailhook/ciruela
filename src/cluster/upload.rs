@@ -1,6 +1,6 @@
 use std::cmp::{min, max};
 use std::net::SocketAddr;
-use std::sync::{RwLock};
+use std::sync::{Arc, RwLock};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::collections::{HashMap, HashSet};
 
@@ -135,7 +135,7 @@ impl Stats {
     }
 }
 
-pub(crate) fn check(stats: &Stats, config: &Config, early_timeout: bool)
+pub(crate) fn check(stats: &Arc<Stats>, config: &Config, early_timeout: bool)
     -> Option<Result<UploadOk, ErrorKind>>
 {
     let book = stats.book.read()
@@ -156,7 +156,7 @@ pub(crate) fn check(stats: &Stats, config: &Config, early_timeout: bool)
                 if book.rejected_ips.len() > 0 {
                     return Some(Err(ErrorKind::Rejected));
                 } else {
-                    return Some(Ok(UploadOk::new()));
+                    return Some(Ok(UploadOk::new(stats)));
                 }
             }
         } else if book.done_ids.is_superset(&book.discovered_ids) {
@@ -165,7 +165,7 @@ pub(crate) fn check(stats: &Stats, config: &Config, early_timeout: bool)
             if book.rejected_ips.len() > 0 {
                 return Some(Err(ErrorKind::Rejected));
             } else {
-                return Some(Ok(UploadOk::new()));
+                return Some(Ok(UploadOk::new(stats)));
             }
         }
     }
