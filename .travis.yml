@@ -41,7 +41,7 @@ jobs:
     before_deploy: |
       mkdir -p dist
       rustup target add x86_64-unknown-linux-musl
-      cargo build --target=x86_64-unknown-linux-musl --release
+      cargo build --target=x86_64-unknown-linux-musl --release -v
       fakeroot sh -ecx '
         install -D target/x86_64-unknown-linux-musl/release/ciruela-server pkg/usr/bin/ciruela-server
         install -D target/x86_64-unknown-linux-musl/release/ciruela pkg/usr/bin/ciruela
