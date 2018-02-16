@@ -73,7 +73,6 @@ humantime = "1.0.0"
 
 [profile.release]
 debug = true
-lto = true
 
 [[bin]]
 name = "ciruela-server"
