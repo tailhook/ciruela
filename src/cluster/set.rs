@@ -234,14 +234,16 @@ impl<R, I, B> ConnectionSet<R, I, B>
                 .unwrap_or_else(|v| v));
         }
         for naddr in &new_addresses {
-            self.pending.insert(*naddr, Client::spawn(*naddr,
-                "ciruela".to_string(),
-                self.block_source.clone(),
-                self.index_source.clone(),
-                Listener {
-                    addr: *naddr,
-                    chan: self.chan_tx.clone()
-                }));
+            if !self.pending.contains_key(naddr) { // duplicate check
+                self.pending.insert(*naddr, Client::spawn(*naddr,
+                    "ciruela".to_string(),
+                    self.block_source.clone(),
+                    self.index_source.clone(),
+                    Listener {
+                        addr: *naddr,
+                        chan: self.chan_tx.clone()
+                    }));
+            }
         }
     }
 
