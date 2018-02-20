@@ -75,6 +75,23 @@ impl Meta {
             writing: Mutex::new(HashMap::new(), "metadata_writing"),
         })))
     }
+    pub fn get_image_id(&self, vpath: &VPath)
+        -> CpuFuture<ImageId, Error>
+    {
+        let meta = self.clone();
+        let vpath = vpath.clone();
+        self.0.cpu_pool.spawn_fn(move || {
+            let dir = meta.signatures()?.ensure_dir(vpath.parent_rel())?;
+            if let Some(state) = dir.read_file(
+                &format!("{}.state", vpath.final_name()),
+                upload::read_state)?
+            {
+                Ok(state.image)
+            } else {
+                Err(Error::PathNotFound(vpath))
+            }
+        })
+    }
     pub fn append_dir(&self, params: AppendDir)
         -> CpuFuture<Upload, Error>
     {

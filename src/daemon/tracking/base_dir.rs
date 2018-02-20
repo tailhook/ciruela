@@ -105,8 +105,8 @@ impl BaseDir {
         let state = &mut *sys.state();
         let ref mut lst = state.base_dir_list;
         let hash = Hash::for_object(&dir_data.dirs);
-        let down = state.in_progress.iter()
-            .filter(|x| x.virtual_path.parent() == dir_data.path)
+        let down = state.in_progress.keys()
+            .filter(|path| path.parent() == dir_data.path)
             .count();
         match state.base_dirs.entry(dir_data.path.clone()) {
             Entry::Vacant(e) => {

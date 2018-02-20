@@ -159,12 +159,11 @@ impl Peers {
     }
 
     // this is only for calling from UI, probably not safe in different threads
-    pub fn get_all_downloading(&self) -> HashSet<VPath> {
+    pub fn get_all_watching(&self) -> HashSet<VPath> {
         let mut result = HashSet::new();
         for host in self.by_host.lock().values() {
-            for path in host.downloading.keys() {
-                result.insert(path.clone());
-            }
+            result.extend(host.downloading.keys().cloned());
+            result.extend(host.watching.iter().cloned());
         }
         result
     }

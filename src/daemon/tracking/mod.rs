@@ -7,17 +7,18 @@ mod progress;
 mod reconciliation;
 mod rpc;
 
-use std::collections::{HashMap, HashSet, BTreeMap};
+use std::collections::{HashMap, HashSet, BTreeMap, BTreeSet};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc};
 use std::time::{Instant, SystemTime, Duration};
 
-use futures::{Future, Stream};
+use futures::{Future, Stream, Async};
 use futures::future::{Either, ok};
 use futures::stream::iter_ok;
 use futures::sync::mpsc::{unbounded, UnboundedSender, UnboundedReceiver};
+use futures_cpupool::CpuFuture;
 use tk_easyloop::{spawn, timeout, interval};
 
 use proto::{Hash};
@@ -29,7 +30,7 @@ use config::{Config};
 use disk::Disk;
 use failure_tracker::{Failures, Policy};
 use mask::{AtomicMask, Mask};
-use metadata::{Meta};
+use metadata::{self, Meta};
 use named_mutex::{Mutex, MutexGuard};
 use peers::Peers;
 use rand::{thread_rng, Rng};
@@ -53,8 +54,14 @@ lazy_static! {
 
 pub type BlockData = Arc<Vec<u8>>;
 
+pub enum WatchedStatus {
+    Absent,
+    Checking(CpuFuture<ImageId, metadata::Error>),
+    Complete(ImageId),
+}
+
 pub struct State {
-    in_progress: HashSet<Arc<Downloading>>,
+    in_progress: HashMap<VPath, Arc<Downloading>>,
     recently_deleted: HashMap<(VPath, ImageId), Instant>,
 
     base_dirs: HashMap<VPath, Arc<BaseDir>>,
@@ -66,7 +73,7 @@ pub struct State {
     /// image is currently in-progress. We know in-progress data from
     /// gossip subsystem.
     recently_received: HashMap<VPath, HashMap<SocketAddr, Instant>>,
-    recently_downloaded: HashMap<VPath, ImageId>,
+    watched: HashMap<VPath, WatchedStatus>,
 }
 
 pub struct ShortProgress {
@@ -138,13 +145,13 @@ impl Tracking {
             config: config.clone(),
             images: fetch_index::Indexes::new(),
             state: Arc::new(Mutex::new(State {
-                in_progress: HashSet::new(),
+                in_progress: HashMap::new(),
                 recently_deleted: HashMap::new(),
                 base_dirs: HashMap::new(),
                 base_dir_list: Vec::new(),
                 reconciling: HashMap::new(),
                 recently_received: HashMap::new(),
-                recently_downloaded: HashMap::new(),
+                watched: HashMap::new(),
             }, "tracking_state")),
             meta: meta.clone(),
             disk: disk.clone(),
@@ -209,6 +216,18 @@ impl Tracking {
             stalled: AtomicBool::new(false),
         }));
     }
+    pub fn check_watched(&self, paths: &BTreeSet<VPath>) {
+        let mut state = self.state();
+        for p in paths {
+            if !state.watched.contains_key(p) &&
+               !state.in_progress.contains_key(p) &&
+               self.0.config.dirs.contains_key(p.key())
+            {
+                state.watched.insert(p.clone(),
+                    WatchedStatus::Checking(self.0.meta.get_image_id(p)));
+            }
+        }
+    }
     pub fn pick_random_dir(&self) -> Option<(VPath, Hash)> {
         let state = self.state();
         thread_rng().choose(&state.base_dir_list)
@@ -239,7 +258,7 @@ impl Tracking {
     }
     pub fn get_in_progress(&self) -> BTreeMap<VPath, ShortProgress> {
         let mut res = BTreeMap::new();
-        for inp in &self.state().in_progress {
+        for inp in self.state().in_progress.values() {
             res.insert(inp.virtual_path.clone(), ShortProgress {
                 image_id: inp.image_id.clone(),
                 mask: inp.mask.get(),
@@ -266,9 +285,19 @@ impl Tracking {
     pub fn get_deleted(&self) -> Vec<(VPath, ImageId)> {
         self.state().recently_deleted.keys().cloned().collect()
     }
+    pub fn get_watching(&self) -> BTreeSet<VPath> {
+        self.remote().get_watching()
+    }
     pub fn get_complete(&self) -> BTreeMap<VPath, ImageId> {
-        self.state().recently_downloaded.iter()
-            .map(|(x, y)| (x.clone(), y.clone())).collect()
+        let mut state = self.state();
+        state.poll_watched();
+        state.watched.iter()
+            .filter_map(|(x, y)| match y {
+                &WatchedStatus::Complete(ref id) => {
+                    Some((x.clone(), id.clone()))
+                }
+                _ => None,
+            }).collect()
     }
     pub fn get_connection_by_mask<P: Policy>(&self,
         vpath: &VPath, id: &ImageId, mask: Mask,
@@ -379,7 +408,7 @@ impl Subsystem {
         state.recently_deleted
             .insert((cmd.virtual_path.clone(), cmd.image_id.clone()),
                     Instant::now());
-        state.in_progress.remove(cmd);
+        state.in_progress.remove(&cmd.virtual_path);
         state.base_dirs.get(&cmd.virtual_path.parent())
             .map(|b| b.decr_downloading());
         DOWNLOADING.set(state.in_progress.len() as i64);
@@ -402,9 +431,10 @@ impl Subsystem {
     fn dir_committed(&self, cmd: &Arc<Downloading>) {
         {
             let mut state = self.state();
-            state.in_progress.remove(cmd);
-            state.recently_downloaded
-                .insert(cmd.virtual_path.clone(), cmd.image_id.clone());
+            state.in_progress.remove(&cmd.virtual_path);
+            state.watched
+                .insert(cmd.virtual_path.clone(),
+                    WatchedStatus::Complete(cmd.image_id.clone()));
             state.base_dirs.get(&cmd.virtual_path.parent())
                 .map(|b| b.decr_downloading());
             DOWNLOADING.set(state.in_progress.len() as i64);
@@ -523,7 +553,7 @@ pub fn start(init: TrackingInit) -> Result<(), String> // actually void
         .map_err(|_| unreachable!()));
     spawn(interval(Duration::new(15, 0))
         .for_each(move |()| {
-            let cluster_downloading = sys5.peers.get_all_downloading();
+            let cluster_watching = sys5.peers.get_all_watching();
             let mut state = sys5.state();
 
             let cutoff = Instant::now() -
@@ -539,10 +569,11 @@ pub fn start(init: TrackingInit) -> Result<(), String> // actually void
             state.recently_deleted.retain(|_, v| *v > cutoff);
             state.recently_deleted.shrink_to_fit();
 
-            state.recently_downloaded.retain(|k, _| {
-                cluster_downloading.contains(k)
+            state.poll_watched();
+            state.watched.retain(|k, _| {
+                cluster_watching.contains(k)
             });
-            state.recently_downloaded.shrink_to_fit();
+            state.watched.shrink_to_fit();
 
             for (_, bdir) in &state.base_dirs {
                 bdir.clean_parent_hashes();
@@ -552,6 +583,28 @@ pub fn start(init: TrackingInit) -> Result<(), String> // actually void
         })
         .map_err(|_| unreachable!()));
     Ok(())
+}
+
+impl State {
+    fn poll_watched(&mut self) {
+        self.watched.retain(|path, status| {
+            let new_status = match status {
+                &mut WatchedStatus::Checking(ref mut f) => match f.poll() {
+                    Ok(Async::NotReady) => return true,
+                    Ok(Async::Ready(id)) => WatchedStatus::Complete(id),
+                    Err(metadata::Error::PathNotFound(..))
+                    => WatchedStatus::Absent,
+                    Err(e) => {
+                        error!("Error checking path {:?}: {}", path, e);
+                        return false;
+                    }
+                },
+                _ => return true,
+            };
+            *status = new_status;
+            return true;
+        });
+    }
 }
 
 pub fn metrics() -> List {

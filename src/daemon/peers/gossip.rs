@@ -52,6 +52,7 @@ pub struct Downloading {
 pub struct HostData {
     pub downloading: HashMap<VPath, Downloading>,
     pub complete: BTreeMap<VPath, ImageId>,
+    pub watching: BTreeSet<VPath>,
     pub deleted: HashSet<(VPath, ImageId)>,
 }
 
@@ -113,7 +114,7 @@ impl Gossip {
                     self.send_config(addr, &pkt.machine_id);
                 }
                 match pkt.message {
-                    Message::BaseDirs { in_progress, complete,
+                    Message::BaseDirs { in_progress, watching, complete,
                                         deleted, base_dirs }
                     => {
                         for (vpath, hash) in base_dirs {
@@ -130,6 +131,7 @@ impl Gossip {
                             }
                             None => {}
                         }
+                        self.tracking.check_watched(&watching);
                         if in_progress.len() == 0 && deleted.len() == 0 {
                             self.by_host.lock().remove(&pkt.machine_id);
                         } else {
@@ -137,6 +139,7 @@ impl Gossip {
                                 .insert(pkt.machine_id.clone(), HostData {
                                     deleted,
                                     complete,
+                                    watching,
                                     downloading:
                                         in_progress.into_iter().map(|(k, v)| {
                                             let (
@@ -155,6 +158,7 @@ impl Gossip {
                             .or_insert_with(|| HostData {
                                 downloading: HashMap::new(),
                                 deleted: HashSet::new(),
+                                watching: BTreeSet::new(),
                                 complete: BTreeMap::new(),
                             })
                             .downloading.insert(path, Downloading {
@@ -171,6 +175,7 @@ impl Gossip {
                                 .or_insert_with(|| HostData {
                                     downloading: HashMap::new(),
                                     deleted: HashSet::new(),
+                                    watching: BTreeSet::new(),
                                     complete: BTreeMap::new(),
                                 });
                             host.downloading.remove(&path);
@@ -250,20 +255,22 @@ impl Gossip {
         let ipr = self.tracking.get_in_progress();
         let deleted = self.tracking.get_deleted();
         let complete = self.tracking.get_complete();
+        let watching = self.tracking.get_watching();
         for (addr, _) in &self.future_peers {
-            self.send_gossip(*addr, None, &ipr, &complete, &deleted);
+            self.send_gossip(*addr, None, &ipr, &complete, &watching, &deleted);
         }
         let lst = self.peers.get();
         let hosts = sample_iter(&mut thread_rng(),
             lst.iter(), PACKETS_AT_ONCE)
             .unwrap_or_else(|v| v);
         for (id, host) in hosts {
-            self.send_gossip(host.addr, Some(id), &ipr, &complete, &deleted);
+            self.send_gossip(host.addr, Some(id), &ipr, &complete, &watching, &deleted);
         }
     }
     fn send_gossip(&self, addr: SocketAddr, id: Option<&MachineId>,
         in_progress: &BTreeMap<VPath, ShortProgress>,
         complete: &BTreeMap<VPath, ImageId>,
+        watching: &BTreeSet<VPath>,
         deleted: &Vec<(VPath, ImageId)>)
     {
         let mut buf = Vec::with_capacity(1400);
@@ -287,7 +294,7 @@ impl Gossip {
                         (k, (&s.image_id, &s.mask, s.source, s.stalled))
                     })
                     .collect(),
-                deleted, complete,
+                deleted, complete, watching,
                 base_dirs: &base_dirs,
             }
         };

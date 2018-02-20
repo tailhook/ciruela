@@ -49,6 +49,7 @@ enum ClusterRoute {
     Downloading,
     Deleted,
     Complete,
+    Watching,
     ByDir,
     Configs,
 }
@@ -63,6 +64,7 @@ enum Route {
     Cluster(ClusterRoute),
     Downloading,
     Deleted,
+    Watching,
 }
 
 
@@ -201,6 +203,9 @@ impl<S> server::Codec<S> for HttpCodec
                     .map(|&(ref vpath, ref id)| (vpath.clone(), id.to_string()))
                     .collect::<Vec<_>>()))
             }
+            Route::Watching => {
+                ok(serve_json(e, &self.tracking.get_watching()))
+            }
             Route::Cluster(ClusterRoute::Downloading) => {
                 #[derive(Serialize)]
                 pub struct Progress {
@@ -243,6 +248,13 @@ impl<S> server::Codec<S> for HttpCodec
                             .collect::<Vec<_>>())
                     }).collect::<BTreeMap<_, _>>()))
             }
+            Route::Cluster(ClusterRoute::Watching) => {
+                let hdata = &*self.tracking.peers().get_host_data();
+                ok(serve_json(e, &hdata
+                    .iter().map(|(machine_id, data)| {
+                        (format!("{}", machine_id), &data.watching)
+                    }).collect::<BTreeMap<_, _>>()))
+            }
             Route::Cluster(ClusterRoute::ByDir) => {
                 let configs = &*self.tracking.peers().get_configs();
                 ok(serve_json(e, &configs.all_dirs()))
@@ -251,7 +263,6 @@ impl<S> server::Codec<S> for HttpCodec
                 let configs = &*self.tracking.peers().get_configs();
                 ok(serve_json(e, &configs.all_hosts()))
             }
-
             Route::BadRequest => {
                 e.status(Status::BadRequest);
                 e.add_length(BAD_REQUEST.as_bytes().len() as u64).unwrap();
@@ -328,6 +339,8 @@ impl Route {
             return Route::Configs;
         } else if path == "/deleted/" {
             return Route::Deleted;
+        } else if path == "/watching/" {
+            return Route::Watching;
         } else if path.starts_with("/cluster/") {
             if path == "/cluster/downloading/" {
                 return Route::Cluster(ClusterRoute::Downloading);
@@ -339,6 +352,8 @@ impl Route {
                 return Route::Cluster(ClusterRoute::ByDir);
             } else if path == "/cluster/configs/" {
                 return Route::Cluster(ClusterRoute::Configs);
+            } else if path == "/cluster/watching/" {
+                return Route::Cluster(ClusterRoute::Watching);
             } else {
                 return Route::NotFound;
             }

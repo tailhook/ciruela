@@ -16,6 +16,7 @@ use tk_easyloop::{spawn, handle};
 use tk_bufstream::{WriteFramed, ReadFramed};
 use tokio_io::{AsyncRead, AsyncWrite};
 
+use {VPath};
 use named_mutex::{Mutex, MutexGuard};
 use proto::message::{Message};
 use proto::{RequestClient, RequestDispatcher, Sender};
@@ -40,6 +41,7 @@ struct ConnectionState {
     connected: AtomicBool,
     // TODO(tailhook) is this images thing needed?
     images: Mutex<HashSet<ImageId>>,
+    watches: Mutex<HashSet<VPath>>,
 }
 
 
@@ -93,6 +95,7 @@ impl Connection {
             connected: AtomicBool::new(true),
             registry: registry.clone(),
             images: Mutex::new(HashSet::new(), "connection_images"),
+            watches: Mutex::new(HashSet::new(), "connection_watches"),
         }));
         let disp = Dispatcher::new(cli.clone(), &registry, tracking);
         let rx = rx.packetize(&registry);
@@ -121,6 +124,7 @@ impl Connection {
             connected: AtomicBool::new(false),
             registry: registry.clone(),
             images: Mutex::new(HashSet::new(), "connection_images"),
+            watches: Mutex::new(HashSet::new(), "connection_watches"),
         }));
         return (cli, rx);
     }
@@ -132,7 +136,12 @@ impl Connection {
     pub fn images(&self) -> MutexGuard<HashSet<ImageId>> {
         self.0.images.lock()
     }
-
+    pub fn add_watch(&self, path: &VPath) {
+        self.0.watches.lock().insert(path.clone());
+    }
+    pub fn watches(&self) -> MutexGuard<HashSet<VPath>> {
+        self.0.watches.lock()
+    }
     pub fn has_image(&self, id: &ImageId) -> bool {
         self.images().contains(id)
     }
@@ -163,10 +172,12 @@ impl websocket::Dispatcher for Dispatcher {
                     use proto::message::Request::*;
                     match req {
                         AppendDir(ad) => {
+                            self.connection.add_watch(&ad.path);
                             self.tracking.append_dir(ad,
                                 Responder::new(rid, self));
                         }
                         ReplaceDir(ad) => {
+                            self.connection.add_watch(&ad.path);
                             self.tracking.replace_dir(ad,
                                 Responder::new(rid, self));
                         }

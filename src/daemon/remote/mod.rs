@@ -4,7 +4,7 @@ pub mod websocket;
 pub use remote::websocket::Connection;
 
 use std::net::SocketAddr;
-use std::collections::{HashSet, HashMap};
+use std::collections::{HashSet, HashMap, BTreeSet};
 use std::sync::{Arc};
 use std::time::{Duration};
 
@@ -119,6 +119,13 @@ impl Remote {
         peer: &Peer)
     {
         self._received_image(id, path, Some(peer));
+    }
+    pub fn get_watching(&self) -> BTreeSet<VPath> {
+        let mut res = BTreeSet::new();
+        for conn in self.inner().incoming.iter() {
+            res.extend(conn.watches().iter().cloned());
+        }
+        return res;
     }
     pub fn _received_image(&self, id: &ImageId, path: &VPath,
         source: Option<&Peer>)
