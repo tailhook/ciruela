@@ -299,6 +299,18 @@ impl Tracking {
                 _ => None,
             }).collect()
     }
+    // only for UI
+    pub fn get_watched(&self) -> BTreeMap<VPath, Option<ImageId>> {
+        let mut state = self.state();
+        state.poll_watched();
+        state.watched.iter()
+            .map(|(x, y)| match y {
+                &WatchedStatus::Complete(ref id) => {
+                    (x.clone(), Some(id.clone()))
+                }
+                _ => (x.clone(), None),
+            }).collect()
+    }
     pub fn get_connection_by_mask<P: Policy>(&self,
         vpath: &VPath, id: &ImageId, mask: Mask,
         failures: &Failures<SocketAddr, P>)

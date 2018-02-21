@@ -65,6 +65,7 @@ enum Route {
     Downloading,
     Deleted,
     Watching,
+    Watched,
 }
 
 
@@ -206,6 +207,9 @@ impl<S> server::Codec<S> for HttpCodec
             Route::Watching => {
                 ok(serve_json(e, &self.tracking.get_watching()))
             }
+            Route::Watched => {
+                ok(serve_json(e, &self.tracking.get_watched()))
+            }
             Route::Cluster(ClusterRoute::Downloading) => {
                 #[derive(Serialize)]
                 pub struct Progress {
@@ -341,6 +345,8 @@ impl Route {
             return Route::Deleted;
         } else if path == "/watching/" {
             return Route::Watching;
+        } else if path == "/watched/" {
+            return Route::Watched;
         } else if path.starts_with("/cluster/") {
             if path == "/cluster/downloading/" {
                 return Route::Cluster(ClusterRoute::Downloading);
