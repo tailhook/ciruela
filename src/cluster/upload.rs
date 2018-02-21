@@ -92,8 +92,9 @@ impl Stats {
             info.hostname.clone(), info.reason.clone());
     }
     pub(crate) fn add_response(&self, source: SocketAddr,
-        accepted: bool, reject_reason: Option<String>,
+        mut accepted: bool, reject_reason: Option<String>,
         hosts: HashMap<MachineId, String>)
+        -> bool
     {
         let mut book = self.book.write()
             .expect("bookkeeping is not poisoned");
@@ -109,6 +110,7 @@ impl Stats {
                 }
                 book.done_ips.insert(source);
                 // TODO(tailhook) mark other dicts as done too
+                accepted = true;
             }
             (false, Some("no_config")) => {
                 warn!("Info {} rejects directory", source);
@@ -135,6 +137,7 @@ impl Stats {
             book.discovered_ids.insert(id);
             book.discovered_hosts.insert(val);
         }
+        return accepted;
     }
     pub(crate) fn total_responses(&self) -> u32 {
         self.total_responses.load(Ordering::Relaxed) as u32

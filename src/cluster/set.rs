@@ -351,12 +351,12 @@ impl<R, I, B> ConnectionSet<R, I, B>
                                 candidates
                                     .extend(resp.hosts.iter().filter_map(
                                         |(_, h)| h.parse().ok()));
-                                stats.add_response(
+                                let accepted = stats.add_response(
                                     *addr,
                                     resp.accepted,
                                     resp.reject_reason,
                                     resp.hosts);
-                                if !resp.accepted {
+                                if !accepted {
                                     connections.remove(addr);
                                 }
                                 false
@@ -374,12 +374,12 @@ impl<R, I, B> ConnectionSet<R, I, B>
                                 candidates
                                     .extend(resp.hosts.iter().filter_map(
                                         |(_, h)| h.parse().ok()));
-                                stats.add_response(
+                                let accepted = stats.add_response(
                                     *addr,
                                     resp.accepted,
                                     resp.reject_reason,
                                     resp.hosts);
-                                if !resp.accepted {
+                                if !accepted {
                                     connections.remove(addr);
                                 }
                                 false
