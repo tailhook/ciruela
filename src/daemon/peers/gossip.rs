@@ -132,7 +132,11 @@ impl Gossip {
                             None => {}
                         }
                         self.tracking.check_watched(&watching);
-                        if in_progress.len() == 0 && deleted.len() == 0 {
+                        if in_progress.len() == 0 &&
+                           deleted.len() == 0 &&
+                           watching.len() == 0 &&
+                           complete.len() == 0
+                        {
                             self.by_host.lock().remove(&pkt.machine_id);
                         } else {
                             self.by_host.lock()
