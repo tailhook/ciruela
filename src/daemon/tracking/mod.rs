@@ -300,15 +300,20 @@ impl Tracking {
             }).collect()
     }
     // only for UI
-    pub fn get_watched(&self) -> BTreeMap<VPath, Option<ImageId>> {
+    pub fn get_watched(&self) -> BTreeMap<VPath, String> {
         let mut state = self.state();
         state.poll_watched();
         state.watched.iter()
             .map(|(x, y)| match y {
                 &WatchedStatus::Complete(ref id) => {
-                    (x.clone(), Some(id.clone()))
+                    (x.clone(), id.to_string())
                 }
-                _ => (x.clone(), None),
+                &WatchedStatus::Absent => {
+                    (x.clone(), "absent".into())
+                }
+                &WatchedStatus::Checking(..) => {
+                    (x.clone(), "checking".into())
+                }
             }).collect()
     }
     pub fn get_connection_by_mask<P: Policy>(&self,
