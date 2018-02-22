@@ -131,7 +131,7 @@ impl Remote {
         source: Option<&Peer>)
     {
         for conn in self.inner().incoming.iter() {
-            if conn.has_image(id) {
+            if conn.has_image(id) || conn.has_watch(path) {
                 conn.notification(ReceivedImage {
                     id: id.clone(),
                     hostname:

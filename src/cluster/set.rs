@@ -140,8 +140,8 @@ impl<R, I, B> ConnectionSet<R, I, B>
                     debug!("Host {}({}) received image {:?}[{}]",
                         img.hostname, addr, img.path, img.id);
                     for up in &mut self.uploads {
-                        if up.upload.image_id == img.id &&
-                            up.upload.path == img.path
+                        if up.upload.path == img.path &&
+                            (up.weak || up.upload.path == img.path)
                         {
                             up.stats.received_image(addr, &img);
                         }
@@ -152,7 +152,7 @@ impl<R, I, B> ConnectionSet<R, I, B>
                         img.hostname, addr, img.path, img.id, img.reason);
                     for up in &mut self.uploads {
                         if up.upload.image_id == img.id &&
-                            up.upload.path == img.path
+                            (up.weak || up.upload.path == img.path)
                         {
                             up.stats.aborted_image(addr, &img);
                         }

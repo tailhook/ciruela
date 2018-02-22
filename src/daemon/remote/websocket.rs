@@ -145,6 +145,9 @@ impl Connection {
     pub fn has_image(&self, id: &ImageId) -> bool {
         self.images().contains(id)
     }
+    pub fn has_watch(&self, path: &VPath) -> bool {
+        self.watches().contains(path)
+    }
     pub fn notification<N: Notification>(&self, n: N) {
         self.0.sender.notification(n)
     }

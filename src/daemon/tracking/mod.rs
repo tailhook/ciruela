@@ -570,7 +570,9 @@ pub fn start(init: TrackingInit) -> Result<(), String> // actually void
         .map_err(|_| unreachable!()));
     spawn(interval(Duration::new(15, 0))
         .for_each(move |()| {
-            let cluster_watching = sys5.peers.get_all_watching();
+            let mut cluster_watching = sys5.peers.get_all_watching();
+            cluster_watching.extend(sys5.remote.get_watching());
+
             let mut state = sys5.state();
 
             let cutoff = Instant::now() -
