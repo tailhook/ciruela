@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use std::net::SocketAddr;
 use std::collections::{VecDeque, HashMap, HashSet};
+use std::time::Duration;
 
 use abstract_ns::{Name, Resolve, HostResolve, Address, IpList, Error};
 use rand::{thread_rng};
@@ -82,6 +83,7 @@ pub struct ConnectionSet<R, I, B> {
     pending_addrs: HashMap<Name, Box<Future<Item=IpList, Error=Error>>>,
     failed_addrs: DnsFailures,
     addrs: HashMap<Name, Address>,
+    retry: Timeout,
 }
 
 impl<R, I, B> ConnectionSet<R, I, B>
@@ -113,6 +115,7 @@ impl<R, I, B> ConnectionSet<R, I, B>
             pending_addrs: HashMap::new(),
             failed_addrs: DnsFailures::new_default(),
             addrs: HashMap::new(),
+            retry: timeout(Duration::new(1, 0)),
         });
         return tx;
     }
@@ -453,6 +456,15 @@ impl<R, I, B> Future for ConnectionSet<R, I, B>
         let mut repeat = true;
         while repeat {
             repeat = false;
+            match self.retry.poll().expect("timeout never fails") {
+                Async::Ready(()) if self.uploads.len() > 0 => {
+                    // failed node will be okay in a second
+                    self.retry = timeout(Duration::new(1, 0));
+                    repeat = true;
+                }
+                Async::Ready(()) => {}  // don't wakeup if no active uploads
+                Async::NotReady => {}
+            }
 
             let pending = self.pending.len();
             self.poll_connect();
