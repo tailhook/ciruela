@@ -25,10 +25,10 @@ pub enum Accept {
     AlreadyDone,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum Upload {
     Accepted(Accept),
-    Rejected(&'static str),
+    Rejected(&'static str, Option<ImageId>),
 }
 
 fn sort_signatures(new: &mut Vec<SignatureEntry>) {
@@ -78,7 +78,7 @@ pub fn start_append(params: AppendDir, meta: &Meta)
     if !check_keys(&params.sig_data(), &params.signatures, config, meta)? {
         warn!("{:?} has no valid signatures. Upload-keys: {:?}",
               params, config.upload_keys);
-        return Ok(Upload::Rejected("signature_mismatch"));
+        return Ok(Upload::Rejected("signature_mismatch", None));
     }
 
     let dir = meta.signatures()?.ensure_dir(vpath.parent_rel())?;
@@ -105,7 +105,8 @@ pub fn start_append(params: AppendDir, meta: &Meta)
                     })?;
                     return Ok(Upload::Accepted(Accept::AlreadyDone));
                 } else {
-                    return Ok(Upload::Rejected("already_exists"));
+                    return Ok(Upload::Rejected("already_exists",
+                              Some(state.image.clone())));
                 }
             } else {
                 let state = State {
@@ -132,7 +133,8 @@ pub fn start_append(params: AppendDir, meta: &Meta)
                 }, Accept::InProgress)
             } else {
                 return Ok(Upload::Rejected(
-                        "already_uploading_different_version"));
+                        "already_uploading_different_version",
+                        Some(old_state.image.clone())));
             }
         }
     };
@@ -155,11 +157,11 @@ pub fn start_replace(params: ReplaceDir, meta: &Meta)
         return Err(Error::PathNotFound(vpath));
     };
     if config.append_only {
-        return Ok(Upload::Rejected("dir_is_append_only"));
+        return Ok(Upload::Rejected("dir_is_append_only", None));
     }
 
     if !check_keys(&params.sig_data(), &params.signatures, config, meta)? {
-        return Ok(Upload::Rejected("signature_mismatch"));
+        return Ok(Upload::Rejected("signature_mismatch", None));
     }
 
     let dir = meta.signatures()?.ensure_dir(vpath.parent_rel())?;
@@ -224,7 +226,8 @@ pub fn start_replace(params: ReplaceDir, meta: &Meta)
                 // start replacing
                 warn!("Replace is rejected because already in progress");
                 return Ok(Upload::Rejected(
-                    "already_uploading_different_version"));
+                    "already_uploading_different_version",
+                    Some(old_state.image.clone())));
             }
         }
     };

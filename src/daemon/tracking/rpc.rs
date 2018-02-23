@@ -5,7 +5,7 @@ use proto::{ReplaceDir, ReplaceDirAck};
 use proto::{GetIndex, GetIndexResponse};
 use proto::{GetBlock, GetBlockResponse};
 use proto::{GetBaseDir, GetBaseDirResponse};
-use tracking::{Tracking, base_dir};
+use tracking::{Tracking, base_dir, WatchedStatus};
 use remote::websocket::Responder;
 use {metadata, disk};
 
@@ -61,7 +61,7 @@ impl Tracking {
                 AppendDirAck {
                     accepted: matches!(result, Accepted(..)),
                     reject_reason: match result {
-                        Rejected(reason) => Some(reason.to_string()),
+                        Rejected(reason, _) => Some(reason.to_string()),
                         _ => None,
                     },
                     hosts: tracking.0.peers.servers_by_basedir(&parent),
@@ -95,12 +95,18 @@ impl Tracking {
                         tracking.0.remote
                             .notify_received_image(&image_id, &path);
                     }
+                    Rejected(_, Some(ref other_id)) => {
+                        tracking.state().watched
+                            // TODO(tailhook) not always complete
+                            .insert(path,
+                            WatchedStatus::Complete(other_id.clone()));
+                    }
                     Accepted(InProgress) | Rejected(..) => {}
                 }
                 ReplaceDirAck {
                     accepted: matches!(result, Accepted(..)),
                     reject_reason: match result {
-                        Rejected(reason) => Some(reason.to_string()),
+                        Rejected(reason, _) => Some(reason.to_string()),
                         _ => None,
                     },
                     hosts: tracking.0.peers.servers_by_basedir(&parent),

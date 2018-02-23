@@ -210,7 +210,7 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
                             }
                             Ok(Upload::Accepted(Accept::InProgress)) |
                             Ok(Upload::Accepted(Accept::AlreadyDone)) => {}
-                            Ok(Upload::Rejected(reason)) => {
+                            Ok(Upload::Rejected(reason, _)) => {
                                 REPLACE_REJECTED.incr(1);
                                 error!("Error reconciling {:?}: {}",
                                     vpath, reason);
@@ -238,7 +238,7 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
                             }
                             Ok(Upload::Accepted(Accept::InProgress)) |
                             Ok(Upload::Accepted(Accept::AlreadyDone)) => {}
-                            Ok(Upload::Rejected(reason)) => {
+                            Ok(Upload::Rejected(reason, _)) => {
                                 APPEND_REJECTED.incr(1);
                                 error!("Error reconciling {:?}: {}",
                                     vpath, reason);
