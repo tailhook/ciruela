@@ -221,7 +221,7 @@ impl Tracking {
         for p in paths {
             if !state.watched.contains_key(p) &&
                !state.in_progress.contains_key(p) &&
-               self.0.config.dirs.contains_key(p.key())
+               self.0.config.is_valid_destination(p)
             {
                 state.watched.insert(p.clone(),
                     WatchedStatus::Checking(self.0.meta.get_image_id(p)));

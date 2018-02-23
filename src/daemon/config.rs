@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
+use {VPath};
 use machine_id::MachineId;
 use scan_dir::ScanDir;
 use quire::validate::{Directory as Dir, Structure, Numeric, Scalar, Sequence};
@@ -68,4 +69,14 @@ pub fn read_dirs(path: &Path)
         }
         Ok::<_, ErrorList>(res)
     }).map_err(|e| e.to_string()).and_then(|v| v.map_err(|e| e.to_string()))
+}
+
+impl Config {
+    pub fn is_valid_destination(&self, vpath: &VPath) -> bool {
+        if let Some(ref cfg) = self.dirs.get(vpath.key()) {
+            cfg.num_levels == vpath.level()
+        } else {
+            false
+        }
+    }
 }
