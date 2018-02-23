@@ -76,7 +76,7 @@ pub fn convert_clusters(src: &Vec<String>, multi: bool)
         let mut cur = Vec::new();
         for name in src {
             if name == "--" {
-                if cur.len() > 0 {
+                if !cur.is_empty() {
                     result.push(mem::replace(&mut cur, Vec::new()));
                 }
             } else {
@@ -84,6 +84,9 @@ pub fn convert_clusters(src: &Vec<String>, multi: bool)
                     .context(format!("bad name {:?}", name))?;
                 cur.push(name);
             }
+        }
+        if !cur.is_empty() {
+            result.push(cur);
         }
         return Ok(result);
     } else {
