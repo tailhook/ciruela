@@ -53,6 +53,8 @@ pub fn read_keys(identities: &Vec<String>, key_vars: &Vec<String>)
     let no_default = identities.len() == 0 &&
         key_vars.len() == 0;
     if no_default {
+        keys_from_env("CIRUELA_KEY", true, &mut private_keys)
+            .context(format!("Can't read env key CIRUELA_KEY"))?;
         match home_dir() {
             Some(home) => {
                 let path = home.join(".ssh/id_ed25519");
@@ -65,14 +67,13 @@ pub fn read_keys(identities: &Vec<String>, key_vars: &Vec<String>)
                 keys_from_file(&path, true, &mut private_keys)
                     .context(format!("Can't read key file {:?}", path))?;
             }
-            None => {
+            None if private_keys.len() == 0 => {
                 warn!("Cannot find home dir. \
                     Use `-i` or `-k` options to specify \
                     identity (private key) explicitly.");
             }
+            None => {}  // fine if there is some key, say from env variable
         }
-        keys_from_env("CIRUELA_KEY", true, &mut private_keys)
-            .context(format!("Can't read env key CIRUELA_KEY"))?;
     } else {
         for ident in identities {
             keys_from_file(&Path::new(&ident), false,
