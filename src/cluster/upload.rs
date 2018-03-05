@@ -207,7 +207,7 @@ pub(crate) fn check(stats: &Arc<Stats>, config: &Config, early_timeout: bool)
                 max(config.early_hosts as usize, fract_hosts));
             debug!("Downloaded ids {}/{}/{}",
                 book.done_ids.len(), hosts, book.discovered_ids.len());
-            if book.done_ids.len() >= hosts {
+            if hosts > 0 && book.done_ids.len() >= hosts {
                 if book.rejected_ips.len() > 0 || book.aborted_ids.len() > 0 {
                     return Some(Err(ErrorKind::Rejected));
                 } else {
@@ -217,10 +217,12 @@ pub(crate) fn check(stats: &Arc<Stats>, config: &Config, early_timeout: bool)
         } else if book.done_ids.is_superset(&book.discovered_ids) {
             debug!("Early downloaded ids {}/{}",
                 book.done_ids.len(), book.discovered_ids.len());
-            if book.rejected_ips.len() > 0 || book.aborted_ips.len() > 0 {
-                return Some(Err(ErrorKind::Rejected));
-            } else {
-                return Some(Ok(UploadOk::new(stats)));
+            if book.done_ids.len() > 0 {
+                if book.rejected_ips.len() > 0 || book.aborted_ips.len() > 0 {
+                    return Some(Err(ErrorKind::Rejected));
+                } else {
+                    return Some(Ok(UploadOk::new(stats)));
+                }
             }
         }
     }

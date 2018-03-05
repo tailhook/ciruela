@@ -19,7 +19,7 @@ use blocks::GetBlock;
 use cluster::addr::AddrCell;
 use cluster::config::Config;
 use cluster::upload;
-use cluster::error::UploadErr;
+use cluster::error::{UploadErr, ErrorKind};
 use cluster::future::UploadOk;
 use signature::SignedUpload;
 use failure_tracker::{HostFailures, DnsFailures};
@@ -435,7 +435,12 @@ impl<R, I, B> ConnectionSet<R, I, B>
                     ))).ok();
                     return VAsync::Ready(())
                 }
-                None => {}
+                None => {
+                    up.resolve.send(Err(Arc::new(
+                        UploadErr::NetworkError(ErrorKind::DeadlineReached,
+                                                up.stats.clone())
+                    ))).ok();
+                }
             }
             return VAsync::Ready(());
         }
