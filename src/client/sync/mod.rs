@@ -6,7 +6,7 @@ use std::mem;
 
 use abstract_ns::Name;
 use failure::{Error, ResultExt};
-use gumdrop::Options;
+use structopt::StructOpt;
 
 use ciruela::blocks::ThreadedBlockReader;
 use ciruela::index::InMemoryIndexes;
@@ -16,16 +16,26 @@ use keys::read_keys;
 use global_options::GlobalOptions;
 
 
-#[derive(Options, Debug, Default)]
-#[options(no_short)]
-struct SyncOptions {
-    #[options(help="Print help message and exit")]
-    help: bool,
+#[derive(StructOpt, Debug)]
+#[structopt(name="ciruela sync", about="
+    A tool for bulk-uploading a set of directories to a set
+    of clusters *each* having a single name on a command-line
+    as an entry point (but see `-m`)
 
-    #[options(free)]
+    Executes a set of operations (uploads) to each mentioned
+    cluster. Cluster dns name (ENTRY_POINT) should resolve
+    to a multiple (e.g. at least three) ip addresses of
+    servers for reliability.
+
+    All uploading is done in parallel. Command
+    returns when all uploads are done or rejected.
+")]
+struct SyncOptions {
+    #[structopt(name="ENTRY_POINT",
+        help="domain names used as entry points to a cluster")]
     clusters: Vec<String>,
 
-    #[options(short="m", help="
+    #[structopt(short="m", long="multiple", help="
         Multiple hosts per cluster mode. By default each hostname specified
         on the command-line is a separate cluster (and is expected to be
         resolved to multiple IP addresses). With this option set, hostnames
@@ -34,29 +44,37 @@ struct SyncOptions {
     ")]
     multiple: bool,
 
-    #[options(meta="SOURCE:DEST",
-              help="Append a directory \
+    #[structopt(name="A_SOURCE:DEST", long="append",
+                raw(number_of_values="1"),
+                help="Append a directory \
                    (skip if already exists and same contents)")]
     append: Vec<String>,
 
-    #[options(meta="SOURCE:DEST",
-              help="Append a directory \
+    #[structopt(name="W_SOURCE:DEST", long="append-weak",
+                raw(number_of_values="1"),
+                help="Append a directory \
                    (skip if already exists even if different contents)")]
     append_weak: Vec<String>,
 
-    #[options(meta="SOURCE:DEST",
-              help="Replace a directory \
+    #[structopt(name="R_SOURCE:DEST", long="replace",
+                raw(number_of_values="1"),
+                help="Replace a directory \
                     (this should be allowed in server config)")]
     replace: Vec<String>,
 
-    #[options(short="i", meta="FILENAME", help="
+    #[structopt(short="i", long="identity", name="FILENAME",
+                raw(number_of_values="1"),
+                help="
         Use the specified identity files (basically ssh-keys) to
         sign the upload. By default all supported keys in
         `$HOME/.ssh` and a key passed in environ variable `CIRUELA_KEY`
         are used. Note: multiple `-i` flags may be used.
     ")]
     identity: Vec<String>,
-    #[options(short="k", meta="ENV_VAR", help="
+
+    #[structopt(short="k", long="key-from-env", name="ENV_VAR",
+                raw(number_of_values="1"),
+                help="
         Use specified env variable to get identity (basically ssh-key).
         The environment variable contains actual key, not the file
         name. Multiple variables can be specified along with `-i`.
@@ -97,76 +115,52 @@ pub fn convert_clusters(src: &Vec<String>, multi: bool)
 }
 
 
-pub fn cli(gopt: GlobalOptions, args: Vec<String>) -> ! {
-    let opts = match SyncOptions::parse_args_default(&args) {
-        Ok(opts) => opts,
+pub fn cli(gopt: GlobalOptions, mut args: Vec<String>) -> ! {
+    args.insert(0, String::from("ciruela sync"));  // temporarily
+    let opts = SyncOptions::from_iter(args);
+
+    let keys = match read_keys(&opts.identity, &opts.key_from_env) {
+        Ok(keys) => keys,
         Err(e) => {
-            eprintln!("ciruela sync: {}", e);
+            error!("{}", e);
+            warn!("Images haven't started to upload.");
+            exit(2);
+        }
+    };
+    let clusters = match convert_clusters(&opts.clusters, opts.multiple) {
+        Ok(names) => names,
+        Err(e) => {
+            error!("{}", e);
+            warn!("Images haven't started to upload.");
+            exit(2);
+        }
+    };
+
+    let indexes = InMemoryIndexes::new();
+    let block_reader = ThreadedBlockReader::new();
+
+    let uploads = match
+        uploads::prepare(&opts, &keys, &gopt, &indexes, &block_reader)
+    {
+        Ok(uploads) => uploads,
+        Err(e) => {
+            error!("{}", e);
+            warn!("Images haven't started to upload.");
             exit(1);
         }
     };
 
-    if opts.help {
-        println!("Usage: ciruela sync [OPTIONS] [ENTRY_POINT...]");
-        println!();
-        println!("A tool for bulk-uploading a set of directories to a set ");
-        println!("of clusters *each* having a single name on a command-line");
-        println!("as an entry point (but see `-m`)");
-        println!();
-        println!("Executes a set of operations (uploads) to each mentioned");
-        println!("cluster. Cluster dns name (ENTRY_POINT) should resolve");
-        println!("to a multiple (e.g. at least three) ip addresses of");
-        println!("servers for reliability.");
-        println!();
-        println!("All uploading is done in parallel. Command");
-        println!("returns when all uploads are done or rejected.");
-        println!();
-        println!("{}", SyncOptions::usage());
-        exit(0);
-    } else {
-        let keys = match read_keys(&opts.identity, &opts.key_from_env) {
-            Ok(keys) => keys,
-            Err(e) => {
-                error!("{}", e);
-                warn!("Images haven't started to upload.");
-                exit(2);
-            }
-        };
-        let clusters = match convert_clusters(&opts.clusters, opts.multiple) {
-            Ok(names) => names,
-            Err(e) => {
-                error!("{}", e);
-                warn!("Images haven't started to upload.");
-                exit(2);
-            }
-        };
-
-        let indexes = InMemoryIndexes::new();
-        let block_reader = ThreadedBlockReader::new();
-
-        let uploads = match
-            uploads::prepare(&opts, &keys, &gopt, &indexes, &block_reader)
-        {
-            Ok(uploads) => uploads,
-            Err(e) => {
-                error!("{}", e);
-                warn!("Images haven't started to upload.");
-                exit(1);
-            }
-        };
-
-        let config = Config::new()
-            .port(gopt.destination_port)
-            .done();
-        match
-            network::upload(config, clusters, uploads, &indexes, &block_reader)
-        {
-            Ok(()) => {}
-            Err(e) => {
-                error!("{}", e);
-                exit(3);
-            }
+    let config = Config::new()
+        .port(gopt.destination_port)
+        .done();
+    match
+        network::upload(config, clusters, uploads, &indexes, &block_reader)
+    {
+        Ok(()) => {}
+        Err(e) => {
+            error!("{}", e);
+            exit(3);
         }
-        exit(0);
     }
+    exit(0);
 }

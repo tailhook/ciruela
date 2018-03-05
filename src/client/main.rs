@@ -11,7 +11,6 @@ extern crate env_logger;
 extern crate failure;
 extern crate futures;
 extern crate futures_cpupool;
-extern crate gumdrop;
 extern crate hex;
 extern crate ns_router;
 extern crate ns_std_threaded;
@@ -27,7 +26,7 @@ extern crate tokio_core;
 extern crate tokio_io;
 extern crate void;
 
-#[macro_use] extern crate gumdrop_derive;
+#[macro_use] extern crate structopt;
 #[macro_use] extern crate log;
 #[macro_use] extern crate matches;
 #[macro_use] extern crate mopa;
