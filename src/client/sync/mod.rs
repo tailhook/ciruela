@@ -3,6 +3,7 @@ mod network;
 
 use std::process::exit;
 use std::mem;
+use std::time::Duration;
 
 use abstract_ns::Name;
 use failure::{Error, ResultExt};
@@ -83,6 +84,43 @@ struct SyncOptions {
         Useful for CI systems.
     ")]
     key_from_env: Vec<String>,
+
+    #[structopt(short="e", long="early-timeout", name="EARLY_TIMEO",
+                parse(try_from_str="::humantime::parse_duration"),
+                default_value="30s",
+                help="
+        Report successful exit after this timeout even if not all hosts
+        received directories as long as most of them done
+    ")]
+    early_timeout: Duration,
+
+    #[structopt(long="early-fraction", name="EARLY_FACTION",
+                default_value="0.75",
+                help="
+        Report successful exit after early timeout if this fraction if known
+        hosts are done.
+    ")]
+    early_fraction: f32,
+
+    #[structopt(long="early-hosts", name="EARLY_HOSTS",
+                default_value="3",
+                help="
+        Report successful exit after early timeout after at least this number
+        of hosts are done, if this number is larger than
+        known-hosts*EARLY_FRACTION. If after early timeout number of known
+        hosts is less than this number the 100% of hosts are used as a measure.
+    ")]
+    early_hosts: u32,
+
+    #[structopt(short="t", long="deadline", name="DEADLINE",
+                parse(try_from_str="::humantime::parse_duration"),
+                default_value="30min",
+                help="
+        Maximum time ciruela sync is allowed to run. If not all hosts are
+        done and early exit conditions are not met utility will exit with
+        non-zero status.
+    ")]
+    deadline: Duration,
 }
 
 
@@ -152,6 +190,9 @@ pub fn cli(gopt: GlobalOptions, mut args: Vec<String>) -> ! {
 
     let config = Config::new()
         .port(gopt.destination_port)
+        .early_upload(opts.early_hosts, opts.early_fraction,
+                      opts.early_timeout)
+        .maximum_timeout(opts.deadline)
         .done();
     match
         network::upload(config, clusters, uploads, &indexes, &block_reader)

@@ -12,6 +12,7 @@ extern crate failure;
 extern crate futures;
 extern crate futures_cpupool;
 extern crate hex;
+extern crate humantime;
 extern crate ns_router;
 extern crate ns_std_threaded;
 extern crate ns_env_config;
