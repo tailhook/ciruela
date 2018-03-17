@@ -2,7 +2,7 @@ use std::fmt;
 use std::sync::Arc;
 use std::time::Instant;
 
-use cluster::error::UploadErr;
+use cluster::error::{UploadErr, FetchErr};
 use cluster::upload::Stats;
 use failure::err_msg;
 use futures::future::Shared;
@@ -15,6 +15,13 @@ use futures::{Future, Async};
 pub struct UploadFuture {
     pub(crate) inner: Shared<oneshot::Receiver<Result<UploadOk, Arc<UploadErr>>>>,
 }
+
+/// Future returned from `Connection::fetch_index`
+#[derive(Debug)]
+pub struct IndexFuture {
+    pub(crate) inner: oneshot::Receiver<Result<Vec<u8>, FetchErr>>,
+}
+
 
 /// Result of the upload
 #[derive(Debug, Clone)]
@@ -80,5 +87,19 @@ impl fmt::Display for UploadOk {
             write!(f, " in {}s", d.as_secs())?;
         }
         Ok(())
+    }
+}
+
+impl Future for IndexFuture {
+    type Item = Vec<u8>;
+    type Error = FetchErr;
+    fn poll(&mut self) -> Result<Async<Vec<u8>>, FetchErr> {
+        match self.inner.poll() {
+            Ok(Async::Ready(Ok(v))) => Ok(Async::Ready(v)),
+            Ok(Async::Ready(Err(e))) => Err(e),
+            Ok(Async::NotReady) => Ok(Async::NotReady),
+            Err(_) => Err(FetchErr::Fatal(
+                format_err!("channel closed unexpectedly"))),
+        }
     }
 }

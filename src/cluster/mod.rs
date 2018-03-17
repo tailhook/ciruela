@@ -21,6 +21,7 @@ pub use cluster::error::{UploadErr, ErrorKind};
 
 use std::sync::Arc;
 
+use {VPath};
 use abstract_ns::{Name, Resolve, HostResolve};
 use futures::sync::mpsc::{UnboundedSender};
 use futures::future::{Future, Shared};
@@ -29,6 +30,7 @@ use futures::sync::oneshot;
 use index::GetIndex;
 use blocks::GetBlock;
 use cluster::set::{Message, NewUpload};
+use cluster::future::IndexFuture;
 use signature::SignedUpload;
 
 /// Connection to a server or cluster of servers
@@ -133,6 +135,16 @@ impl Connection {
         Upload {
             stats,
             future: rx.shared(),
+        }
+    }
+
+    /// Fetch index of a directory that is currently on the server
+    pub fn fetch_index(&self, vpath: &VPath) -> IndexFuture {
+        let (tx, rx) = oneshot::channel();
+        self.chan.unbounded_send(Message::FetchIndex(vpath.clone(), tx))
+            .expect("connection set is not closed");
+        IndexFuture {
+            inner: rx,
         }
     }
 }

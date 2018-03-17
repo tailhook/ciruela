@@ -14,12 +14,13 @@ use tk_easyloop::{spawn, timeout};
 use tokio_core::reactor::Timeout;
 use valuable_futures::Async as VAsync;
 
+use {VPath};
 use index::GetIndex;
 use blocks::GetBlock;
 use cluster::addr::AddrCell;
 use cluster::config::Config;
 use cluster::upload;
-use cluster::error::{UploadErr, ErrorKind};
+use cluster::error::{UploadErr, FetchErr, ErrorKind};
 use cluster::future::UploadOk;
 use signature::SignedUpload;
 use failure_tracker::{HostFailures, DnsFailures};
@@ -31,6 +32,7 @@ use proto::{AppendDirAck, ReplaceDirAck};
 #[derive(Debug)]
 pub enum Message {
     NewUpload(NewUpload),
+    FetchIndex(VPath, oneshot::Sender<Result<Vec<u8>, FetchErr>>),
     Notification(SocketAddr, Notification),
     Closed(SocketAddr),
 }
@@ -136,6 +138,9 @@ impl<R, I, B> ConnectionSet<R, I, B>
                 NewUpload(up) => {
                     self.start_upload(up);
                 }
+                FetchIndex(path, tx) => {
+                    self.start_fetch_index(path, tx);
+                }
                 Notification(addr, ReceivedImage(img)) => {
                     debug!("Host {}({}) received image {:?}[{}]",
                         img.hostname, addr, img.path, img.id);
@@ -181,6 +186,12 @@ impl<R, I, B> ConnectionSet<R, I, B>
             deadline: timeout(self.config.maximum_timeout),
             candidate_hosts: HashSet::new(),
         });
+    }
+
+    fn start_fetch_index(&mut self, vpath: VPath,
+        tx: oneshot::Sender<Result<Vec<u8>, FetchErr>>)
+    {
+        //self.fetches.push_back(FetchIndex { vpath });
     }
 
     fn new_conns(&mut self, up: &mut Upload) {

@@ -36,3 +36,14 @@ pub enum UploadErr {
     #[fail(display="undefined error")]
     __Nonexhaustive,
 }
+
+/// Error when downloading index or block
+#[derive(Debug, Fail)]
+pub enum FetchErr {
+    /// Unexpected fatal error happened
+    #[fail(display="{:?}", _0)]
+    Fatal(Error),
+    #[doc(hidden)]
+    #[fail(display="undefined error")]
+    __Nonexhaustive,
+}
