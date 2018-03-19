@@ -188,6 +188,10 @@ impl websocket::Dispatcher for Dispatcher {
                             self.tracking.get_index(gi,
                                 Responder::new(rid, self));
                         }
+                        GetIndexAt(gi) => {
+                            self.tracking.get_index_at(gi,
+                                Responder::new(rid, self));
+                        }
                         GetBlock(gb) => {
                             self.tracking.get_block(gb,
                                 Responder::new(rid, self));

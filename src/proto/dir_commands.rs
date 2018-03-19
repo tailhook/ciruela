@@ -33,6 +33,7 @@ pub struct ReplaceDir {
 pub struct AppendDirAck {
     pub accepted: bool,
     pub reject_reason: Option<String>,
+    #[serde(default)]
     pub hosts: HashMap<MachineId, String>,
 }
 
@@ -40,6 +41,7 @@ pub struct AppendDirAck {
 pub struct ReplaceDirAck {
     pub accepted: bool,
     pub reject_reason: Option<String>,
+    #[serde(default)]
     pub hosts: HashMap<MachineId, String>,
 }
 

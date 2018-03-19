@@ -290,6 +290,30 @@ but never uses a hint value (still, the virtual path where index resides
 is used internally, so it may become useful in future if we will ever forward
 the ``GetIndex`` requests)
 
+GetIndexAt
+``````````
+
+Fetch an index data by it's path. It's usually used to download image by a
+client (perhaps to execute modify and update cycle).
+
+Note: image id is a part of index data so is not provided separately.
+
+.. code-block:: cddl
+
+    $message /= [1, "GetIndexAt", request-id, get-index-at-params]
+    $message /= [2, "GetIndexAt", request-id, get-index-at-response]
+    get-index-at-params = {
+        path: text                  ; virtual_path to check image at
+    }
+    get-index-at-response = {
+        ? data: bytes,              ; full original index file
+        ? hosts: {* bytes => text}, ; hosts that contain a directory
+    }
+
+The index file returned is a similar way to ``GetIndex``. If there is no
+such config response may include a list of hosts to search for a directory
+at. Similarly to how it's done in ``AppendDir`` and ``ReplaceDir``.
+
 
 GetBlock
 ````````

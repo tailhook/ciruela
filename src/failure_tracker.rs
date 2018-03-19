@@ -8,13 +8,18 @@ use abstract_ns::Name;
 
 
 const RETRY_TIME: u64 = 1000;
+const SLOW_RETRY_TIME: u64 = 10000;
 
 
 pub type HostFailures = Failures<SocketAddr, DefaultPolicy>;
+pub type SlowHostFailures = Failures<SocketAddr, SlowerPolicy>;
 pub type DnsFailures = Failures<Name, DefaultPolicy>;
 
 #[derive(Debug)]
 pub struct DefaultPolicy;
+
+#[derive(Debug)]
+pub struct SlowerPolicy;
 
 #[derive(Debug)]
 pub struct Failures<K: Eq + Hash, P> {
@@ -39,10 +44,28 @@ impl Policy for DefaultPolicy {
         return since > retry_time * entry.subsequent;
     }
 }
+
+impl Policy for SlowerPolicy {
+    fn can_try(&self, entry: &Failure) -> bool {
+        let retry_time = Duration::from_millis(SLOW_RETRY_TIME);
+        let since = Instant::now() - entry.last;
+        return since > retry_time * entry.subsequent;
+    }
+}
+
 impl<K: Clone + Eq + Hash> Failures<K, DefaultPolicy> {
     pub fn new_default() -> Failures<K, DefaultPolicy> {
         Failures {
             policy: DefaultPolicy,
+            items: HashMap::new(),
+        }
+    }
+}
+
+impl<K: Clone + Eq + Hash> Failures<K, SlowerPolicy> {
+    pub fn new_slow() -> Failures<K, SlowerPolicy> {
+        Failures {
+            policy: SlowerPolicy,
             items: HashMap::new(),
         }
     }

@@ -1,4 +1,5 @@
 use std::fmt;
+use std::collections::HashMap;
 
 use serde_bytes;
 
@@ -63,6 +64,18 @@ pub struct GetIndexResponse {
     pub data: Vec<u8>,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct GetIndexAt {
+    pub path: VPath,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct GetIndexAtResponse {
+    pub data: Option<serde_bytes::ByteBuf>,
+    #[serde(default)]
+    pub hosts: HashMap<MachineId, String>,
+}
+
 
 impl Request for GetIndex {
     type Response = GetIndexResponse;
@@ -84,6 +97,34 @@ impl fmt::Debug for GetIndexResponse {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("GetIndexResponse")
         .field("data", &format!("<{} bytes>", self.data.len()))
+        .finish()
+    }
+}
+
+impl Request for GetIndexAt {
+    type Response = GetIndexAtResponse;
+    fn type_name(&self) -> &'static str {
+        return "GetIndexAt";
+    }
+}
+
+impl Response for GetIndexAtResponse {
+    fn type_name(&self) -> &'static str {
+        return "GetIndexAt";
+    }
+    fn static_type_name() -> &'static str {
+        return "GetIndexAt";
+    }
+}
+
+impl fmt::Debug for GetIndexAtResponse {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("GetIndexAtResponse")
+        .field("data", &match self.data {
+            Some(ref d) => format!("<{} bytes>", d.len()),
+            None => format!("<no data>"),
+        })
+        .field("hosts", &self.hosts)
         .finish()
     }
 }

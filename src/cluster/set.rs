@@ -23,11 +23,12 @@ use cluster::upload;
 use cluster::error::{UploadErr, FetchErr, ErrorKind};
 use cluster::future::UploadOk;
 use signature::SignedUpload;
-use failure_tracker::{HostFailures, DnsFailures};
+use failure_tracker::{HostFailures, DnsFailures, SlowHostFailures};
 use proto::{self, Client, ClientFuture, RequestClient, RequestFuture};
 use proto::message::Notification;
 use proto::{AppendDir, ReplaceDir};
 use proto::{AppendDirAck, ReplaceDirAck};
+use proto::{GetIndexAt, GetIndexAtResponse};
 
 #[derive(Debug)]
 pub enum Message {
@@ -70,6 +71,16 @@ enum RFuture {
 }
 
 
+pub struct FetchIndex {
+    vpath: VPath,
+    connection: Option<(SocketAddr, Client)>,
+    future: Option<RequestFuture<GetIndexAtResponse>>,
+    candidate_hosts: HashSet<Name>,
+    failures: SlowHostFailures,
+    resolve: oneshot::Sender<Result<Vec<u8>, FetchErr>>,
+}
+
+
 pub struct ConnectionSet<R, I, B> {
     resolver: R,
     index_source: I,
@@ -82,6 +93,7 @@ pub struct ConnectionSet<R, I, B> {
     pending: HashMap<SocketAddr, ClientFuture>,
     active: HashMap<SocketAddr, Client>,
     uploads: VecDeque<Upload>,
+    fetches: VecDeque<FetchIndex>,
     pending_addrs: HashMap<Name, Box<Future<Item=IpList, Error=Error>>>,
     failed_addrs: DnsFailures,
     addrs: HashMap<Name, Address>,
@@ -111,6 +123,7 @@ impl<R, I, B> ConnectionSet<R, I, B>
             chan_tx: tx.clone(),
             config: config.clone(),
             uploads: VecDeque::new(),
+            fetches: VecDeque::new(),
             failures: HostFailures::new_default(),
             pending: HashMap::new(),
             active: HashMap::new(),
@@ -191,10 +204,16 @@ impl<R, I, B> ConnectionSet<R, I, B>
     fn start_fetch_index(&mut self, vpath: VPath,
         tx: oneshot::Sender<Result<Vec<u8>, FetchErr>>)
     {
-        //self.fetches.push_back(FetchIndex { vpath });
+        self.fetches.push_back(FetchIndex {
+            vpath,
+            connection: None,
+            future: None,
+            candidate_hosts: HashSet::new(),
+            failures: SlowHostFailures::new_slow(),
+            resolve: tx,
+        });
     }
-
-    fn new_conns(&mut self, up: &mut Upload) {
+    fn new_conns_for_upload(&mut self, up: &mut Upload) {
         let initial = self.config.initial_connections as usize;
         if up.connections.len() >= initial {
             return;
@@ -260,6 +279,55 @@ impl<R, I, B> ConnectionSet<R, I, B>
             }
         }
     }
+    fn new_conn_for_fetch(&mut self, fetch: &mut FetchIndex) {
+        if fetch.connection.is_some() {
+            return;
+        }
+        let mut rng = thread_rng();
+        // first try already resolved discovered hosts
+        let mut new_addresses = sample_iter(&mut rng,
+            fetch.candidate_hosts.iter()
+                .filter_map(|h| self.addrs.get(h).and_then(|a| a.pick_one()))
+                .filter(|a| fetch.failures.can_try(a))
+                .filter(|a| !self.pending.contains_key(a))
+                .filter(|a| self.failures.can_try(a)),
+            1)
+            .unwrap_or_else(|v| v);
+        if new_addresses.len() == 0 {
+            let to_resolve = sample_iter(&mut rng,
+                fetch.candidate_hosts.iter()
+                    .filter(|h| self.failed_addrs.can_try(h))
+                    .filter(|h| self.addrs.get(h).is_none())
+                    .filter(|h| self.pending_addrs.get(h).is_none()),
+                1)
+                .unwrap_or_else(|v| v);
+            for host in to_resolve {
+                self.pending_addrs.insert(
+                    host.clone(), Box::new(self.resolver.resolve_host(host)));
+            }
+
+            // and fallback to just initial addresses
+            new_addresses = sample_iter(&mut rng,
+                self.initial_addr.get().addresses_at(0)
+                .filter(|a| fetch.failures.can_try(a))
+                .filter(|a| !self.pending.contains_key(a))
+                .filter(|a| self.failures.can_try(a)),
+                1)
+                .unwrap_or_else(|v| v);
+            for naddr in &new_addresses {
+                if !self.pending.contains_key(naddr) { // duplicate check
+                    self.pending.insert(*naddr, Client::spawn(*naddr,
+                        "ciruela".to_string(),
+                        self.block_source.clone(),
+                        self.index_source.clone(),
+                        Listener {
+                            addr: *naddr,
+                            chan: self.chan_tx.clone()
+                        }));
+                }
+            }
+        }
+    }
 
     fn poll_pending(&mut self) {
         let ref config = self.config;
@@ -301,8 +369,13 @@ impl<R, I, B> ConnectionSet<R, I, B>
     fn poll_connect(&mut self) {
         for _ in 0..self.uploads.len() {
             let mut cur = self.uploads.pop_front().unwrap();
-            self.new_conns(&mut cur);
+            self.new_conns_for_upload(&mut cur);
             self.uploads.push_back(cur);
+        }
+        for _ in 0..self.fetches.len() {
+            let mut cur = self.fetches.pop_front().unwrap();
+            self.new_conn_for_fetch(&mut cur);
+            self.fetches.push_back(cur);
         }
     }
 
@@ -340,6 +413,20 @@ impl<R, I, B> ConnectionSet<R, I, B>
             }
         }
     }
+    fn wakeup_fetches(&mut self) {
+        for fetch in &mut self.fetches {
+            if fetch.connection.is_none() {
+                for (addr, conn) in &self.active {
+                    if fetch.failures.can_try(addr) {
+                        fetch.connection = Some((*addr, conn.clone()));
+                        fetch.future = Some(conn.request(GetIndexAt {
+                            path: fetch.vpath.clone(),
+                        }));
+                    }
+                }
+            }
+        }
+    }
 
     fn poll_uploads(&mut self) {
         for _ in 0..self.uploads.len() {
@@ -347,6 +434,16 @@ impl<R, I, B> ConnectionSet<R, I, B>
             match self.poll_upload(cur) {
                 VAsync::Ready(()) => {},
                 VAsync::NotReady(cur) => self.uploads.push_back(cur),
+            }
+        }
+    }
+
+    fn poll_fetches(&mut self) {
+        for _ in 0..self.fetches.len() {
+            let cur = self.fetches.pop_front().unwrap();
+            match self.poll_fetch(cur) {
+                VAsync::Ready(()) => {},
+                VAsync::NotReady(cur) => self.fetches.push_back(cur),
             }
         }
     }
@@ -457,6 +554,40 @@ impl<R, I, B> ConnectionSet<R, I, B>
         }
         VAsync::NotReady(up)
     }
+
+    fn poll_fetch(&mut self, mut fetch: FetchIndex) -> VAsync<(), FetchIndex> {
+        if let Some(ref mut fut) = fetch.future {
+            match fut.poll() {
+                Ok(Async::NotReady) => {}
+                Ok(Async::Ready(result)) => {
+                    if let Some(data) = result.data {
+                        fetch.resolve.send(Ok(data.into())).ok();
+                        return VAsync::Ready(());
+                    } else {
+                        if let Some((addr, _)) = fetch.connection.take() {
+                            debug!("No data at {}", addr);
+                            fetch.failures.add_failure(addr);
+                        }
+                        fetch.candidate_hosts
+                            .extend(result.hosts.iter().filter_map(
+                                |(_, h)| h.parse().ok()));
+                    }
+                }
+                Err(e) => {
+                    debug!("Fetch index error: {}", e);
+                    if let Some((addr, _)) = fetch.connection.take() {
+                        fetch.failures.add_failure(addr);
+                    }
+                }
+            }
+        }
+        match fetch.resolve.poll_cancel() {
+            Ok(Async::Ready(())) => return VAsync::Ready(()),
+            Ok(Async::NotReady) => {}
+            Err(()) => unreachable!(),
+        }
+        VAsync::NotReady(fetch)
+    }
 }
 
 impl<R, I, B> Future for ConnectionSet<R, I, B>
@@ -493,10 +624,15 @@ impl<R, I, B> Future for ConnectionSet<R, I, B>
             repeat = repeat || paddrs != self.pending_addrs.len();
 
             self.wakeup_uploads();
+            self.wakeup_fetches();
 
             let uploads = self.uploads.len();
             self.poll_uploads();
             repeat = repeat || uploads != self.uploads.len();
+
+            let fetches = self.fetches.len();
+            self.poll_fetches();
+            repeat = repeat || fetches != self.fetches.len();
         }
         // TODO(tailhook) set reconnect timer
         if self.chan.is_done() && self.uploads.len() == 0 {

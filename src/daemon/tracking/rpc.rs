@@ -3,6 +3,7 @@ use futures::Future;
 use proto::{AppendDir, AppendDirAck};
 use proto::{ReplaceDir, ReplaceDirAck};
 use proto::{GetIndex, GetIndexResponse};
+use proto::{GetIndexAt, GetIndexAtResponse};
 use proto::{GetBlock, GetBlockResponse};
 use proto::{GetBaseDir, GetBaseDirResponse};
 use tracking::{Tracking, base_dir, WatchedStatus};
@@ -146,6 +147,21 @@ impl Tracking {
     {
         resp.respond_with_future(self.0.meta.read_index_bytes(&cmd.id)
             .map(|val| GetIndexResponse { data: val }));
+    }
+    pub fn get_index_at(&self, cmd: GetIndexAt,
+        resp: Responder<GetIndexAtResponse>)
+    {
+        let tracking = self.clone();
+        let meta = self.0.meta.clone();
+        let path = cmd.path.clone();
+        resp.respond_with_future(self.0.meta.get_image_id(&cmd.path)
+            .and_then(move |id| meta.read_index_bytes(&id))
+            .then(move |res| Ok::<_, Error>(GetIndexAtResponse {
+                data: res.map_err(|e| {
+                    debug!("error getting index at {:?}: {}", path, e);
+                }).ok().map(From::from),
+                hosts: tracking.0.peers.servers_by_basedir(&path.parent()),
+            })));
     }
     pub fn get_base_dir(&self, cmd: GetBaseDir,
         resp: Responder<GetBaseDirResponse>)
