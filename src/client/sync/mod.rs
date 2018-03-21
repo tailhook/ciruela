@@ -146,9 +146,10 @@ pub fn convert_clusters(src: &Vec<String>, multi: bool)
         }
         return Ok(result);
     } else {
-        return Ok(vec![src.iter().map(|name| {
-            name.parse::<Name>().context(format!("bad name {:?}", name))
-        }).collect::<Result<_, _>>()?]);
+        return Ok(src.iter().map(|name| {
+            name.parse::<Name>().map(|n| vec![n])
+            .context(format!("bad name {:?}", name))
+        }).collect::<Result<_, _>>()?);
     }
 }
 
