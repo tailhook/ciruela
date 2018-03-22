@@ -175,6 +175,9 @@ checked. Use ``AppendDir`` to atomically update first image.
 See AppendDir_ for the explanation of ``hosts`` usage.
 
 
+.. index:: pair: Notification; PublishImage
+.. _PublishImage:
+
 PublishImage
 ````````````
 

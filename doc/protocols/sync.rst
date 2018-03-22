@@ -26,10 +26,11 @@ not so simple. Here is a non-comprehensive list of complexities:
 ----------------------
 
 First ciruela resolves ``cluster.example.org`` and chooses a random sample
-of up to **three** individual IP addresses to connect to.
+of up to **three** [1] individual IP addresses to connect to.
 
-For each connection ciruela sends :ref:`AppendDir` or :ref:`ReplaceDir`
-request. Upon receiving request ciruela (daemon) does the following things:
+On each direct connection client firstly sends :ref:`PublishImage` then either
+:ref:`AppendDir` or :ref:`ReplaceDir` request. Upon receiving request ciruela
+(daemon) does the following things:
 
 1. Checks if this directory is configured on this server
 2. Checks whether path exists and it's id matches request,
@@ -37,7 +38,13 @@ request. Upon receiving request ciruela (daemon) does the following things:
 3. Checks whether signature matches any of accepted keys for that directory
 
 On the failure path of (1) server returns a list of hosts where to connect
-to. Client establishes new connections to one of the specified hosts so that
+to. Client establishes new connections and repeats a cycle of
+:ref:`PublishImage` and :ref:`AppendDir` to few of the specified hosts so that
 number of connections to hosts which accepted directory are three.
+
+.. [1] In rust API the number can be configured__. In future, we might add
+   a command-line parameter too.
+
+__ https://docs.rs/ciruela/0.5.12/ciruela/cluster/struct.Config.html#method.initial_connections
 
 (TBD)
