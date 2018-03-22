@@ -196,8 +196,8 @@ containers:
       script: "./install.sh --prefix=/usr \
                 --components=rustc,rust-std-x86_64-unknown-linux-gnu,cargo"
     - &bulk !Tar
-      url: "https://github.com/tailhook/bulk/releases/download/v0.4.9/bulk-v0.4.9.tar.gz"
-      sha256: 23471a9986274bb4b7098c03e2eb7e1204171869b72c45385fcee1c64db2d111
+      url: "https://github.com/tailhook/bulk/releases/download/v0.4.10/bulk-v0.4.10.tar.gz"
+      sha256: 481513f8a0306a9857d045497fb5b50b50a51e9ff748909ecf7d2bda1de275ab
       path: /
     - !EnsureDir /cargo
 
@@ -229,7 +229,7 @@ containers:
 
   doc:
     setup:
-    - !Alpine v3.6
+    - !Alpine v3.7
     - !Install [alpine-base, py-sphinx, py-requests, make]
 
 
