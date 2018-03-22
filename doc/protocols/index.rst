@@ -18,3 +18,4 @@ interoperability with the daemon.
    :caption: Contents:
 
    websocket
+   sync

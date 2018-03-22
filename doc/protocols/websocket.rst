@@ -77,6 +77,8 @@ per standard. Other signatures might require different structure.
 Commands
 --------
 
+.. index:: pair: Request; AppendDir
+.. _AppendDir:
 
 AppendDir
 `````````
@@ -130,6 +132,9 @@ list for all clusters it may be not so, if not is just restarted and has not
 picked up all the data in gossip subsystem.
 
 
+.. index:: pair: Request; ReplaceDir
+.. _ReplaceDir:
+
 ReplaceDir
 ``````````
 
@@ -167,7 +172,7 @@ Note: if no ``old_image`` is specified the destination directory is not
 checked. Use ``AppendDir`` to atomically update first image.
 
 
-See :ref:`AppendDir` for the explanation of ``hosts`` usage.
+See AppendDir_ for the explanation of ``hosts`` usage.
 
 
 PublishImage
