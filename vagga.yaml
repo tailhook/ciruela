@@ -104,18 +104,18 @@ commands:
       rm pkg/usr/.crates.toml
       bulk pack --package-version="${version}+${codename}1"
 
-  _package-precise: !Command
-    container: precise
-    run: *package
-
   _package-xenial: !Command
     container: xenial
+    run: *package
+
+  _package-bionic: !Command
+    container: bionic
     run: *package
 
   packages: !Command
     container: xenial
     description: Build packages and repostories (mostly for CI)
-    prerequisites: [_package-trusty, _package-precise, _package-xenial]
+    prerequisites: [_package-trusty, _package-xenial, _package-bionic]
     accepts_arguments: true
     run: |
       bulk repo-add --config bulk.yaml --repository-base dist/repos \
@@ -217,9 +217,9 @@ containers:
     environ: *environ
     volumes: *volumes
 
-  precise:
+  bionic:
     setup:
-    - !Ubuntu precise
+    - !Ubuntu bionic
     - *pkgs
     - *rust
     - *bulk
