@@ -27,6 +27,7 @@ use self::packets::Message;
 use tracking::Tracking;
 use peers::gossip::{HostData};
 use peers::two_way_map::ConfigMap;
+use proto::Hash;
 
 
 #[derive(Debug, Clone)]
@@ -82,6 +83,12 @@ impl Peers {
             path: path.clone(),
             image: image_id.clone(),
             mask, source,
+        }).expect("gossip subsystem crashed");
+    }
+    pub fn notify_basedir(&self, path: &VPath, hash: &Hash) {
+        self.messages.unbounded_send(Message::Reconcile {
+            path: path.clone(),
+            hash: hash.clone(),
         }).expect("gossip subsystem crashed");
     }
     pub fn notify_complete(&self, path: &VPath, image_id: &ImageId) {

@@ -113,7 +113,7 @@ impl BaseDir {
                 debug!("New base dir {:?}: {}", dir_data.path, hash);
                 let new = Arc::new(BaseDir {
                     config: config.clone(),
-                    path: dir_data.path,
+                    path: dir_data.path.clone(),
                     hash: Atomic::new(hash),
                     last_scan: Atomic::new(scan_time),
                     num_subdirs: AtomicUsize::new(dir_data.dirs.len()),
@@ -123,7 +123,7 @@ impl BaseDir {
                 lst.push(new.clone());
                 e.insert(new);
                 NUM_DIRS.incr(dir_data.dirs.len() as i64);
-                // TODO(tailhook) send to gossip
+                sys.0.peers.notify_basedir(&dir_data.path, &hash);
             }
             Entry::Occupied(e) => {
                 let val = e.get();
@@ -137,6 +137,7 @@ impl BaseDir {
                     let oldn = val.num_subdirs.swap(dirs, Ordering::SeqCst);
                     NUM_DIRS.incr((dirs as i64) - (oldn as i64));
                     val.add_parent_hash(old_hash);
+                    sys.0.peers.notify_basedir(&dir_data.path, &hash);
                 }
             }
         }

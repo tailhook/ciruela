@@ -197,6 +197,10 @@ impl Gossip {
                     Message::ConfigSync { paths } => {
                         self.configs.lock().set(pkt.machine_id, paths)
                     }
+                    Message::Reconcile { path, hash } => {
+                        self.tracking.reconcile_dir(path, hash, addr,
+                            pkt.machine_id.clone());
+                    }
                 }
             }
             if !self.socket.poll_read().is_ready() {
@@ -208,6 +212,7 @@ impl Gossip {
         match *msg {
             Message::BaseDirs {..} => unreachable!(),
             Message::ConfigSync { .. } => unreachable!(),
+            Message::Reconcile { ref path, .. } |
             Message::Downloading { ref path, .. } |
             Message::Complete { ref path, .. } => {
                 let all = self.peers.get();
