@@ -127,7 +127,7 @@ impl Remote {
         }
         return res;
     }
-    pub fn _received_image(&self, id: &ImageId, path: &VPath,
+    fn _received_image(&self, id: &ImageId, path: &VPath,
         source: Option<&Peer>)
     {
         for conn in self.inner().incoming.iter() {
