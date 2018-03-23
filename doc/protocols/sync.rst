@@ -22,6 +22,14 @@ not so simple. Here is a non-comprehensive list of complexities:
    for efficiency
 
 
+(0) Indexing
+------------
+
+Some offline preparation is done: scan specified directory and make an "index"
+of it.  Index is a file that contains list of paths and hashsums of the file
+contents.
+
+
 (1) Direct Connections
 ----------------------
 
@@ -36,15 +44,38 @@ On each direct connection client firstly sends :ref:`PublishImage` then either
 2. Checks whether path exists and it's id matches request,
    if both are false rejects AppendDir command
 3. Checks whether signature matches any of accepted keys for that directory
+4. Registers that this image should be downloaded to this path
 
 On the failure path of (1) server returns a list of hosts where to connect
 to. Client establishes new connections and repeats a cycle of
 :ref:`PublishImage` and :ref:`AppendDir` to few of the specified hosts so that
 number of connections to hosts which accepted directory are three.
 
+The :ref:`PublishImage` call does two things:
+
+1. Registers client as a "source" of the image, so that server knows where to
+   fetch this image from [2]_
+2. Also server marks that this client is "watching" the download progress for
+   this image (so that completion notifications are delivered here later)
+
 .. [1] In rust API the number can be configured__. In future, we might add
-   a command-line parameter too.
+   a command-line parameter too
+.. [2] We don't send actual image in AppendDir/ReplaceDir call because it's
+   expected that either image's index or some blocks of the actual data can
+   exist on the destination host
 
 __ https://docs.rs/ciruela/0.5.12/ciruela/cluster/struct.Config.html#method.initial_connections
+
+(2) Download Process
+--------------------
+
+The initial :ref:`AppendDir` / :ref:`ReplaceDir` kicks off the whole cluster
+synchronization process.
+
+1. Right after registration initial node sends "download progress" message
+   to few nodes (with 0 progress at this point)
+2. 
+
+
 
 (TBD)
