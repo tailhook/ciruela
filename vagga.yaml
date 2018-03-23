@@ -68,6 +68,19 @@ commands:
     - sync
     - --identity=ciruela-example.key
 
+  trio-sync: !Command
+    description: Run the sync command with example key to
+      an example cluster run with `vagga trio`
+    container: xenial
+    prerequisites: [make]
+    environ: *exenv
+    run:
+    - ./target/debug/ciruela
+    - --port=20001
+    - sync
+    - --identity=ciruela-example.key
+    - gw.mglawica.org
+
   example-upload-with-env-key: !Command
     description: Run the upload command with example key
     container: xenial
