@@ -267,7 +267,7 @@ impl Gossip {
                     }
                 }
                 for mypath in self.tracking.get_watching() {
-                    if &path.parent() == path {
+                    if &mypath.parent() == path {
                         watches.entry(mypath.clone())
                             .or_insert_with(HashSet::new)
                             .insert(self.machine_id.clone());
