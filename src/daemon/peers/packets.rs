@@ -24,7 +24,11 @@ pub enum Message {
     },
     Downloading { path: VPath, image: ImageId, mask: Mask,
                   source: bool },
-    Reconcile { path: VPath, hash: Hash },
+    Reconcile {
+        path: VPath, hash: Hash,
+        #[serde(default, skip_serializing_if="BTreeMap::is_empty")]
+        watches: BTreeMap<VPath, HashSet<MachineId>>,
+    },
     Complete { path: VPath, image: ImageId },
     ConfigSync { paths: BTreeSet<VPath>  },
 }
@@ -46,8 +50,5 @@ pub enum MessageRef<'a> {
         base_dirs: &'a BTreeMap<VPath, Hash>,
         complete: &'a BTreeMap<VPath, ImageId>,
     },
-    Downloading { path: &'a VPath, image: &'a ImageId, mask: &'a Mask,
-                  source: bool},
     ConfigSync { paths: &'a BTreeSet<VPath>  },
-    Reconcile { path: &'a VPath, hash: &'a Hash },
 }

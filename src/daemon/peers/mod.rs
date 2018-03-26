@@ -5,7 +5,7 @@ mod packets;
 mod two_way_map;
 pub mod config;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, BTreeMap};
 use std::path::{PathBuf};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -89,6 +89,7 @@ impl Peers {
         self.messages.unbounded_send(Message::Reconcile {
             path: path.clone(),
             hash: hash.clone(),
+            watches: BTreeMap::new(), // will fill it in in the gossip
         }).expect("gossip subsystem crashed");
     }
     pub fn notify_complete(&self, path: &VPath, image_id: &ImageId) {

@@ -197,9 +197,25 @@ impl Gossip {
                     Message::ConfigSync { paths } => {
                         self.configs.lock().set(pkt.machine_id, paths)
                     }
-                    Message::Reconcile { path, hash } => {
+                    Message::Reconcile { path, hash, watches } => {
                         self.tracking.reconcile_dir(path, hash, addr,
                             pkt.machine_id.clone());
+                        {
+                            let mut hosts = self.by_host.lock();
+                            for (path, ids) in watches {
+                                for mid in ids {
+                                    hosts.entry(mid)
+                                        .or_insert_with(|| HostData {
+                                            downloading: HashMap::new(),
+                                            deleted: HashSet::new(),
+                                            watching: BTreeSet::new(),
+                                            complete: BTreeMap::new(),
+                                        })
+                                        .watching
+                                        .insert(path.clone());
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -238,9 +254,33 @@ impl Gossip {
             }
         }
     }
+    fn fill_msg(&mut self, msg: &mut Message) {
+        match *msg {
+            Message::Reconcile {ref path,  ref mut watches, .. } => {
+                for (mid, host) in self.by_host.lock().iter() {
+                    for hpath in &host.watching {
+                        if &path.parent() == hpath {
+                            watches.entry(hpath.clone())
+                                .or_insert_with(HashSet::new)
+                                .insert(mid.clone());
+                        }
+                    }
+                }
+                for mypath in self.tracking.get_watching() {
+                    if &path.parent() == path {
+                        watches.entry(mypath.clone())
+                            .or_insert_with(HashSet::new)
+                            .insert(self.machine_id.clone());
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
     fn write_messages(&mut self) {
-        while let Ok(Async::Ready(Some(msg))) = self.messages.poll() {
+        while let Ok(Async::Ready(Some(mut msg))) = self.messages.poll() {
             let peers = self.dest_for_packet(&msg);
+            self.fill_msg(&mut msg);
             let packet = Packet {
                 machine_id: self.machine_id.clone(),
                 your_config: Some(self.config_hash.clone()),
