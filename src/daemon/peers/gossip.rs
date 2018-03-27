@@ -259,7 +259,7 @@ impl Gossip {
             Message::Reconcile {ref path,  ref mut watches, .. } => {
                 for (mid, host) in self.by_host.lock().iter() {
                     for hpath in &host.watching {
-                        if &path.parent() == hpath {
+                        if &hpath.parent() == path {
                             watches.entry(hpath.clone())
                                 .or_insert_with(HashSet::new)
                                 .insert(mid.clone());
