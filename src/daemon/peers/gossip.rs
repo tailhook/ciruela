@@ -204,6 +204,9 @@ impl Gossip {
                             let mut hosts = self.by_host.lock();
                             for (path, ids) in watches {
                                 for mid in ids {
+                                    if mid == self.machine_id {
+                                        continue;
+                                    }
                                     hosts.entry(mid)
                                         .or_insert_with(|| HostData {
                                             downloading: HashMap::new(),
