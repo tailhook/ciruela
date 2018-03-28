@@ -227,7 +227,7 @@ impl Gossip {
             }
         }
     }
-    fn dest_for_packet(&self, msg: &Message) -> Vec<SocketAddr> {
+    fn dest_for_packet(&self, msg: &Message) -> HashSet<SocketAddr> {
         match *msg {
             Message::BaseDirs {..} => unreachable!(),
             Message::ConfigSync { .. } => unreachable!(),
@@ -235,18 +235,30 @@ impl Gossip {
             Message::Downloading { ref path, .. } |
             Message::Complete { ref path, .. } => {
                 let all = self.peers.get();
-                let mut peers =
-                    match self.configs.lock().by_dir(&path.key_vpath()) {
-                        Some(peers) => {
-                            sample_iter(&mut thread_rng(),
-                                peers, PACKETS_AT_ONCE)
-                            .unwrap_or_else(|v| v)
-                            .into_iter()
-                            .filter_map(|id| all.get(id).map(|p| p.addr))
-                            .collect()
+                let mut peers = HashSet::new();
+                // Always send to **all** watchers ...
+                for (hid, hdata) in self.by_host.lock().iter() {
+                    if hdata.watching.contains(path) {
+                        if let Some(peer) = all.get(hid) {
+                            peers.insert(peer.addr);
                         }
-                        None => Vec::new(),
-                    };
+                    }
+                }
+                // ... **and** to some nodes having config
+                // This is important if there are too much known watchers
+                // (i.e. > PACKETS_AT_ONCE) we want to notify some
+                // random other nodes anyway.
+                match self.configs.lock().by_dir(&path.key_vpath()) {
+                    Some(peers) => {
+                        sample_iter(&mut thread_rng(),
+                            peers, PACKETS_AT_ONCE)
+                        .unwrap_or_else(|v| v)
+                        .into_iter()
+                        .filter_map(|id| all.get(id).map(|p| p.addr))
+                        .collect()
+                    }
+                    None => Vec::new(),
+                };
                 if peers.len() < PACKETS_AT_ONCE {
                     peers.extend(sample_iter(&mut thread_rng(),
                             all.values(), PACKETS_AT_ONCE)
@@ -309,14 +321,38 @@ impl Gossip {
         let complete = self.tracking.get_complete();
         let watching = self.tracking.get_watching();
         for (addr, _) in &self.future_peers {
-            self.send_gossip(*addr, None, &ipr, &complete, &watching, &deleted);
+            self.send_gossip(*addr, None,
+                &ipr, &complete, &watching, &deleted);
         }
         let lst = self.peers.get();
-        let hosts = sample_iter(&mut thread_rng(),
-            lst.iter(), PACKETS_AT_ONCE)
-            .unwrap_or_else(|v| v);
+        let mut hosts = HashMap::new();
+        if complete.len() > 0 {
+            for (mid, hdata) in self.by_host.lock().iter() {
+                for path in &hdata.watching {
+                    if complete.contains_key(path) {
+                        if let Some(peer) = lst.get(mid) {
+                            hosts.insert(mid.clone(), peer);
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+        if hosts.len() > PACKETS_AT_ONCE {
+            hosts = sample_iter(&mut thread_rng(),
+                hosts.into_iter(), PACKETS_AT_ONCE)
+                .unwrap_or_else(|v| v)
+                .into_iter().collect();
+        }
+        // Note: Max PACKETS_AT_ONCE for watches + PACKETS_AT_ONCE random
+        // are intentional. There might be too many watches, we still want
+        // some random gossip. But most of the time the aren't any watches.
+        hosts.extend(sample_iter(&mut thread_rng(),
+            lst.iter().map(|(k, v)| (k.clone(), v)), PACKETS_AT_ONCE)
+            .unwrap_or_else(|v| v));
         for (id, host) in hosts {
-            self.send_gossip(host.addr, Some(id), &ipr, &complete, &watching, &deleted);
+            self.send_gossip(host.addr, Some(&id),
+                &ipr, &complete, &watching, &deleted);
         }
     }
     fn send_gossip(&self, addr: SocketAddr, id: Option<&MachineId>,
