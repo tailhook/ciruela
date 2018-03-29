@@ -36,7 +36,8 @@ More specifically:
 
 ``configs/*.yaml``
     a config per directory. I.e. if there is ``dir1.yaml``, this means you can
-    upload to ``/dir1/something...``
+    upload to ``/dir1/something...``. See :ref:`directory-config` for more
+    information.
 
 ``peers.txt``
     plain list of IP addresses and hostnames to distribute files too, only

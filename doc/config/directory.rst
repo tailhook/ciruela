@@ -24,14 +24,28 @@ This is somewhat minimal config:
    directory: /var/containers
    append-only: true
    num-levels: 1
-   upload-keys: &keys [user1, ci2]
-   download-keys: *keys
+   upload-keys: [user1, ci2]
 
-All properties above are required, except ``*-keys``. We may make more
-settings optional later, when more patterns appear. Note here we reuse same
-list of keys both for ``upload-keys`` and ``download-keys`` by using YAML
-alias and anchor.
+All properties above are required, except ``upload-keys``. We may make more
+settings optional later, when more patterns appear.
 
+Or a longer example with auto-clean enabled:
+
+.. code-block:: yaml
+
+    # /etc/ciruela/configs/project1.yaml
+    directory: /var/containers/project1
+    num-levels: 2
+    append-only: true
+    auto-clean: true
+    keep-min-directories: 2
+    keep-max-directories: 100
+    keep-recent: 1 day
+    keep-list-file: /some/external/system/project1-used-containers.txt
+
+
+Options Reference
+=================
 
 .. index:: pair: directory; Directory Config
 .. describe:: directory
@@ -85,25 +99,26 @@ alias and anchor.
       want to update ``/etc/ningx``, the tool is going to write
       ``/etc/.tmp.nginx.cr1d2e3a`` then atomically move it to ``/etc/nginx``.
 
-
-.. index:: pair: upload-keys; Directory Config
-.. index:: pair: download-keys; Directory Config
-.. describe:: upload-keys, download-keys
-
-   Keys that are authorized to upload and download contents of the directory.
-
-   Each name of the key corresponds to name of the keyfile in
-   ``/etc/ciruela/keys/NAME.key``, multiple keys can be listed in that file.
-
-   Master key is always allowed to upload and download contents. So if no
-   ``upload-keys`` specified the master key is only way to upload files there.
-
 .. index:: pair: auto-clean; Directory Config
 .. describe:: auto-clean
 
    (default ``false``) Enable cleanup of this directory. Every directory up
    to ``num_levels-1`` is a separate directory to do cleanup according to
    ``keep-*`` rules.
+
+   Here is an example of a directory with auto-clean configured:
+
+   .. code-block:: yaml
+
+        # /etc/ciruela/configs/project1.yaml
+        directory: /var/containers/project1
+        num-levels: 2
+        append-only: true
+        auto-clean: true
+        keep-min-directories: 2
+        keep-max-directories: 100
+        keep-recent: 1 day
+        keep-list-file: /some/external/system/project1-used-containers.txt
 
 .. index:: pair: keep-list-file; Directory Config
 .. describe:: keep-list-file
