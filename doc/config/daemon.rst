@@ -2,30 +2,47 @@
 Daemon Configuration
 ====================
 
-All configs are in base directory, by default it's ``/etc/ciruela``:
+Default configuration directory is ``/etc/ciruela`` it's structure looks
+like this:
 
-* ``master.key`` -- a plain-text list of master keys for this server. Master
-  key is that might be used to update configs or upload a key for a new
-  user/project. It may be empty if you have another means to deliver these
-  configs/keys. Format is similar to ``authorized_keys`` (just keys,
-  no parameters)
-* ``keys/*.key`` -- key files that might be used in configs, any key file
-  may contain multiple keys and any of them might be used when this name
-  is specified in config
-* ``configs/*.yaml`` -- a list of configs for syncing images
-* ``overrides.yaml`` -- contains overrides of things in ``configs`` for this
-  specific machine
-* ``peers.txt`` -- plain list of IP addresses and hostnames to distribute
-  files too, only used/needed if ``--cantal`` command-line option is not
-  specified.
 
-If ``master.key`` exists you can't edit ``keys`` and ``configs`` locally,
-they will be reset or deleted (because of checksum mismatch) on next service
-restart or earlier. You can edit overrides, however.
+.. code-block:: bash
 
-Things in ``configs/*.yaml`` are all equal. You can keep everything in single
-file or have multiple ones at your convenience.
+    /etc/ciruela
+    ├── master.key   # optional
+    ├── peers.txt    # optional
+    ├── configs
+    │   ├── dir1.yaml
+    │   └── dir2.yaml
+    └── keys
+        ├── key-of-admins.key
+        ├── key-of-gitlab.key
+        ├── project1.key
+        └── project2.key
+
+More specifically:
+
+``master.key``
+    a plain-text list of master keys for this server. Master key is that might
+    be used to upload data to any directory. On production deploymejnts
+    master keys are rarely used. Format is similar to ``authorized_keys``
+    of SSH daemon (just keys no parameters): one line per key, arbitrary
+    comment a the end.
+
+``keys/*.key``
+    key files that might be used in configs, any key file may contain multiple
+    keys (similarly to ``master.key`` or ``authorized_keys``) and any of them
+    might be used when this name is specified in directory config
+
+``configs/*.yaml``
+    a config per directory. I.e. if there is ``dir1.yaml``, this means you can
+    upload to ``/dir1/something...``
+
+``peers.txt``
+    plain list of IP addresses and hostnames to distribute files too, only
+    used/needed if ``--cantal`` command-line option is not specified.
+
 
 .. note:: All configs are reloaded only on restart of the server. Restarting
-   should be seamless most of the time (currently we don't continue upload
-   in client when server disconnects, but we will be doing that too).
+   should be seamless if doesn't happen to often (if there is upload in
+   progress, client should reconnect and continue gracefully).
