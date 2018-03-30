@@ -11,11 +11,13 @@ mod addr;
 mod config;
 mod set;
 mod upload;
+mod download;
 mod future;
 mod error;
 
 pub use cluster::config::Config;
 pub use cluster::upload::Stats;
+pub use cluster::download::{RawIndex, MutableIndex};
 pub use cluster::future::{UploadFuture, UploadOk, UploadFail};
 pub use cluster::error::{UploadErr, ErrorKind};
 
