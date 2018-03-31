@@ -1,9 +1,11 @@
-use std::sync::Arc;
-use std::net::SocketAddr;
 use std::collections::{VecDeque, HashMap, HashSet};
+use std::net::SocketAddr;
+use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Duration;
 
 use abstract_ns::{Name, Resolve, HostResolve, Address, IpList, Error};
+use dir_signature::v1::Hashes;
 use rand::{thread_rng};
 use rand::seq::sample_iter;
 use futures::{Future, Async};
@@ -35,6 +37,12 @@ use proto::{GetIndexAt, GetIndexAtResponse};
 pub enum Message {
     NewUpload(NewUpload),
     FetchIndex(VPath, oneshot::Sender<Result<RawIndex, FetchErr>>),
+    FetchFile {
+        path: PathBuf,
+        location: Location,
+        hashes: Hashes,
+        tx: oneshot::Sender<Result<Vec<u8>, FetchErr>>,
+    },
     Notification(SocketAddr, Notification),
     Closed(SocketAddr),
 }
@@ -152,6 +160,9 @@ impl<R, I, B> ConnectionSet<R, I, B>
                 }
                 FetchIndex(path, tx) => {
                     self.start_fetch_index(path, tx);
+                }
+                FetchFile { .. } => {
+                    unimplemented!();
                 }
                 Notification(addr, ReceivedImage(img)) => {
                     debug!("Host {}({}) received image {:?}[{}]",
@@ -567,7 +578,7 @@ impl<R, I, B> ConnectionSet<R, I, B>
                     if let Some(data) = result.data {
                         fetch.resolve.send(Ok(RawIndex {
                             data: data.into(),
-                            loc: fetch.location.clone(),
+                            location: fetch.location.clone(),
                         })).ok();
                         return VAsync::Ready(());
                     } else {

@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashSet};
 use std::ffi::OsString;
 use std::io::{self, Cursor};
-use std::path::{PathBuf, Component};
+use std::path::{Path, PathBuf, Component};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::cell::{RefCell, RefMut};
 
@@ -28,7 +28,7 @@ pub(crate) struct Pointer {
 #[derive(Debug, Clone)]
 pub struct RawIndex {
     pub(crate) data: Vec<u8>,
-    pub(crate) loc: Location,
+    pub(crate) location: Location,
 }
 
 #[derive(Debug, Clone)]
@@ -47,10 +47,12 @@ enum Item {
 pub struct MutableIndex {
     header: Header,
     root: BTreeMap<OsString, Item>,
-    loc: Location,
+    location: Location,
 }
 
 pub trait SealedIndex {
+    fn get_location(&self) -> Location;
+    fn get_hashes(&self, path: &Path) -> Option<Hashes>;
 }
 
 /// This is an index that can be queried by path
@@ -149,14 +151,14 @@ impl RawIndex {
         .map_err(IndexParseError)
     }
     fn _into_mut(self) -> Result<MutableIndex, IndexParseEnum> {
-        let RawIndex {data, loc} = self;
+        let RawIndex {data, location} = self;
         let parser = Parser::new(Cursor::new(&data))
             .map_err(IndexParseEnum::Parse)?;
         let header = parser.get_header();
         let root = RefCell::new(BTreeMap::new());
         fill_dirs(&root, parser)?;
         let root = root.into_inner();
-        return Ok(MutableIndex { header, root, loc });
+        return Ok(MutableIndex { header, root, location });
     }
 }
 
@@ -174,6 +176,26 @@ impl Location {
 
 
 impl SealedIndex for MutableIndex {
+    fn get_location(&self) -> Location {
+        self.location.clone()
+    }
+    fn get_hashes(&self, path: &Path) -> Option<Hashes> {
+        let mut cur = &self.root;
+        for component in path.parent()?.components() {
+            cur = match component {
+                Component::RootDir => cur,
+                Component::Normal(item) => match *cur.get(item)? {
+                    Item::Dir(ref next) => next,
+                    _ => return None,
+                },
+                _ => return None,
+            }
+        }
+        match cur.get(path.file_name()?) {
+            Some(&Item::File { ref hashes, .. }) => Some(hashes.clone()),
+            _ => None,
+        }
+    }
 }
 
 impl MaterializedIndex for MutableIndex {

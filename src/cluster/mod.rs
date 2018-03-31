@@ -153,12 +153,26 @@ impl Connection {
     }
 
     /// Fetch file relative to the index
+    ///
+    /// # Panics
+    ///
+    /// Panics if there is no such file in the index
     pub fn fetch_file<I, P>(&self, idx: &I, path: P)
         -> FileFuture
         where P: AsRef<Path>,
               I: MaterializedIndex,
     {
-        unimplemented!();
+        let (tx, rx) = oneshot::channel();
+        let path = path.as_ref().to_path_buf();
+        self.chan.unbounded_send(Message::FetchFile {
+            location: idx.get_location(),
+            hashes: idx.get_hashes(&path).expect("file must exist"),
+            path, tx,
+            })
+            .expect("connection set is not closed");
+        FileFuture {
+            inner: rx,
+        }
     }
 }
 
