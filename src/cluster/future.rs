@@ -4,6 +4,7 @@ use std::time::Instant;
 
 use cluster::error::{UploadErr, FetchErr};
 use cluster::upload::Stats;
+use cluster::download::RawIndex;
 use failure::err_msg;
 use futures::future::Shared;
 use futures::sync::oneshot;
@@ -19,7 +20,7 @@ pub struct UploadFuture {
 /// Future returned from `Connection::fetch_index`
 #[derive(Debug)]
 pub struct IndexFuture {
-    pub(crate) inner: oneshot::Receiver<Result<Vec<u8>, FetchErr>>,
+    pub(crate) inner: oneshot::Receiver<Result<RawIndex, FetchErr>>,
 }
 
 
@@ -91,9 +92,9 @@ impl fmt::Display for UploadOk {
 }
 
 impl Future for IndexFuture {
-    type Item = Vec<u8>;
+    type Item = RawIndex;
     type Error = FetchErr;
-    fn poll(&mut self) -> Result<Async<Vec<u8>>, FetchErr> {
+    fn poll(&mut self) -> Result<Async<RawIndex>, FetchErr> {
         match self.inner.poll() {
             Ok(Async::Ready(Ok(v))) => Ok(Async::Ready(v)),
             Ok(Async::Ready(Err(e))) => Err(e),

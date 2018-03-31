@@ -1,6 +1,7 @@
 extern crate env_logger;
 extern crate ciruela;
 extern crate failure;
+extern crate futures;
 extern crate tk_easyloop;
 extern crate ns_env_config;
 extern crate ssh_keys;
@@ -8,6 +9,7 @@ extern crate ssh_keys;
 use std::process::exit;
 
 use failure::{Error};
+use futures::Future;
 use tk_easyloop::handle;
 use ciruela::blocks::ThreadedBlockReader;
 use ciruela::index::InMemoryIndexes;
@@ -39,6 +41,9 @@ fn run() -> Result<(), Error> {
         let conn = Connection::new(vec!["localhost".parse().unwrap()],
             ns, indexes, block_reader, &config);
         conn.fetch_index(&VPath::from(PATH))
+        .map(|idx| {
+            println!("Idx {:?}", idx);
+        })
     })?;
     Ok(())
 }

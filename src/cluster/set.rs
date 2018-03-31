@@ -19,6 +19,7 @@ use index::GetIndex;
 use blocks::GetBlock;
 use cluster::addr::AddrCell;
 use cluster::config::Config;
+use cluster::download::{RawIndex, Location, Pointer};
 use cluster::upload;
 use cluster::error::{UploadErr, FetchErr, ErrorKind};
 use cluster::future::UploadOk;
@@ -33,7 +34,7 @@ use proto::{GetIndexAt, GetIndexAtResponse};
 #[derive(Debug)]
 pub enum Message {
     NewUpload(NewUpload),
-    FetchIndex(VPath, oneshot::Sender<Result<Vec<u8>, FetchErr>>),
+    FetchIndex(VPath, oneshot::Sender<Result<RawIndex, FetchErr>>),
     Notification(SocketAddr, Notification),
     Closed(SocketAddr),
 }
@@ -72,12 +73,10 @@ enum RFuture {
 
 
 pub struct FetchIndex {
-    vpath: VPath,
+    location: Location,
     connection: Option<(SocketAddr, Client)>,
     future: Option<RequestFuture<GetIndexAtResponse>>,
-    candidate_hosts: HashSet<Name>,
-    failures: SlowHostFailures,
-    resolve: oneshot::Sender<Result<Vec<u8>, FetchErr>>,
+    resolve: oneshot::Sender<Result<RawIndex, FetchErr>>,
 }
 
 
@@ -202,14 +201,16 @@ impl<R, I, B> ConnectionSet<R, I, B>
     }
 
     fn start_fetch_index(&mut self, vpath: VPath,
-        tx: oneshot::Sender<Result<Vec<u8>, FetchErr>>)
+        tx: oneshot::Sender<Result<RawIndex, FetchErr>>)
     {
         self.fetches.push_back(FetchIndex {
-            vpath,
+            location: Pointer {
+                vpath,
+                candidate_hosts: HashSet::new(),
+                failures: SlowHostFailures::new_slow(),
+            }.into(),
             connection: None,
             future: None,
-            candidate_hosts: HashSet::new(),
-            failures: SlowHostFailures::new_slow(),
             resolve: tx,
         });
     }
@@ -285,17 +286,18 @@ impl<R, I, B> ConnectionSet<R, I, B>
         }
         let mut rng = thread_rng();
         // first try already resolved discovered hosts
+        let location = fetch.location.lock();
         let mut new_addresses = sample_iter(&mut rng,
-            fetch.candidate_hosts.iter()
+            location.candidate_hosts.iter()
                 .filter_map(|h| self.addrs.get(h).and_then(|a| a.pick_one()))
-                .filter(|a| fetch.failures.can_try(a))
+                .filter(|a| location.failures.can_try(a))
                 .filter(|a| !self.pending.contains_key(a))
                 .filter(|a| self.failures.can_try(a)),
             1)
             .unwrap_or_else(|v| v);
         if new_addresses.len() == 0 {
             let to_resolve = sample_iter(&mut rng,
-                fetch.candidate_hosts.iter()
+                location.candidate_hosts.iter()
                     .filter(|h| self.failed_addrs.can_try(h))
                     .filter(|h| self.addrs.get(h).is_none())
                     .filter(|h| self.pending_addrs.get(h).is_none()),
@@ -309,9 +311,9 @@ impl<R, I, B> ConnectionSet<R, I, B>
             // and fallback to just initial addresses
             new_addresses = sample_iter(&mut rng,
                 self.initial_addr.get().addresses_at(0)
-                .filter(|a| fetch.failures.can_try(a))
                 .filter(|a| !self.pending.contains_key(a))
-                .filter(|a| self.failures.can_try(a)),
+                .filter(|a| self.failures.can_try(a))
+                .filter(|a| location.failures.can_try(a)),
                 1)
                 .unwrap_or_else(|v| v);
             for naddr in &new_addresses {
@@ -416,11 +418,13 @@ impl<R, I, B> ConnectionSet<R, I, B>
     fn wakeup_fetches(&mut self) {
         for fetch in &mut self.fetches {
             if fetch.connection.is_none() {
+                let location = fetch.location.lock();
                 for (addr, conn) in &self.active {
-                    if fetch.failures.can_try(addr) {
+                    // TODO(tailhook) optimize lock
+                    if location.failures.can_try(addr) {
                         fetch.connection = Some((*addr, conn.clone()));
                         fetch.future = Some(conn.request(GetIndexAt {
-                            path: fetch.vpath.clone(),
+                            path: location.vpath.clone(),
                         }));
                     }
                 }
@@ -561,14 +565,18 @@ impl<R, I, B> ConnectionSet<R, I, B>
                 Ok(Async::NotReady) => {}
                 Ok(Async::Ready(result)) => {
                     if let Some(data) = result.data {
-                        fetch.resolve.send(Ok(data.into())).ok();
+                        fetch.resolve.send(Ok(RawIndex {
+                            data: data.into(),
+                            loc: fetch.location.clone(),
+                        })).ok();
                         return VAsync::Ready(());
                     } else {
                         if let Some((addr, _)) = fetch.connection.take() {
                             debug!("No data at {}", addr);
-                            fetch.failures.add_failure(addr);
+                            fetch.location.lock().failures.add_failure(addr);
                         }
-                        fetch.candidate_hosts
+                        // TODO(tailhook) optimize lock?
+                        fetch.location.lock().candidate_hosts
                             .extend(result.hosts.iter().filter_map(
                                 |(_, h)| h.parse().ok()));
                     }
@@ -576,7 +584,7 @@ impl<R, I, B> ConnectionSet<R, I, B>
                 Err(e) => {
                     debug!("Fetch index error: {}", e);
                     if let Some((addr, _)) = fetch.connection.take() {
-                        fetch.failures.add_failure(addr);
+                        fetch.location.lock().failures.add_failure(addr);
                     }
                 }
             }
