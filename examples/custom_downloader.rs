@@ -17,7 +17,8 @@ use ciruela::cluster::{Connection, Config};
 use ciruela::VPath;
 
 
-const PATH: &str = "/dir1/a/1";
+const VPATH: &str = "/dir1/a/1";
+const FILE: &str = "/daemon/metrics.rs";
 
 
 fn main() {
@@ -40,9 +41,11 @@ fn run() -> Result<(), Error> {
         let ns = ns_env_config::init(&handle()).expect("init dns");
         let conn = Connection::new(vec!["localhost".parse().unwrap()],
             ns, indexes, block_reader, &config);
-        conn.fetch_index(&VPath::from(PATH))
-        .map(|idx| {
-            println!("Idx {:?}", idx);
+        let c2 = conn.clone();
+        conn.fetch_index(&VPath::from(VPATH))
+        .map(move |idx| {
+            let idx = idx.into_mut();
+            conn.fetch_file(&idx, FILE)
         })
     })?;
     Ok(())

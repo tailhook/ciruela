@@ -6,6 +6,7 @@
 //!
 //! We might expose individual server connections later, but now we only
 //! have higher level API.
+use std::path::Path;
 
 mod addr;
 mod config;
@@ -17,7 +18,7 @@ mod error;
 
 pub use cluster::config::Config;
 pub use cluster::upload::Stats;
-pub use cluster::download::{RawIndex, MutableIndex};
+pub use cluster::download::{RawIndex, MutableIndex, MaterializedIndex};
 pub use cluster::future::{UploadFuture, UploadOk, UploadFail};
 pub use cluster::error::{UploadErr, ErrorKind};
 
@@ -32,7 +33,7 @@ use futures::sync::oneshot;
 use index::GetIndex;
 use blocks::GetBlock;
 use cluster::set::{Message, NewUpload};
-use cluster::future::IndexFuture;
+use cluster::future::{IndexFuture, FileFuture};
 use signature::SignedUpload;
 
 /// Connection to a server or cluster of servers
@@ -40,7 +41,7 @@ use signature::SignedUpload;
 /// Ciruela automatically manages a number of connections according to
 /// configs and the operations over connection (i.e. images currently
 /// uploading).
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Connection {
     cluster_name: Vec<Name>,
     config: Arc<Config>,
@@ -148,6 +149,15 @@ impl Connection {
         IndexFuture {
             inner: rx,
         }
+    }
+
+    /// Fetch file relative to the index
+    pub fn fetch_file<I, P>(&self, idx: &I, path: P)
+        -> FileFuture
+        where P: AsRef<Path>,
+              I: MaterializedIndex,
+    {
+        unimplemented!();
     }
 }
 

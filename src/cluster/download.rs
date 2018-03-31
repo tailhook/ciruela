@@ -40,10 +40,24 @@ enum Item {
     Link(PathBuf),
 }
 
+/// Structure allows to lookup index easily and modify it
 #[derive(Debug, Clone)]
 pub struct MutableIndex {
     root: BTreeMap<OsString, Item>,
     loc: Location,
+}
+
+pub trait SealedIndex {
+}
+
+/// This is an index that can be queried by path
+pub trait MaterializedIndex: SealedIndex {
+}
+
+impl RawIndex {
+    pub fn into_mut(self) -> MutableIndex {
+        self.into()
+    }
 }
 
 
@@ -63,4 +77,11 @@ impl Location {
     pub(crate) fn lock(&self) -> MutexGuard<Pointer> {
         self.0.lock().expect("pointer is not poisoned")
     }
+}
+
+
+impl SealedIndex for MutableIndex {
+}
+
+impl MaterializedIndex for MutableIndex {
 }

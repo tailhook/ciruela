@@ -23,6 +23,12 @@ pub struct IndexFuture {
     pub(crate) inner: oneshot::Receiver<Result<RawIndex, FetchErr>>,
 }
 
+/// Future returned from `Connection::fetch_file`
+#[derive(Debug)]
+pub struct FileFuture {
+    pub(crate) inner: oneshot::Receiver<Result<Vec<u8>, FetchErr>>,
+}
+
 
 /// Result of the upload
 #[derive(Debug, Clone)]
@@ -95,6 +101,20 @@ impl Future for IndexFuture {
     type Item = RawIndex;
     type Error = FetchErr;
     fn poll(&mut self) -> Result<Async<RawIndex>, FetchErr> {
+        match self.inner.poll() {
+            Ok(Async::Ready(Ok(v))) => Ok(Async::Ready(v)),
+            Ok(Async::Ready(Err(e))) => Err(e),
+            Ok(Async::NotReady) => Ok(Async::NotReady),
+            Err(_) => Err(FetchErr::Fatal(
+                format_err!("channel closed unexpectedly"))),
+        }
+    }
+}
+
+impl Future for FileFuture {
+    type Item = Vec<u8>;
+    type Error = FetchErr;
+    fn poll(&mut self) -> Result<Async<Vec<u8>>, FetchErr> {
         match self.inner.poll() {
             Ok(Async::Ready(Ok(v))) => Ok(Async::Ready(v)),
             Ok(Async::Ready(Err(e))) => Err(e),
