@@ -19,6 +19,7 @@ mod error;
 pub use cluster::config::Config;
 pub use cluster::upload::Stats;
 pub use cluster::download::{RawIndex, MutableIndex, MaterializedIndex};
+pub use cluster::download::{IndexParseError};
 pub use cluster::future::{UploadFuture, UploadOk, UploadFail};
 pub use cluster::error::{UploadErr, ErrorKind};
 

@@ -8,7 +8,7 @@ extern crate ssh_keys;
 
 use std::process::exit;
 
-use failure::{Error};
+use failure::{Error, ResultExt};
 use futures::Future;
 use tk_easyloop::handle;
 use ciruela::blocks::ThreadedBlockReader;
@@ -41,11 +41,12 @@ fn run() -> Result<(), Error> {
         let ns = ns_env_config::init(&handle()).expect("init dns");
         let conn = Connection::new(vec!["localhost".parse().unwrap()],
             ns, indexes, block_reader, &config);
-        let c2 = conn.clone();
         conn.fetch_index(&VPath::from(VPATH))
-        .map(move |idx| {
-            let idx = idx.into_mut();
+        .then(|res| res.context("can't fetch index"))
+        .and_then(|idx| idx.into_mut().context("can't parse index"))
+        .and_then(move |idx| {
             conn.fetch_file(&idx, FILE)
+            .then(|res| res.context("can't fetch file"))
         })
     })?;
     Ok(())
