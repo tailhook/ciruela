@@ -143,7 +143,7 @@ fn fill_dirs<R>(root: &RefCell<BTreeMap<OsString, Item>>,
 }
 
 impl RawIndex {
-    /// 
+    /// Convert index into a mutable index
     pub fn into_mut(self) -> Result<MutableIndex, IndexParseError> {
         self._into_mut()
         .map_err(IndexParseError)
