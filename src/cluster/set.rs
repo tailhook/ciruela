@@ -32,6 +32,7 @@ use proto::message::Notification;
 use proto::{AppendDir, ReplaceDir};
 use proto::{AppendDirAck, ReplaceDirAck};
 use proto::{GetIndexAt, GetIndexAtResponse};
+use proto::{GetBlockResponse};
 
 #[derive(Debug)]
 pub enum Message {
@@ -79,12 +80,29 @@ enum RFuture {
     Replace(RequestFuture<ReplaceDirAck>),
 }
 
+struct CurrentBlock {
+    offset: usize,
+    future: RequestFuture<GetBlockResponse>,
+}
 
-pub struct FetchIndex {
+enum FRequest {
+    Index {
+        future: Option<RequestFuture<GetIndexAtResponse>>,
+        resolve: oneshot::Sender<Result<RawIndex, FetchErr>>,
+    },
+    /*
+    File {
+        buf: Vec<u8>,
+        future: Option<CurrentBlock>,
+        resolve: oneshot::Sender<Result<Vec<u8>, FetchErr>>,
+    },
+    */
+}
+
+pub struct Fetch {
     location: Location,
     connection: Option<(SocketAddr, Client)>,
-    future: Option<RequestFuture<GetIndexAtResponse>>,
-    resolve: oneshot::Sender<Result<RawIndex, FetchErr>>,
+    req: FRequest,
 }
 
 
@@ -100,7 +118,7 @@ pub struct ConnectionSet<R, I, B> {
     pending: HashMap<SocketAddr, ClientFuture>,
     active: HashMap<SocketAddr, Client>,
     uploads: VecDeque<Upload>,
-    fetches: VecDeque<FetchIndex>,
+    fetches: VecDeque<Fetch>,
     pending_addrs: HashMap<Name, Box<Future<Item=IpList, Error=Error>>>,
     failed_addrs: DnsFailures,
     addrs: HashMap<Name, Address>,
@@ -214,15 +232,17 @@ impl<R, I, B> ConnectionSet<R, I, B>
     fn start_fetch_index(&mut self, vpath: VPath,
         tx: oneshot::Sender<Result<RawIndex, FetchErr>>)
     {
-        self.fetches.push_back(FetchIndex {
+        self.fetches.push_back(Fetch {
             location: Pointer {
                 vpath,
                 candidate_hosts: HashSet::new(),
                 failures: SlowHostFailures::new_slow(),
             }.into(),
             connection: None,
-            future: None,
-            resolve: tx,
+            req: FRequest::Index {
+                future: None,
+                resolve: tx,
+            },
         });
     }
     fn new_conns_for_upload(&mut self, up: &mut Upload) {
@@ -291,7 +311,7 @@ impl<R, I, B> ConnectionSet<R, I, B>
             }
         }
     }
-    fn new_conn_for_fetch(&mut self, fetch: &mut FetchIndex) {
+    fn new_conn_for_fetch(&mut self, fetch: &mut Fetch) {
         if fetch.connection.is_some() {
             return;
         }
@@ -434,9 +454,13 @@ impl<R, I, B> ConnectionSet<R, I, B>
                     // TODO(tailhook) optimize lock
                     if location.failures.can_try(addr) {
                         fetch.connection = Some((*addr, conn.clone()));
-                        fetch.future = Some(conn.request(GetIndexAt {
-                            path: location.vpath.clone(),
-                        }));
+                        match fetch.req {
+                            FRequest::Index { ref mut future, .. } => {
+                                *future = Some(conn.request(GetIndexAt {
+                                    path: location.vpath.clone(),
+                                }));
+                            }
+                        }
                     }
                 }
             }
@@ -570,37 +594,45 @@ impl<R, I, B> ConnectionSet<R, I, B>
         VAsync::NotReady(up)
     }
 
-    fn poll_fetch(&mut self, mut fetch: FetchIndex) -> VAsync<(), FetchIndex> {
-        if let Some(ref mut fut) = fetch.future {
-            match fut.poll() {
-                Ok(Async::NotReady) => {}
-                Ok(Async::Ready(result)) => {
-                    if let Some(data) = result.data {
-                        fetch.resolve.send(Ok(RawIndex {
-                            data: data.into(),
-                            location: fetch.location.clone(),
-                        })).ok();
-                        return VAsync::Ready(());
-                    } else {
+    fn poll_fetch(&mut self, mut fetch: Fetch) -> VAsync<(), Fetch> {
+        let req = match fetch.req {
+            FRequest::Index { future: Some(mut fut), resolve } => {
+                match fut.poll() {
+                    Ok(Async::NotReady) => {}
+                    Ok(Async::Ready(result)) => {
+                        if let Some(data) = result.data {
+                            resolve.send(Ok(RawIndex {
+                                data: data.into(),
+                                location: fetch.location.clone(),
+                            })).ok();
+                            return VAsync::Ready(());
+                        } else {
+                            if let Some((addr, _)) = fetch.connection.take() {
+                                debug!("No data at {}", addr);
+                                fetch.location.lock().failures.add_failure(addr);
+                            }
+                            // TODO(tailhook) optimize lock?
+                            fetch.location.lock().candidate_hosts
+                                .extend(result.hosts.iter().filter_map(
+                                    |(_, h)| h.parse().ok()));
+                        }
+                    }
+                    Err(e) => {
+                        debug!("Fetch index error: {}", e);
                         if let Some((addr, _)) = fetch.connection.take() {
-                            debug!("No data at {}", addr);
                             fetch.location.lock().failures.add_failure(addr);
                         }
-                        // TODO(tailhook) optimize lock?
-                        fetch.location.lock().candidate_hosts
-                            .extend(result.hosts.iter().filter_map(
-                                |(_, h)| h.parse().ok()));
                     }
                 }
-                Err(e) => {
-                    debug!("Fetch index error: {}", e);
-                    if let Some((addr, _)) = fetch.connection.take() {
-                        fetch.location.lock().failures.add_failure(addr);
-                    }
-                }
+                FRequest::Index { future: Some(fut), resolve }
             }
-        }
-        match fetch.resolve.poll_cancel() {
+            req @ FRequest::Index { future: None, .. } => req
+        };
+        fetch.req = req;
+        let cancel = match fetch.req {
+            FRequest::Index { ref mut resolve, .. } => resolve.poll_cancel(),
+        };
+        match cancel {
             Ok(Async::Ready(())) => return VAsync::Ready(()),
             Ok(Async::NotReady) => {}
             Err(()) => unreachable!(),
