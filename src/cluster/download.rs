@@ -52,7 +52,7 @@ pub struct MutableIndex {
 
 pub trait SealedIndex {
     fn get_location(&self) -> Location;
-    fn get_hashes(&self, path: &Path) -> Option<Hashes>;
+    fn get_file(&self, path: &Path) -> Option<(bool, u64, Hashes)>;
 }
 
 /// This is an index that can be queried by path
@@ -179,7 +179,7 @@ impl SealedIndex for MutableIndex {
     fn get_location(&self) -> Location {
         self.location.clone()
     }
-    fn get_hashes(&self, path: &Path) -> Option<Hashes> {
+    fn get_file(&self, path: &Path) -> Option<(bool, u64, Hashes)> {
         let mut cur = &self.root;
         for component in path.parent()?.components() {
             cur = match component {
@@ -192,7 +192,9 @@ impl SealedIndex for MutableIndex {
             }
         }
         match cur.get(path.file_name()?) {
-            Some(&Item::File { ref hashes, .. }) => Some(hashes.clone()),
+            Some(&Item::File { ref hashes, exe, size, .. }) => {
+                Some((exe, size, hashes.clone()))
+            }
             _ => None,
         }
     }

@@ -7,6 +7,7 @@
 //! We might expose individual server connections later, but now we only
 //! have higher level API.
 use std::path::Path;
+use std::usize;
 
 mod addr;
 mod config;
@@ -164,12 +165,12 @@ impl Connection {
     {
         let (tx, rx) = oneshot::channel();
         let path = path.as_ref().to_path_buf();
+        let (_, size, hashes) = idx.get_file(&path).expect("file must exist");
+        assert!(size < usize::MAX as u64, "file must fit memory");
         self.chan.unbounded_send(Message::FetchFile {
             location: idx.get_location(),
-            hashes: idx.get_hashes(&path).expect("file must exist"),
-            path, tx,
-            })
-            .expect("connection set is not closed");
+            size: size as usize, hashes, path, tx,
+        }).expect("connection set is not closed");
         FileFuture {
             inner: rx,
         }

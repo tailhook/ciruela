@@ -41,6 +41,7 @@ pub enum Message {
     FetchFile {
         path: PathBuf,
         location: Location,
+        size: usize,
         hashes: Hashes,
         tx: oneshot::Sender<Result<Vec<u8>, FetchErr>>,
     },
@@ -90,13 +91,12 @@ enum FRequest {
         future: Option<RequestFuture<GetIndexAtResponse>>,
         resolve: oneshot::Sender<Result<RawIndex, FetchErr>>,
     },
-    /*
     File {
         buf: Vec<u8>,
+        hashes: Hashes,
         future: Option<CurrentBlock>,
         resolve: oneshot::Sender<Result<Vec<u8>, FetchErr>>,
     },
-    */
 }
 
 pub struct Fetch {
@@ -179,8 +179,8 @@ impl<R, I, B> ConnectionSet<R, I, B>
                 FetchIndex(path, tx) => {
                     self.start_fetch_index(path, tx);
                 }
-                FetchFile { .. } => {
-                    unimplemented!();
+                FetchFile { path, location, size, hashes, tx} => {
+                    self.start_fetch_file(path, location, size, hashes, tx);
                 }
                 Notification(addr, ReceivedImage(img)) => {
                     debug!("Host {}({}) received image {:?}[{}]",
@@ -245,6 +245,24 @@ impl<R, I, B> ConnectionSet<R, I, B>
             },
         });
     }
+
+    fn start_fetch_file(&mut self, vpath: PathBuf,
+        location: Location, size: usize, hashes: Hashes,
+        tx: oneshot::Sender<Result<Vec<u8>, FetchErr>>)
+    {
+        let buf = vec![0u8; size];
+        self.fetches.push_back(Fetch {
+            location,
+            connection: None,
+            req: FRequest::File {
+                buf,
+                hashes,
+                future: None,
+                resolve: tx,
+            },
+        });
+    }
+
     fn new_conns_for_upload(&mut self, up: &mut Upload) {
         let initial = self.config.initial_connections as usize;
         if up.connections.len() >= initial {
@@ -460,6 +478,9 @@ impl<R, I, B> ConnectionSet<R, I, B>
                                     path: location.vpath.clone(),
                                 }));
                             }
+                            FRequest::File { .. } => {
+                                unimplemented!();
+                            }
                         }
                     }
                 }
@@ -626,11 +647,17 @@ impl<R, I, B> ConnectionSet<R, I, B>
                 }
                 FRequest::Index { future: Some(fut), resolve }
             }
-            req @ FRequest::Index { future: None, .. } => req
+            req @ FRequest::Index { future: None, .. } => req,
+            FRequest::File { .. } => {
+                unimplemented!();
+            }
         };
         fetch.req = req;
         let cancel = match fetch.req {
             FRequest::Index { ref mut resolve, .. } => resolve.poll_cancel(),
+            FRequest::File { .. } => {
+                unimplemented!();
+            }
         };
         match cancel {
             Ok(Async::Ready(())) => return VAsync::Ready(()),
