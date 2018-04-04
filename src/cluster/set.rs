@@ -19,6 +19,7 @@ use valuable_futures::Async as VAsync;
 use {VPath};
 use index::GetIndex;
 use blocks::GetBlock;
+use block_id::BlockHash;
 use cluster::addr::AddrCell;
 use cluster::config::Config;
 use cluster::download::{RawIndex, Location, Pointer};
@@ -32,7 +33,11 @@ use proto::message::Notification;
 use proto::{AppendDir, ReplaceDir};
 use proto::{AppendDirAck, ReplaceDirAck};
 use proto::{GetIndexAt, GetIndexAtResponse};
-use proto::{GetBlockResponse};
+use proto::{GetBlock as GetBlockReq, GetBlockResponse};
+
+
+const BLOCK_SIZE: usize = 32768; // TODO(tailhook) find out from hashes
+
 
 #[derive(Debug)]
 pub enum Message {
@@ -82,6 +87,7 @@ enum RFuture {
 }
 
 struct CurrentBlock {
+    // TODO(tailhook) this is redundant, it duplicates FRequest::File::position
     offset: usize,
     future: RequestFuture<GetBlockResponse>,
 }
@@ -93,6 +99,8 @@ enum FRequest {
     },
     File {
         buf: Vec<u8>,
+        path: PathBuf,
+        position: usize,
         hashes: Hashes,
         future: Option<CurrentBlock>,
         resolve: oneshot::Sender<Result<Vec<u8>, FetchErr>>,
@@ -246,7 +254,7 @@ impl<R, I, B> ConnectionSet<R, I, B>
         });
     }
 
-    fn start_fetch_file(&mut self, vpath: PathBuf,
+    fn start_fetch_file(&mut self, path: PathBuf,
         location: Location, size: usize, hashes: Hashes,
         tx: oneshot::Sender<Result<Vec<u8>, FetchErr>>)
     {
@@ -255,9 +263,9 @@ impl<R, I, B> ConnectionSet<R, I, B>
             location,
             connection: None,
             req: FRequest::File {
-                buf,
-                hashes,
+                buf, path, hashes,
                 future: None,
+                position: 0,
                 resolve: tx,
             },
         });
@@ -478,8 +486,26 @@ impl<R, I, B> ConnectionSet<R, I, B>
                                     path: location.vpath.clone(),
                                 }));
                             }
-                            FRequest::File { .. } => {
-                                unimplemented!();
+                            FRequest::File {
+                                ref hashes, ref path,
+                                ref mut future,
+                                position,
+                            .. } => {
+                                *future = Some(CurrentBlock {
+                                    offset: position,
+                                    future: conn.request(GetBlockReq {
+                                        hash: BlockHash::from_bytes(
+                                            hashes.iter()
+                                                .nth(position / BLOCK_SIZE)
+                                                // TODO(tailhook)
+                                                .unwrap()).unwrap(),
+                                        hint: Some((
+                                            location.vpath.clone(),
+                                            path.clone(),
+                                            position as u64,
+                                        )),
+                                    })
+                                });
                             }
                         }
                     }
@@ -636,6 +662,8 @@ impl<R, I, B> ConnectionSet<R, I, B>
                             fetch.location.lock().candidate_hosts
                                 .extend(result.hosts.iter().filter_map(
                                     |(_, h)| h.parse().ok()));
+                            // TODO(tailhook) clear future
+                            unimplemented!();
                         }
                     }
                     Err(e) => {
@@ -643,21 +671,79 @@ impl<R, I, B> ConnectionSet<R, I, B>
                         if let Some((addr, _)) = fetch.connection.take() {
                             fetch.location.lock().failures.add_failure(addr);
                         }
+                        // TODO(tailhook) clear future
+                        unimplemented!();
                     }
                 }
                 FRequest::Index { future: Some(fut), resolve }
             }
             req @ FRequest::Index { future: None, .. } => req,
-            FRequest::File { .. } => {
-                unimplemented!();
+            FRequest::File {
+                future: Some(mut fut),
+                resolve, hashes, path, mut buf, mut position,
+            } => {
+                loop {
+                    match fut.future.poll() {
+                        Ok(Async::NotReady) => break,
+                        Ok(Async::Ready(result)) => {
+                            assert_eq!(fut.offset, position);
+                            let end = fut.offset+result.data.len();
+                            if buf.len() < end {
+                                if let Some((addr, _)) = fetch.connection.take() {
+                                    debug!("invalid block from {}", addr);
+                                    fetch.location.lock().failures.add_failure(addr);
+                                }
+                                // TODO(tailhook) clear future and break?
+                                unimplemented!();
+                            }
+                            // TODO(tailhook) check block hash first
+                            buf[fut.offset..end].clone_from_slice(&result.data);
+                            position = end;
+                            if position == buf.len() {
+                                resolve.send(Ok(buf)).ok();
+                                return VAsync::Ready(());
+                            } else {
+                                // TODO(tailhook)
+                                let &(_, ref conn) = fetch.connection.as_ref().unwrap();
+                                println!(" POSITION {} / {}", position, BLOCK_SIZE);
+                                fut = CurrentBlock {
+                                    offset: position,
+                                    future: conn.request(GetBlockReq {
+                                        hash: BlockHash::from_bytes(
+                                            hashes.iter()
+                                                .nth(position / BLOCK_SIZE)
+                                                // TODO(tailhook)
+                                                .unwrap()).unwrap(),
+                                        hint: Some((
+                                            fetch.location.lock().vpath.clone(),
+                                            path.clone(),
+                                            position as u64,
+                                        )),
+                                    })
+                                };
+                            }
+                        }
+                        Err(e) => {
+                            debug!("Fetch index error: {}", e);
+                            if let Some((addr, _)) = fetch.connection.take() {
+                                fetch.location.lock().failures.add_failure(addr);
+                            }
+                            // TODO(tailhook) clear future
+                            unimplemented!();
+                        }
+                    }
+                }
+                FRequest::File {
+                    future: Some(fut), position,
+                    resolve, hashes, buf, path
+                }
             }
+            req @ FRequest::File { future: None, .. } => req,
         };
         fetch.req = req;
         let cancel = match fetch.req {
             FRequest::Index { ref mut resolve, .. } => resolve.poll_cancel(),
-            FRequest::File { .. } => {
-                unimplemented!();
-            }
+            FRequest::File { ref mut resolve, .. } => resolve.poll_cancel(),
         };
         match cancel {
             Ok(Async::Ready(())) => return VAsync::Ready(()),

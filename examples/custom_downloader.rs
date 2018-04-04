@@ -37,7 +37,7 @@ fn run() -> Result<(), Error> {
     let block_reader = ThreadedBlockReader::new();
 
     let config = Config::new().done();
-    tk_easyloop::run(|| {
+    let data = tk_easyloop::run(|| {
         let ns = ns_env_config::init(&handle()).expect("init dns");
         let conn = Connection::new(vec!["localhost".parse().unwrap()],
             ns, indexes, block_reader, &config);
@@ -49,5 +49,6 @@ fn run() -> Result<(), Error> {
             .then(|res| res.context("can't fetch file"))
         })
     })?;
+    println!("--- file data ---\n{}", &String::from_utf8_lossy(&data));
     Ok(())
 }
