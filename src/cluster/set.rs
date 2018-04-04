@@ -705,7 +705,6 @@ impl<R, I, B> ConnectionSet<R, I, B>
                             } else {
                                 // TODO(tailhook)
                                 let &(_, ref conn) = fetch.connection.as_ref().unwrap();
-                                println!(" POSITION {} / {}", position, BLOCK_SIZE);
                                 fut = CurrentBlock {
                                     offset: position,
                                     future: conn.request(GetBlockReq {
