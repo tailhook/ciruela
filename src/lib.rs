@@ -1,8 +1,12 @@
-//! Ciruela client library
+//! Ciruela Client Library
+//! ======================
 //!
-//! This is curently emptied as of 0.3.0 and APIs will be correctly vetted
-//! and added again maintaining backwards compatibility (or at least
-//! semantic versioning).
+//! [Docs](https://docs.rs/ciruela/) |
+//! [Server Docs](https://ciruela.readthedocs.io/) |
+//! [Examples](https://github.com/tailhook/ciruela/tree/master/examples) |
+//! [Github](https://github.com/tailhook/ciruela/) |
+//! [Crate](https://crates.io/crates/ciruela)
+//!
 #![allow(dead_code)]  // temporarily
 #![warn(missing_docs)]
 #![warn(missing_debug_implementations)]

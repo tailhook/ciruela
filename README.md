@@ -1,10 +1,11 @@
 Ciruela
 =======
 
-|              |                                           |
-|--------------|-------------------------------------------|
-|Documentation | http://tailhook.github.io/ciruela/        |
-|Status        | beta [¹](#1)                              |
+[Docs](https://ciruela.readthedocs.io/) |
+[API Docs](https://docs.rs/ciruela/) |
+[Examples](https://github.com/tailhook/ciruela/tree/master/examples) |
+[Github](https://github.com/tailhook/ciruela/) |
+[Crate](https://crates.io/crates/ciruela)
 
 
 A peer-to-peer synchronization software for servers in datacenters.
