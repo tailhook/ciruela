@@ -41,6 +41,7 @@ mod keys;
 // Commands
 mod upload;
 mod sync;
+mod edit;
 
 // common modules for lib and daemon, we don't expose them in the lib because
 // that would mean keep backwards compatibility
@@ -75,7 +76,8 @@ fn main() {
         opt.define(&mut ap);
         ap.refer(&mut cmd)
             .add_argument("command", StoreOption, r#"
-                Command to run. Available commands: `upload`.
+                Command to run. Available commands:
+                `sync`, `edit`, `upload` (deprecated).
             "#);
         ap.refer(&mut args)
             .add_argument("args", Collect, r#"
@@ -93,6 +95,9 @@ fn main() {
         }
         Some("sync") => {
             sync::cli(opt, args);
+        }
+        Some("edit") => {
+            edit::cli(opt, args);
         }
         None => {
             writeln!(&mut stderr(), "\
