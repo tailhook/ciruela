@@ -167,6 +167,10 @@ impl Connection {
         let path = path.as_ref().to_path_buf();
         let (_, size, hashes) = idx.get_file(&path).expect("file must exist");
         assert!(size < usize::MAX as u64, "file must fit memory");
+        assert_eq!(
+            (size + hashes.block_size()-1) / hashes.block_size(),
+            hashes.len() as u64,
+            "valid number of hashes");
         self.chan.unbounded_send(Message::FetchFile {
             location: idx.get_location(),
             size: size as usize, hashes, path, tx,

@@ -36,9 +36,6 @@ use proto::{GetIndexAt, GetIndexAtResponse};
 use proto::{GetBlock as GetBlockReq, GetBlockResponse};
 
 
-const BLOCK_SIZE: usize = 32768; // TODO(tailhook) find out from hashes
-
-
 #[derive(Debug)]
 pub enum Message {
     NewUpload(NewUpload),
@@ -125,6 +122,14 @@ pub struct ConnectionSet<R, I, B> {
     failed_addrs: DnsFailures,
     addrs: HashMap<Name, Address>,
     retry: Timeout,
+}
+
+fn hash_at(hashes: &Hashes, position: usize) -> BlockHash {
+    let bsize = hashes.block_size();
+    BlockHash::from_bytes(
+        hashes.get(position / bsize as usize)
+            .expect("hashes no is correct")
+    ).expect("hash size is correct")
 }
 
 impl<R, I, B> ConnectionSet<R, I, B>
@@ -486,11 +491,7 @@ impl<R, I, B> ConnectionSet<R, I, B>
                                 position,
                             .. } => {
                                 *future = Some(conn.request(GetBlockReq {
-                                        hash: BlockHash::from_bytes(
-                                            hashes.iter()
-                                                .nth(position / BLOCK_SIZE)
-                                                // TODO(tailhook)
-                                                .unwrap()).unwrap(),
+                                        hash: hash_at(hashes, position),
                                         hint: Some((
                                             location.vpath.clone(),
                                             path.clone(),
@@ -696,11 +697,7 @@ impl<R, I, B> ConnectionSet<R, I, B>
                                     // TODO(tailhook)
                                     .unwrap();
                                 future = Some(conn.request(GetBlockReq {
-                                    hash: BlockHash::from_bytes(
-                                        hashes.iter()
-                                            .nth(position / BLOCK_SIZE)
-                                            // TODO(tailhook)
-                                            .unwrap()).unwrap(),
+                                    hash: hash_at(&hashes, position),
                                     hint: Some((
                                         fetch.location.lock().vpath.clone(),
                                         path.clone(),
