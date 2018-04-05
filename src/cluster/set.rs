@@ -86,12 +86,6 @@ enum RFuture {
     Replace(RequestFuture<ReplaceDirAck>),
 }
 
-struct CurrentBlock {
-    // TODO(tailhook) this is redundant, it duplicates FRequest::File::position
-    offset: usize,
-    future: RequestFuture<GetBlockResponse>,
-}
-
 enum FRequest {
     Index {
         future: Option<RequestFuture<GetIndexAtResponse>>,
@@ -102,7 +96,7 @@ enum FRequest {
         path: PathBuf,
         position: usize,
         hashes: Hashes,
-        future: Option<CurrentBlock>,
+        future: Option<RequestFuture<GetBlockResponse>>,
         resolve: oneshot::Sender<Result<Vec<u8>, FetchErr>>,
     },
 }
@@ -491,9 +485,7 @@ impl<R, I, B> ConnectionSet<R, I, B>
                                 ref mut future,
                                 position,
                             .. } => {
-                                *future = Some(CurrentBlock {
-                                    offset: position,
-                                    future: conn.request(GetBlockReq {
+                                *future = Some(conn.request(GetBlockReq {
                                         hash: BlockHash::from_bytes(
                                             hashes.iter()
                                                 .nth(position / BLOCK_SIZE)
@@ -504,8 +496,7 @@ impl<R, I, B> ConnectionSet<R, I, B>
                                             path.clone(),
                                             position as u64,
                                         )),
-                                    })
-                                });
+                                    }));
                             }
                         }
                     }
@@ -643,8 +634,10 @@ impl<R, I, B> ConnectionSet<R, I, B>
 
     fn poll_fetch(&mut self, mut fetch: Fetch) -> VAsync<(), Fetch> {
         let req = match fetch.req {
-            FRequest::Index { future: Some(mut fut), resolve } => {
-                match fut.poll() {
+            FRequest::Index { mut future, resolve } => {
+                let pr = future.as_mut().map(|x| x.poll())
+                    .unwrap_or(Ok(Async::NotReady));
+                match pr {
                     Ok(Async::NotReady) => {}
                     Ok(Async::Ready(result)) => {
                         if let Some(data) = result.data {
@@ -658,12 +651,10 @@ impl<R, I, B> ConnectionSet<R, I, B>
                                 debug!("No data at {}", addr);
                                 fetch.location.lock().failures.add_failure(addr);
                             }
-                            // TODO(tailhook) optimize lock?
                             fetch.location.lock().candidate_hosts
                                 .extend(result.hosts.iter().filter_map(
                                     |(_, h)| h.parse().ok()));
-                            // TODO(tailhook) clear future
-                            unimplemented!();
+                            future = None;
                         }
                     }
                     Err(e) => {
@@ -671,55 +662,51 @@ impl<R, I, B> ConnectionSet<R, I, B>
                         if let Some((addr, _)) = fetch.connection.take() {
                             fetch.location.lock().failures.add_failure(addr);
                         }
-                        // TODO(tailhook) clear future
-                        unimplemented!();
+                        future = None;
                     }
                 }
-                FRequest::Index { future: Some(fut), resolve }
+                FRequest::Index { future, resolve }
             }
-            req @ FRequest::Index { future: None, .. } => req,
             FRequest::File {
-                future: Some(mut fut),
-                resolve, hashes, path, mut buf, mut position,
+                mut future, resolve, hashes, path, mut buf, mut position,
             } => {
                 loop {
-                    match fut.future.poll() {
+                    let pr = future.as_mut().map(|x| x.poll())
+                        .unwrap_or(Ok(Async::NotReady));
+                    match pr {
                         Ok(Async::NotReady) => break,
                         Ok(Async::Ready(result)) => {
-                            assert_eq!(fut.offset, position);
-                            let end = fut.offset+result.data.len();
+                            let end = position+result.data.len();
                             if buf.len() < end {
                                 if let Some((addr, _)) = fetch.connection.take() {
                                     debug!("invalid block from {}", addr);
                                     fetch.location.lock().failures.add_failure(addr);
                                 }
-                                // TODO(tailhook) clear future and break?
-                                unimplemented!();
+                                future = None;
+                                continue;
                             }
                             // TODO(tailhook) check block hash first
-                            buf[fut.offset..end].clone_from_slice(&result.data);
+                            buf[position..end].clone_from_slice(&result.data);
                             position = end;
                             if position == buf.len() {
                                 resolve.send(Ok(buf)).ok();
                                 return VAsync::Ready(());
                             } else {
-                                // TODO(tailhook)
-                                let &(_, ref conn) = fetch.connection.as_ref().unwrap();
-                                fut = CurrentBlock {
-                                    offset: position,
-                                    future: conn.request(GetBlockReq {
-                                        hash: BlockHash::from_bytes(
-                                            hashes.iter()
-                                                .nth(position / BLOCK_SIZE)
-                                                // TODO(tailhook)
-                                                .unwrap()).unwrap(),
-                                        hint: Some((
-                                            fetch.location.lock().vpath.clone(),
-                                            path.clone(),
-                                            position as u64,
-                                        )),
-                                    })
-                                };
+                                let &(_, ref conn) = fetch.connection.as_ref()
+                                    // TODO(tailhook)
+                                    .unwrap();
+                                future = Some(conn.request(GetBlockReq {
+                                    hash: BlockHash::from_bytes(
+                                        hashes.iter()
+                                            .nth(position / BLOCK_SIZE)
+                                            // TODO(tailhook)
+                                            .unwrap()).unwrap(),
+                                    hint: Some((
+                                        fetch.location.lock().vpath.clone(),
+                                        path.clone(),
+                                        position as u64,
+                                    )),
+                                }));
                             }
                         }
                         Err(e) => {
@@ -727,17 +714,12 @@ impl<R, I, B> ConnectionSet<R, I, B>
                             if let Some((addr, _)) = fetch.connection.take() {
                                 fetch.location.lock().failures.add_failure(addr);
                             }
-                            // TODO(tailhook) clear future
-                            unimplemented!();
+                            future = None;
                         }
                     }
                 }
-                FRequest::File {
-                    future: Some(fut), position,
-                    resolve, hashes, buf, path
-                }
+                FRequest::File { future, position, resolve, hashes, buf, path }
             }
-            req @ FRequest::File { future: None, .. } => req,
         };
         fetch.req = req;
         let cancel = match fetch.req {
