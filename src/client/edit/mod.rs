@@ -1,9 +1,9 @@
-mod uploads;
 mod network;
 
 use std::process::exit;
 use std::mem;
 use std::time::Duration;
+use std::path::PathBuf;
 
 use abstract_ns::Name;
 use failure::{Error, ResultExt};
@@ -15,53 +15,42 @@ use ciruela::cluster::Config;
 
 use keys::read_keys;
 use global_options::GlobalOptions;
-
+use sync::convert_clusters;
 
 #[derive(StructOpt, Debug)]
-#[structopt(name="ciruela sync", about="
-    A tool for bulk-uploading a set of directories to a set
-    of clusters *each* having a single name on a command-line
-    as an entry point (but see `-m`)
-
-    Executes a set of operations (uploads) to each mentioned
-    cluster. Cluster dns name (ENTRY_POINT) should resolve
-    to a multiple (e.g. at least three) ip addresses of
-    servers for reliability.
-
-    All uploading is done in parallel. Command
-    returns when all uploads are done or rejected.
+#[structopt(name="ciruela edit", about="
+    Downloads a file from a remote location, edits it and syncs
+    an equivalent image with an updated file back to the cluster.
 ")]
-struct SyncOptions {
-    #[structopt(name="ENTRY_POINT",
-        help="Domain names used as entry points to a cluster")]
+pub struct EditOptions {
+    #[structopt(name="ENTRY_POINT", help="
+        Domain names used as entry points to a cluster. Only the first one
+        is used to download the file. Others are used to upload file back to
+        the cluster. Upload works the same as in `ciruela sync`.
+    ")]
     clusters: Vec<String>,
 
+    #[structopt(short="d", long="dir", help="
+        A virtual path to the directory to download file from.
+    ", parse(from_os_str))]
+    dir: PathBuf,
+
+    #[structopt(short="f", long="file", help="
+        Path to file to edit, must start with backslash `/`.
+    ", parse(from_os_str))]
+    file: PathBuf,
+
+    #[structopt(long="editor", help="
+        Override editor to run. By default we're using EDITOR environment
+        variable.
+    ", parse(from_os_str))]
+    editor: Option<PathBuf>,
+
     #[structopt(short="m", long="multiple", help="
-        Multiple hosts per cluster mode. By default each hostname specified
-        on the command-line is a separate cluster (and is expected to be
-        resolved to multiple IP addresses). With this option set, hostnames
-        are treated as single cluster. You may still upload to a multiple
-        clusters by putting `--` at the start and use `--` as a separator.
+        Multiple hosts per cluster mode.
+        See `ciruela sync --help` for more info on this mode.
     ")]
     multiple: bool,
-
-    #[structopt(name="A_SOURCE:DEST", long="append",
-                raw(number_of_values="1"),
-                help="Append a directory \
-                   (skip if already exists and same contents)")]
-    append: Vec<String>,
-
-    #[structopt(name="W_SOURCE:DEST", long="append-weak",
-                raw(number_of_values="1"),
-                help="Append a directory \
-                   (skip if already exists even if different contents)")]
-    append_weak: Vec<String>,
-
-    #[structopt(name="R_SOURCE:DEST", long="replace",
-                raw(number_of_values="1"),
-                help="Replace a directory \
-                    (this should be allowed in server config)")]
-    replace: Vec<String>,
 
     #[structopt(short="i", long="identity", name="FILENAME",
                 raw(number_of_values="1"),
@@ -91,7 +80,6 @@ struct SyncOptions {
                 help="
         Report successful exit after this timeout even if not all hosts
         received directories as long as most of them done
-        (format: http://bit.ly/durationf).
     ")]
     early_timeout: Duration,
 
@@ -119,45 +107,14 @@ struct SyncOptions {
                 help="
         Maximum time ciruela sync is allowed to run. If not all hosts are
         done and early exit conditions are not met utility will exit with
-        non-zero status (format: http://bit.ly/durationf).
+        non-zero status.
     ")]
     deadline: Duration,
 }
 
-
-pub fn convert_clusters(src: &Vec<String>, multi: bool)
-    -> Result<Vec<Vec<Name>>, Error>
-{
-    if multi {
-        let mut result = Vec::new();
-        let mut cur = Vec::new();
-        for name in src {
-            if name == "--" {
-                if !cur.is_empty() {
-                    result.push(mem::replace(&mut cur, Vec::new()));
-                }
-            } else {
-                let name = name.parse::<Name>()
-                    .context(format!("bad name {:?}", name))?;
-                cur.push(name);
-            }
-        }
-        if !cur.is_empty() {
-            result.push(cur);
-        }
-        return Ok(result);
-    } else {
-        return Ok(src.iter().map(|name| {
-            name.parse::<Name>().map(|n| vec![n])
-            .context(format!("bad name {:?}", name))
-        }).collect::<Result<_, _>>()?);
-    }
-}
-
-
 pub fn cli(gopt: GlobalOptions, mut args: Vec<String>) -> ! {
-    args.insert(0, String::from("ciruela sync"));  // temporarily
-    let opts = SyncOptions::from_iter(args);
+    args.insert(0, String::from("ciruela edit"));  // temporarily
+    let opts = EditOptions::from_iter(args);
 
     let keys = match read_keys(&opts.identity, &opts.key_from_env) {
         Ok(keys) => keys,
@@ -179,25 +136,15 @@ pub fn cli(gopt: GlobalOptions, mut args: Vec<String>) -> ! {
     let indexes = InMemoryIndexes::new();
     let block_reader = ThreadedBlockReader::new();
 
-    let uploads = match
-        uploads::prepare(&opts, &keys, &gopt, &indexes, &block_reader)
-    {
-        Ok(uploads) => uploads,
-        Err(e) => {
-            error!("{}", e);
-            warn!("Images haven't started to upload.");
-            exit(1);
-        }
-    };
-
     let config = Config::new()
         .port(gopt.destination_port)
         .early_upload(opts.early_hosts, opts.early_fraction,
                       opts.early_timeout)
         .maximum_timeout(opts.deadline)
         .done();
+
     match
-        network::upload(config, clusters, uploads, &indexes, &block_reader)
+        network::edit(config, clusters, &indexes, &block_reader, opts)
     {
         Ok(()) => {}
         Err(e) => {
