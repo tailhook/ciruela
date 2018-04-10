@@ -1,12 +1,10 @@
 mod network;
+mod editor;
 
 use std::process::exit;
-use std::mem;
 use std::time::Duration;
 use std::path::PathBuf;
 
-use abstract_ns::Name;
-use failure::{Error, ResultExt};
 use structopt::StructOpt;
 
 use ciruela::blocks::ThreadedBlockReader;
