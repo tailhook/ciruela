@@ -142,7 +142,7 @@ pub fn cli(gopt: GlobalOptions, mut args: Vec<String>) -> ! {
         .done();
 
     match
-        network::edit(config, clusters, &indexes, &block_reader, opts)
+        network::edit(config, clusters, keys, &indexes, &block_reader, opts)
     {
         Ok(()) => {}
         Err(e) => {

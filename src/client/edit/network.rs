@@ -3,8 +3,10 @@ use std::sync::Arc;
 use abstract_ns::Name;
 use failure::{Error, ResultExt};
 use futures::Future;
+use futures::future::{ok, err};
 use tk_easyloop::{self, handle};
 use ns_env_config;
+use ssh_keys::PrivateKey;
 
 use {VPath};
 use ciruela::blocks::ThreadedBlockReader;
@@ -15,6 +17,7 @@ use edit::EditOptions;
 use edit::editor;
 
 pub fn edit(config: Arc<Config>, clusters: Vec<Vec<Name>>,
+    keys: Vec<PrivateKey>,
     indexes: &InMemoryIndexes, blocks: &ThreadedBlockReader,
     opts: EditOptions)
     -> Result<(), Error>
@@ -33,16 +36,23 @@ pub fn edit(config: Arc<Config>, clusters: Vec<Vec<Name>>,
         .and_then(move |idx| {
             conn.fetch_file(&idx, &opts.file)
             .then(|res| res.context("can't fetch file").map_err(Error::from))
-        })
-        .and_then(move |data| {
-            editor::run(&file, data)
-        })
-        .map(|ndata| {
-            if let Some(ndata) = ndata {
-                println!("New data {} bytes", ndata.len());
-            } else {
-                warn!("File is unchanged")
-            }
+            .and_then(move |data| {
+                editor::run(&file, data)
+            })
+            .and_then(move |ndata| {
+                if let Some(ndata) = ndata {
+                    let mut idx = idx;
+                    match idx.insert_file(&opts.file, &ndata[..], false) {
+                        Ok(()) => {}
+                        Err(e) => return err(e.into()),
+                    }
+                    println!("New data {} bytes", ndata.len());
+                    unimplemented!();
+                } else {
+                    warn!("File is unchanged");
+                    return ok(());
+                }
+            })
         })
     })
 }
