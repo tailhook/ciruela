@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashSet};
-use std::ffi::OsString;
-use std::io::{self, Cursor};
-use std::path::{Path, PathBuf, Component};
+use std::ffi::{OsString, OsStr};
+use std::io::{self, Cursor, Read};
+use std::path::{Path, PathBuf, Component, Components};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::cell::{RefCell, RefMut};
 
@@ -15,6 +15,19 @@ use failure_tracker::{SlowHostFailures};
 #[derive(Debug, Clone)]
 pub struct Location(Arc<Mutex<Pointer>>);
 
+/// Error when trying to modify index
+#[derive(Fail, Debug)]
+pub enum IndexUpdateError {
+    /// Bad file path (i.e. one that contains `/../` or root)
+    #[fail(display="bad file path")]
+    BadPath,
+    /// Tried to insert a file into another file or a symlink
+    #[fail(display="intermediate component is not a directory")]
+    NotADirectory,
+    /// Error when reading files for hashing
+    #[fail(display="error reading file: {}", _0)]
+    Read(io::Error),
+}
 
 #[derive(Debug)]
 pub(crate) struct Pointer {
@@ -34,12 +47,17 @@ pub struct RawIndex {
 #[derive(Debug, Clone)]
 enum Item {
     Dir(BTreeMap<OsString, Item>),
-    File {
+    RemoteFile {
         exe: bool,
         size: u64,
         hashes: Hashes,
     },
     Link(PathBuf),
+    LocalFile {
+        exe: bool,
+        size: u64,
+        hashes: Hashes,
+    },
 }
 
 /// Structure allows to lookup index easily and modify it
@@ -129,7 +147,7 @@ fn fill_dirs<R>(root: &RefCell<BTreeMap<OsString, Item>>,
                         IndexParseEnum::InvalidPath(path.to_path_buf())
                     })?
                     .to_owned(),
-                    Item::File { exe, size, hashes });
+                    Item::RemoteFile { exe, size, hashes });
             }
             Entry::Link(path, dest) => {
                 dir.insert(path.file_name()
@@ -192,7 +210,7 @@ impl SealedIndex for MutableIndex {
             }
         }
         match cur.get(path.file_name()?) {
-            Some(&Item::File { ref hashes, exe, size, .. }) => {
+            Some(&Item::RemoteFile { ref hashes, exe, size, .. }) => {
                 Some((exe, size, hashes.clone()))
             }
             _ => None,
@@ -201,4 +219,64 @@ impl SealedIndex for MutableIndex {
 }
 
 impl MaterializedIndex for MutableIndex {
+}
+
+fn hash_file<R: Read>(file: R) -> Result<(u64, Hashes), io::Error> {
+    unimplemented!();
+}
+
+impl MutableIndex {
+    /// Insert or replace a file creating intermediate directories
+    ///
+    /// Note: we don't follow symlinks and return ``NotADirectory`` error if
+    /// it occurs in the middle of the path. Last component may refer either to
+    /// a file, symlink or a directory, any of them will be replaced
+    /// by a specified file.
+    pub fn insert_file<R, P>(&mut self, path: P, file: R, executable: bool)
+        -> Result<(), IndexUpdateError>
+        where R: Read, P: AsRef<Path>
+    {
+        use self::IndexUpdateError as E;
+
+        let path = path.as_ref();
+        if !path.is_absolute() {
+            return Err(E::BadPath);
+        }
+        let (fname, parent) = match (path.file_name(), path.parent()) {
+            (Some(f), Some(p)) => (f, p),
+            _ => return Err(E::BadPath),
+        };
+        let (size, hashes) = hash_file(file).map_err(|e| E::Read(e))?;
+        _insert_file(&mut self.root, fname, parent.components(),
+            Item::LocalFile {
+                exe: executable, size, hashes,
+            })
+    }
+}
+
+fn _insert_file(dir: &mut BTreeMap<OsString, Item>,
+    fname: &OsStr, mut components: Components, item: Item)
+    -> Result<(), IndexUpdateError>
+{
+    use self::IndexUpdateError as E;
+
+    if let Some(component) = components.next()  {
+        match component {
+            Component::RootDir => _insert_file(dir, fname, components, item),
+            Component::Normal(name) => {
+                let e = dir.entry(name.to_owned())
+                    .or_insert_with(|| Item::Dir(BTreeMap::new()));
+                match *e {
+                    Item::Dir(ref mut next) => {
+                        _insert_file(next, fname, components, item)
+                    }
+                    _ => return Err(E::NotADirectory),
+                }
+            },
+            _ => return Err(E::BadPath),
+        }
+    } else {
+        dir.insert(fname.to_owned(), item);
+        Ok(())
+    }
 }
