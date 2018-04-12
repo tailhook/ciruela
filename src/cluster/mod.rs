@@ -18,7 +18,7 @@ mod future;
 mod error;
 
 pub use cluster::config::Config;
-pub use cluster::upload::Stats;
+pub use cluster::upload::{Stats, ProgressOneLiner};
 pub use cluster::download::{RawIndex, MutableIndex, MaterializedIndex};
 pub use cluster::download::{IndexParseError};
 pub use cluster::future::{UploadFuture, UploadOk, UploadFail};
@@ -184,5 +184,10 @@ impl Upload {
         UploadFuture {
             inner: self.future.clone()
         }
+    }
+
+    /// Return a real-time stats for upload
+    pub fn stats(&self) -> &Stats {
+        &*self.stats
     }
 }

@@ -2,13 +2,14 @@ use std::fmt;
 use std::sync::Arc;
 use std::time::Instant;
 
-use cluster::error::{UploadErr, FetchErr};
-use cluster::upload::Stats;
-use cluster::download::RawIndex;
 use failure::err_msg;
 use futures::future::Shared;
 use futures::sync::oneshot;
 use futures::{Future, Async};
+
+use cluster::error::{UploadErr, FetchErr};
+use cluster::upload::{Stats, UploadName};
+use cluster::download::RawIndex;
 
 
 /// Future returned from `Upload::future`
@@ -75,15 +76,9 @@ impl UploadOk {
 
 impl fmt::Display for UploadOk {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str("Upload to ")?;
         let ref s = self.stats;
         let d = self.finished.duration_since(s.started);
-        if self.stats.cluster_name.len() == 1 {
-            f.write_str(self.stats.cluster_name[0].as_ref())?;
-        } else {
-            write!(f, "({} hosts)", self.stats.cluster_name.len())?;
-        }
-        write!(f, ":{:?}: ", self.stats.path)?;
+        write!(f, "Upload to {}: ", UploadName(s))?;
         s.fmt_downloaded(f)?;
         if d.as_secs() < 1 {
             write!(f, " in 0.{:03}s", d.subsec_nanos() / 1_000_000)?;

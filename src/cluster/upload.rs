@@ -44,6 +44,13 @@ pub struct Stats {
     total_responses: AtomicUsize,
 }
 
+/// Displays some short progress of the upload
+///
+/// This format is not stable yet
+pub struct ProgressOneLiner<'a>(&'a Stats);
+
+pub struct UploadName<'a>(pub(crate) &'a Stats);
+
 impl Stats {
     pub(crate) fn new(cluster_name: &Vec<Name>, path: &VPath, weak: bool)
         -> Stats
@@ -175,6 +182,10 @@ impl Stats {
         }
         Ok(())
     }
+    /// Return struct that can be formatted as a one-liner of download progress
+    pub fn one_line_progress(&self) -> ProgressOneLiner {
+        ProgressOneLiner(&self)
+    }
 }
 
 fn fmt_iter<I: IntoIterator>(f: &mut fmt::Formatter, iter: I) -> fmt::Result
@@ -227,4 +238,31 @@ pub(crate) fn check(stats: &Arc<Stats>, config: &Config, early_timeout: bool)
         }
     }
     return None;
+}
+
+impl<'a> fmt::Display for UploadName<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if self.0.cluster_name.len() == 1 {
+            f.write_str(self.0.cluster_name[0].as_ref())?;
+        } else {
+            write!(f, "({} hosts)", self.0.cluster_name.len())?;
+        }
+        write!(f, ":{}", self.0.path)
+    }
+}
+
+impl<'a> fmt::Display for ProgressOneLiner<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let book = self.0.book.read()
+            .expect("bookkeeping is not poisoned");
+        let done = book.done_ids.len();
+        let disc = book.discovered_ids.len();
+        let percent = if disc > 0 {
+            (done as f32 / disc as f32) * 100.
+        } else {
+            0.
+        };
+        write!(f, "Progress of {}: {:.0}", UploadName(self.0), percent)?;
+        Ok(())
+    }
 }

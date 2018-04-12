@@ -107,7 +107,7 @@ impl VPath {
     /// Check this directory belongs to the specified basedir
     ///
     /// Technically the same, but faster version of:
-    /// ```
+    /// ```ignore
     /// self.parent() == base_dir
     /// ```
     pub fn matches_basedir(&self, base_dir: &VPath) -> bool {
