@@ -204,31 +204,34 @@ fn is_superset(done: &HashMap<MachineId, String>,
     discovered: &HashMap<MachineId, String>)
     -> bool
 {
-    done.keys().all(|x| discovered.contains_key(x))
+    discovered.keys().all(|x| done.contains_key(x))
 }
 
-pub(crate) fn check(stats: &Arc<Stats>, config: &Config, early_timeout: bool)
+pub(crate) fn check(stats: &Arc<Stats>, config: &Config,
+    early_timeout_timed_out: bool)
     -> Option<Result<UploadOk, ErrorKind>>
 {
     let book = stats.book.read()
         .expect("bookkeeping is not poisoned");
     trace!("Current state {:?}{}", book,
-        if early_timeout { " early" } else { "" });
-    if book.done_ips.is_superset(&book.accepted_ips) {
-        if early_timeout {
-            let fract_hosts = (
-                book.discovered_servers.len() as f32 *
-                config.early_fraction).ceil() as usize;
-            let hosts = min(book.discovered_servers.len(),
-                max(config.early_hosts as usize, fract_hosts));
-            if hosts > 0 && book.done_servers.len() >= hosts {
-                if book.rejected_ips.len() > 0 || book.aborted_ids.len() > 0 {
-                    return Some(Err(ErrorKind::Rejected));
-                } else {
-                    return Some(Ok(UploadOk::new(stats)));
-                }
+        if early_timeout_timed_out { "" } else { " early" });
+    if early_timeout_timed_out {
+        let fract_hosts = (
+            book.discovered_num() as f32 *
+            config.early_fraction).ceil() as usize;
+        let hosts = min(book.discovered_num() as usize,
+            max(config.early_hosts as usize, fract_hosts));
+        if hosts > 0 && book.done_servers.len() >= hosts {
+            if book.rejected_ips.len() > 0 || book.aborted_ids.len() > 0 {
+                return Some(Err(ErrorKind::Rejected));
+            } else {
+                return Some(Ok(UploadOk::new(stats)));
             }
-        } else if is_superset(&book.done_servers, &book.discovered_servers) {
+        }
+    } else if
+        book.done_ips.is_superset(&book.accepted_ips) &&
+        is_superset(&book.done_servers, &book.discovered_servers)
+    {
             if book.done_servers.len() > 0 {
                 if book.rejected_ips.len() > 0 || book.aborted_ips.len() > 0 {
                     return Some(Err(ErrorKind::Rejected));
@@ -236,7 +239,6 @@ pub(crate) fn check(stats: &Arc<Stats>, config: &Config, early_timeout: bool)
                     return Some(Ok(UploadOk::new(stats)));
                 }
             }
-        }
     }
     return None;
 }
@@ -256,8 +258,8 @@ impl<'a> fmt::Display for ProgressOneLiner<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let book = self.0.book.read()
             .expect("bookkeeping is not poisoned");
-        let done = book.done_servers.len();
-        let disc = book.discovered_servers.len();
+        let done = book.done_servers.len() as u32;
+        let disc = book.discovered_num();
         let percent = if disc > 0 {
             (done as f32 / disc as f32) * 100.
         } else {
@@ -284,5 +286,19 @@ impl<'a> fmt::Display for ProgressOneLiner<'a> {
             }
         }
         Ok(())
+    }
+}
+
+impl Bookkeeping {
+    fn discovered_num(&self) -> u32 {
+        let explicit = self.discovered_servers.len() as u32;
+        if self.done_ips.len() < 2 {
+            // Server don't see themselves in the list of hosts.
+            // This means we should ensure that number of hosts that reported
+            // download is more that discovered hosts.
+            return explicit + 1;
+        } else {
+            return explicit;
+        }
     }
 }
