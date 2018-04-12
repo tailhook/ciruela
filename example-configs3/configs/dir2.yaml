@@ -1,7 +1,7 @@
-directory: ./dir1
-num-levels: 2
+directory: ./dir2
+num-levels: 1
 append-only: true
 auto-clean: true
 keep-min-directories: 1
 keep-max-directories: 100
-keep-recent: 1 hour
+keep-recent: 1 min

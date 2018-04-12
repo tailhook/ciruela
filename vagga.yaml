@@ -38,9 +38,12 @@ commands:
     container: xenial
     prerequisites: [make, _example-server-dirs]
     environ: &exenv
-      RUST_LOG: "debug,tokio_core=warn,\
-        ciruela_server::peers::gossip=info,\
+      RUST_LOG: "info,tokio_core=warn,\
+        tokio_reactor=warn,\
+        ciruela_server::proto=info,\
+        ciruela_server::peers::gossip=warn,\
         ciruela_server::named_mutex=info,\
+        ciruela_server::tracking=trace,\
         tk_http::websocket::dispatcher=info"
     run:
     - ./target/debug/ciruela-server
@@ -139,11 +142,11 @@ commands:
     container: xenial
     run: |
       mkdir -p ./tmp/db1
-      mkdir -p ./tmp/dest1/dir1
+      mkdir -p ./tmp/dest1/dir1 ./tmp/dest1/dir2
       mkdir -p ./tmp/db2
-      mkdir -p ./tmp/dest2/dir1
+      mkdir -p ./tmp/dest2/dir1 ./tmp/dest2/dir2
       mkdir -p ./tmp/db3
-      mkdir -p ./tmp/dest3/dir1
+      mkdir -p ./tmp/dest3/dir1 ./tmp/dest3/dir2
 
   trio: !Supervise
     description: Runs three ciruela servers to simulate cluster
