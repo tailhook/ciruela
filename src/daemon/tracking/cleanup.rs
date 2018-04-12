@@ -16,6 +16,7 @@ use database::signatures::State;
 
 pub enum Command {
     Base(Arc<BaseDir>),
+    IndexGc,
     Reschedule,
 }
 
@@ -104,8 +105,13 @@ pub fn spawn_loop(rx: UnboundedReceiver<Command>, sys: &Subsystem) {
                         }))
                 }
                 Command::Reschedule => {
-                    let state = sys.state();
+                    let mut state = sys.state();
                     debug!("Rescheduling {} base dirs", state.base_dirs.len());
+                    if state.should_run_index_gc() {
+                        sys.cleanup.unbounded_send(Command::IndexGc)
+                            .expect("can always send in cleanup channel");
+                        state.deleted_since_index_gc = 0;
+                    }
                     for dir in state.base_dirs.values() {
                         if dir.config.auto_clean {
                             sys.cleanup
@@ -116,6 +122,9 @@ pub fn spawn_loop(rx: UnboundedReceiver<Command>, sys: &Subsystem) {
                     sys.cleanup.unbounded_send(Command::Reschedule)
                         .expect("can always send in cleanup channel");
                     Either::B(ok(()))
+                }
+                Command::IndexGc => {
+                    unimplemented!();
                 }
             }
         })

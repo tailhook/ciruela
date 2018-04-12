@@ -44,6 +44,9 @@ pub use self::base_dir::BaseDir;
 const DELETED_RETENTION: u64 = 300_000;  // 5 min
 const AVOID_DOWNLOAD: u64 = 120_000;  // do not try delete image again in 2 min
 const RECENT_RETENTION: u64 = 300_000;  // 5 min
+const DEFAULT_INDEX_GC: Duration = Duration::from_secs(86400);
+const DISABLE_INDEX_GC_IF_DOWNLOADING: usize = 5;
+const EARLY_INDEX_GC_IF_DELETED: u64 = 100;
 
 /// Skip reconciliation if already downloading 20 dirs
 const RECONCILE_MAX_DOWNLOADING: usize = 20;
@@ -68,6 +71,8 @@ pub enum WatchedStatus {
 pub struct State {
     in_progress: HashMap<VPath, Arc<Downloading>>,
     recently_deleted: HashMap<(VPath, ImageId), Instant>,
+    deleted_since_index_gc: u64,
+    last_index_gc: SystemTime,
 
     base_dirs: HashMap<VPath, Arc<BaseDir>>,
     base_dir_list: Vec<Arc<BaseDir>>,
@@ -139,6 +144,11 @@ pub enum Command {
     Reconcile(ReconPush),
 }
 
+fn index_gc_at_start() -> Duration {
+    let secs = DEFAULT_INDEX_GC.as_secs();
+    return Duration::new(thread_rng().gen_range(secs / 5 + 60, secs), 0);
+}
+
 impl Tracking {
     pub fn new(config: &Arc<Config>, meta: &Meta, disk: &Disk,
         remote: &Remote, peers: &Peers)
@@ -152,6 +162,8 @@ impl Tracking {
             state: Arc::new(Mutex::new(State {
                 in_progress: HashMap::new(),
                 recently_deleted: HashMap::new(),
+                deleted_since_index_gc: 0,
+                last_index_gc: SystemTime::now() - index_gc_at_start(),
                 base_dirs: HashMap::new(),
                 base_dir_list: Vec::new(),
                 reconciling: HashMap::new(),
@@ -430,11 +442,13 @@ impl Subsystem {
     }
     pub fn dir_deleted(&self, path: &VPath, image_id: &ImageId) {
         let mut state = self.state();
+        state.deleted_since_index_gc += 1;
         state.recently_deleted
             .insert((path.clone(), image_id.clone()), Instant::now());
     }
     pub fn dir_aborted(&self, cmd: &Arc<Downloading>, reason: &'static str) {
         let mut state = self.state();
+        state.deleted_since_index_gc += 1;
         state.recently_deleted
             .insert((cmd.virtual_path.clone(), cmd.image_id.clone()),
                     Instant::now());
@@ -645,6 +659,12 @@ impl State {
             }
         }
         return count;
+    }
+    fn should_run_index_gc(&self) -> bool {
+        self.in_progress.len() < DISABLE_INDEX_GC_IF_DOWNLOADING && (
+            self.deleted_since_index_gc > EARLY_INDEX_GC_IF_DELETED ||
+            self.last_index_gc + DEFAULT_INDEX_GC < SystemTime::now()
+        )
     }
 }
 
