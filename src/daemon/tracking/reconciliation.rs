@@ -153,6 +153,7 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
 
         let mut count = sys3.state().downloading_in_basedir(&path);
         let mut sorted_remote = remote.dirs.into_iter().collect::<Vec<_>>();
+        let mut full_reconciliation = true;
         sorted_remote.sort_unstable_by_key(|&(_, ref rstate)| {
             rstate.signatures.iter().map(|x| x.timestamp).max()
         });
@@ -188,6 +189,7 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
                 }
                 if count >= RECONCILE_BASEDIR_THROTTLE {
                     trace!("Throttling reconciliation of {:?}", path);
+                    full_reconciliation = false;
                     break;
                 }
                 count += 1;
@@ -237,6 +239,7 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
             } else {
                 if count >= RECONCILE_BASEDIR_THROTTLE {
                     trace!("Throttling reconciliation of {:?}", path);
+                    full_reconciliation = false;
                     break;
                 }
                 count += 1;
@@ -269,11 +272,13 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
                     }));
             }
         }
-        Ok::<(), ()>(())
+        full_reconciliation
     })
-    .then(move |_| -> Result<(), ()> {
+    .then(move |res| -> Result<(), ()> {
         let mut state = sys_drop.state();
-        state.base_dirs.get(&path).map(|b| b.add_parent_hash(hash));
+        if res == Ok(true) {
+            state.base_dirs.get(&path).map(|b| b.add_parent_hash(hash));
+        }
         state.reconciling.remove(&(path, hash));
         PROCESSING.decr(1);
         PROCESSED.incr(1);
