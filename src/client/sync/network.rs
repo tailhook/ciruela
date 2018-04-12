@@ -36,7 +36,7 @@ pub fn upload(config: Arc<Config>, clusters: Vec<Vec<Name>>,
                     Upload::WeakAppend(a) => conn.append_weak(a.clone()),
                 };
                 let up2 = up.clone();
-                interval(Duration::new(0, 100000000))
+                interval(Duration::new(30, 0))
                 .for_each(move |()| {
                     println!("{}", up2.stats().one_line_progress());
                     Ok(())
