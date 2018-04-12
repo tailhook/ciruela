@@ -252,6 +252,11 @@ impl MutableIndex {
                 exe: executable, size, hashes,
             })
     }
+    /// Convert index back into raw data, so that it can be used for upload
+    fn to_raw_data(&self) -> Vec<u8> {
+        let mut buf = String::with_capacity(1024);
+        unimplemented!();
+    }
 }
 
 fn _insert_file(dir: &mut BTreeMap<OsString, Item>,
@@ -279,4 +284,40 @@ fn _insert_file(dir: &mut BTreeMap<OsString, Item>,
         dir.insert(fname.to_owned(), item);
         Ok(())
     }
+}
+
+
+mod test {
+    use std::sync::{Arc, Mutex};
+    use std::collections::HashSet;
+    use failure_tracker::SlowHostFailures;
+    use VPath;
+    use super::{Location, Pointer, RawIndex};
+
+    const EXAMPLE: &[u8] = b"\
+DIRSIGNATURE.v1 sha512/256 block_size=32768
+/
+  hello.txt f 6 8dd499a36d950b8732f85a3bffbc8d8bee4a0af391e8ee2bb0aa0c4553b6c0fc
+  test.txt f 0
+/subdir
+  .hidden f 7 24f72d3a930b5f7933ddd91a5c7cb7ba09a093f936a04bf6486c8b1763c59819
+  file.txt f 10 9ce28248299290fe84340d7821adf01b3b6a579ef827e1e58bc3949de4b7e5d9
+11928917e3e44838af46bad1c7a43a8c16eb26052997f70328d7b07ae4dd6eac
+";
+
+    #[test]
+    fn roundtrip() {
+        let test = RawIndex {
+            data: EXAMPLE.to_owned(),
+            location: Location(Arc::new(Mutex::new(Pointer {
+                vpath: VPath::from("/somewhere/path"),
+                candidate_hosts: HashSet::new(),
+                failures: SlowHostFailures::new_slow(),
+            }))),
+        };
+        let idx = test.into_mut().unwrap();
+        let data = idx.to_raw_data();
+        assert_eq!(data, EXAMPLE);
+    }
+
 }
