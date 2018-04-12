@@ -152,8 +152,12 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
             possible_dirs.into_iter().collect(), &keep_list);
 
         let mut count = sys3.state().downloading_in_basedir(&path);
+        let mut sorted_remote = remote.dirs.into_iter().collect::<Vec<_>>();
+        sorted_remote.sort_unstable_by_key(|&(_, ref rstate)| {
+            rstate.signatures.iter().map(|x| x.timestamp).max()
+        });
 
-        for (name, mut rstate) in remote.dirs {
+        for (name, mut rstate) in sorted_remote.into_iter().rev() {
             let sub_path = path.suffix().join(&name);
             let vpath = path.join(&name);
             if !sorted.used.iter().any(|&(ref p, _)| p == &sub_path) {
