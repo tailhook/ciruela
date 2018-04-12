@@ -7,6 +7,7 @@ use machine_id::MachineId;
 use proto::Hash;
 use proto::{BaseDirState, AppendDir, ReplaceDir, GetBaseDir};
 use proto::{RequestClient};
+use proto::Error;
 use tracking::Subsystem;
 use metrics::{Counter, Integer};
 use {VPath};
@@ -51,7 +52,7 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
     let pair = (path.clone(), hash);
     let pair2 = pair.clone();
     PROCESSING.incr(1);
-    spawn(loop_fn((addr, mid), move |(addr, mid)| {
+    spawn(loop_fn((addr, mid, 0), move |(addr, mid, n)| {
         let sys = sys.clone();
         let pair = pair.clone(); // TODO(tailhook) optimize?
         sys.remote.ensure_connected(&sys.tracking, addr)
@@ -74,6 +75,11 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
                                 addr, pair.0, hash, dir_hash);
                         }
                     }
+                    // This error often happends as a part of race condition
+                    // of sending request over keep-alived connection.
+                    Err(Error::UnexpectedTermination) if n < 2 => {
+                        return Ok(Loop::Continue((addr, mid, n+1)));
+                    }
                     Err(e) => {
                         warn!("Error fetching {} from {}: {}", hash, addr, e);
                     }
@@ -86,8 +92,8 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
                         item.as_ref().map(|pair| h.remove(&pair));
                         item
                     });
-                if let Some(next_host) = next_host {
-                    return Ok(Loop::Continue(next_host))
+                if let Some((addr, mid)) = next_host {
+                    return Ok(Loop::Continue((addr, mid, 0)));
                 } else {
                     // It's fine, probably all hosts have an updated hash already.
                     // It might also be that there is some race condition, like
