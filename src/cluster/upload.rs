@@ -18,11 +18,9 @@ use machine_id::MachineId;
 #[derive(Debug)]
 struct Bookkeeping {
     accepted_ips: HashSet<SocketAddr>,
-    discovered_ids: HashSet<MachineId>,
-    discovered_hosts: HashSet<String>,
+    discovered_servers: HashMap<MachineId, String>,
     done_ips: HashSet<SocketAddr>,
-    done_ids: HashSet<MachineId>,
-    done_hostnames: HashSet<String>,
+    done_servers: HashMap<MachineId, String>,
     aborted_ips: HashMap<SocketAddr, String>,
     aborted_ids: HashMap<MachineId, String>,
     aborted_hostnames: HashMap<String, String>,
@@ -63,12 +61,10 @@ impl Stats {
             path: path.clone(),
             weak_errors: weak,
             book: RwLock::new(Bookkeeping {
-                discovered_ids: HashSet::new(),
-                discovered_hosts: HashSet::new(),
+                discovered_servers: HashMap::new(),
                 accepted_ips: HashSet::new(),
                 done_ips: HashSet::new(),
-                done_ids: HashSet::new(),
-                done_hostnames: HashSet::new(),
+                done_servers: HashMap::new(),
                 aborted_ips: HashMap::new(),
                 aborted_ids: HashMap::new(),
                 aborted_hostnames: HashMap::new(),
@@ -85,9 +81,10 @@ impl Stats {
         if !info.forwarded {
             book.done_ips.insert(addr);
         }
-        book.done_ids.insert(info.machine_id.clone());
-        book.discovered_ids.insert(info.machine_id.clone());
-        book.done_hostnames.insert(info.hostname.clone());
+        book.done_servers.insert(
+            info.machine_id.clone(), info.hostname.clone());
+        book.discovered_servers.insert(
+            info.machine_id.clone(), info.hostname.clone());
     }
     pub(crate) fn aborted_image(&self, addr: SocketAddr, info: &AbortedImage) {
         let mut book = self.book.write()
@@ -143,8 +140,7 @@ impl Stats {
             }
         }
         for (id, val) in hosts {
-            book.discovered_ids.insert(id);
-            book.discovered_hosts.insert(val);
+            book.discovered_servers.insert(id, val);
         }
         return accepted;
     }
@@ -162,13 +158,13 @@ impl Stats {
         let book = self.book.read()
             .expect("bookkeeping is not poisoned");
         f.write_str("fetched from ")?;
-        if book.done_ids.len() > 3 {
-            write!(f, "{} hosts", book.done_ids.len())?;
+        if book.done_servers.len() > 3 {
+            write!(f, "{} hosts", book.done_servers.len())?;
         } else {
-            fmt_iter(f, &book.done_hostnames)?;
+            fmt_iter(f, book.done_servers.values())?;
         }
-        if book.discovered_ids.len() > book.done_ids.len() {
-            write!(f, " (out of {} hosts)", book.discovered_ids.len())?;
+        if book.discovered_servers.len() > book.done_servers.len() {
+            write!(f, " (out of {} hosts)", book.discovered_servers.len())?;
         }
         if !book.rejected_ips.is_empty() {
             f.write_str(", rejected by")?;
@@ -204,6 +200,13 @@ fn fmt_iter<I: IntoIterator>(f: &mut fmt::Formatter, iter: I) -> fmt::Result
     Ok(())
 }
 
+fn is_superset(done: &HashMap<MachineId, String>,
+    discovered: &HashMap<MachineId, String>)
+    -> bool
+{
+    done.keys().all(|x| discovered.contains_key(x))
+}
+
 pub(crate) fn check(stats: &Arc<Stats>, config: &Config, early_timeout: bool)
     -> Option<Result<UploadOk, ErrorKind>>
 {
@@ -214,23 +217,19 @@ pub(crate) fn check(stats: &Arc<Stats>, config: &Config, early_timeout: bool)
     if book.done_ips.is_superset(&book.accepted_ips) {
         if early_timeout {
             let fract_hosts = (
-                book.discovered_ids.len() as f32 *
+                book.discovered_servers.len() as f32 *
                 config.early_fraction).ceil() as usize;
-            let hosts = min(book.discovered_ids.len(),
+            let hosts = min(book.discovered_servers.len(),
                 max(config.early_hosts as usize, fract_hosts));
-            debug!("Downloaded ids {}/{}/{}",
-                book.done_ids.len(), hosts, book.discovered_ids.len());
-            if hosts > 0 && book.done_ids.len() >= hosts {
+            if hosts > 0 && book.done_servers.len() >= hosts {
                 if book.rejected_ips.len() > 0 || book.aborted_ids.len() > 0 {
                     return Some(Err(ErrorKind::Rejected));
                 } else {
                     return Some(Ok(UploadOk::new(stats)));
                 }
             }
-        } else if book.done_ids.is_superset(&book.discovered_ids) {
-            debug!("Early downloaded ids {}/{}",
-                book.done_ids.len(), book.discovered_ids.len());
-            if book.done_ids.len() > 0 {
+        } else if is_superset(&book.done_servers, &book.discovered_servers) {
+            if book.done_servers.len() > 0 {
                 if book.rejected_ips.len() > 0 || book.aborted_ips.len() > 0 {
                     return Some(Err(ErrorKind::Rejected));
                 } else {
@@ -257,8 +256,8 @@ impl<'a> fmt::Display for ProgressOneLiner<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let book = self.0.book.read()
             .expect("bookkeeping is not poisoned");
-        let done = book.done_ids.len();
-        let disc = book.discovered_ids.len();
+        let done = book.done_servers.len();
+        let disc = book.discovered_servers.len();
         let percent = if disc > 0 {
             (done as f32 / disc as f32) * 100.
         } else {
