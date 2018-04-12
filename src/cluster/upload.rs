@@ -47,8 +47,10 @@ pub struct Stats {
 /// Displays some short progress of the upload
 ///
 /// This format is not stable yet
+#[derive(Debug)]
 pub struct ProgressOneLiner<'a>(&'a Stats);
 
+#[derive(Debug)]
 pub struct UploadName<'a>(pub(crate) &'a Stats);
 
 impl Stats {
