@@ -102,6 +102,18 @@ impl VPath {
         assert!(buf != Path::new("/"));
         VPath(Arc::new(buf))
     }
+
+    /// Check this directory belongs to the specified basedir
+    ///
+    /// Technically the same, but faster version of:
+    /// ```
+    /// self.parent() == base_dir
+    /// ```
+    pub fn matches_basedir(&self, base_dir: &VPath) -> bool {
+        assert!(self.level() > 0);
+        let parent = self.0.parent().expect("valid virtual path");
+        return parent == base_dir.0.as_path();
+    }
 }
 
 impl Borrow<Path> for VPath {

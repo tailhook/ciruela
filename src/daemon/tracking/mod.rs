@@ -45,6 +45,11 @@ const DELETED_RETENTION: u64 = 300_000;  // 5 min
 const AVOID_DOWNLOAD: u64 = 120_000;  // do not try delete image again in 2 min
 const RECENT_RETENTION: u64 = 300_000;  // 5 min
 
+/// Skip reconciliation if already downloading 20 dirs
+const RECONCILE_MAX_DOWNLOADING: usize = 20;
+/// Skip reconciliation of this basedir if 3 dirs already downloading
+const RECONCILE_BASEDIR_THROTTLE: usize = 3;
+
 lazy_static! {
     pub static ref DOWNLOADING: Integer = Integer::new();
     pub static ref FAILED: Counter = Counter::new();
@@ -174,6 +179,9 @@ impl Tracking {
             return;
         }
         let mut state = self.state();
+        if state.in_progress.len() > RECONCILE_MAX_DOWNLOADING {
+            return;
+        }
         if state.base_dirs
            .get(&path).map(|x| !x.is_superset_of(hash))
            .unwrap_or(true)
@@ -184,6 +192,11 @@ impl Tracking {
                 state.reconciling.get_mut(&pair).unwrap()
                     .insert((peer_addr, peer_id));
             } else {
+                let cur = state.downloading_in_basedir(&pair.0);
+                if cur >= RECONCILE_BASEDIR_THROTTLE {
+                    trace!("Throttling reconciliation of {:?}", pair.0);
+                    return;
+                }
                 state.reconciling.insert(pair.clone(), {
                     let mut hash = HashSet::new();
                     hash.insert((peer_addr, peer_id.clone()));
@@ -623,6 +636,15 @@ impl State {
             *status = new_status;
             return true;
         });
+    }
+    fn downloading_in_basedir(&self, path: &VPath) -> usize {
+        let mut count = 0;
+        for item in self.in_progress.keys() {
+            if item.matches_basedir(path) {
+                count += 1;
+            }
+        }
+        return count;
     }
 }
 

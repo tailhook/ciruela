@@ -14,6 +14,7 @@ use {VPath};
 use futures::future::{Future, Loop, loop_fn};
 use tk_easyloop::spawn;
 use metadata::{Upload, Accept};
+use tracking::RECONCILE_BASEDIR_THROTTLE;
 
 
 lazy_static! {
@@ -150,6 +151,8 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
         let sorted = sort_out(config,
             possible_dirs.into_iter().collect(), &keep_list);
 
+        let mut count = sys3.state().downloading_in_basedir(&path);
+
         for (name, mut rstate) in remote.dirs {
             let sub_path = path.suffix().join(&name);
             let vpath = path.join(&name);
@@ -179,6 +182,11 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
                     trace!("Peer image {} is older than ours", image_id);
                     continue;
                 }
+                if count >= RECONCILE_BASEDIR_THROTTLE {
+                    trace!("Throttling reconciliation of {:?}", path);
+                    break;
+                }
+                count += 1;
                 {
                     let state = &mut *sys.state();
                     if let Some(items) = state.reconciling.get(&pair2) {
@@ -223,6 +231,11 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
                         Ok(())
                     }));
             } else {
+                if count >= RECONCILE_BASEDIR_THROTTLE {
+                    trace!("Throttling reconciliation of {:?}", path);
+                    break;
+                }
+                count += 1;
                 spawn(
                     sys.meta.append_dir(AppendDir {
                         path: vpath.clone(),
