@@ -81,9 +81,9 @@ impl fmt::Display for UploadOk {
         if self.stats.cluster_name.len() == 1 {
             f.write_str(self.stats.cluster_name[0].as_ref())?;
         } else {
-            write!(f, "{} hosts", self.stats.cluster_name.len())?;
+            write!(f, "({} hosts)", self.stats.cluster_name.len())?;
         }
-        f.write_str(": ")?;
+        write!(f, ":{:?}: ", self.stats.path)?;
         s.fmt_downloaded(f)?;
         if d.as_secs() < 1 {
             write!(f, " in 0.{:03}s", d.subsec_nanos() / 1_000_000)?;

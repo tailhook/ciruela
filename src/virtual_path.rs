@@ -1,3 +1,4 @@
+use std::fmt;
 use std::path::{Path, PathBuf};
 use std::borrow::Borrow;
 use std::sync::Arc;
@@ -157,4 +158,10 @@ fn check_path(path: &str) -> bool {
         }
     }
     return num >= 1;
+}
+
+impl fmt::Display for VPath {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.0.display().fmt(f)
+    }
 }
