@@ -57,7 +57,9 @@ impl ConfigMap {
                         .or_insert_with(HashSet::new)
                         .insert(machine.clone());
                 }
-                e.get_mut().configs = configs;
+                let m = e.get_mut();
+                m.hash = hash;
+                m.configs = configs;
             }
         }
     }
