@@ -263,7 +263,26 @@ impl<'a> fmt::Display for ProgressOneLiner<'a> {
         } else {
             0.
         };
-        write!(f, "Progress of {}: {:.0}", UploadName(self.0), percent)?;
+        write!(f, "Progress of {}: {:.0}%", UploadName(self.0), percent)?;
+        if disc > done {
+            write!(f, ", {} servers left: ", disc - done)?;
+            let mut count = 0;
+            for (ref id, ref name) in &book.discovered_servers {
+                if !book.done_servers.contains_key(id) {
+                    if count > 0 {
+                        f.write_str(", ")?;
+                    }
+                    name.fmt(f)?;
+                    count += 1;
+                    if count >= 3 {
+                        break;
+                    }
+                }
+            }
+            if count < disc - done {
+                f.write_str("...")?;
+            }
+        }
         Ok(())
     }
 }
