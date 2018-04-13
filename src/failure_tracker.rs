@@ -7,8 +7,8 @@ use std::time::{Instant, Duration};
 use abstract_ns::Name;
 
 
-const RETRY_TIME: u64 = 1000;
-const SLOW_RETRY_TIME: u64 = 10000;
+const RETRY_TIME: Duration = Duration::from_secs(1);
+const SLOW_RETRY_TIME: Duration = Duration::from_secs(10);
 
 
 pub type HostFailures = Failures<SocketAddr, DefaultPolicy>;
@@ -39,17 +39,15 @@ pub trait Policy: fmt::Debug {
 
 impl Policy for DefaultPolicy {
     fn can_try(&self, entry: &Failure) -> bool {
-        let retry_time = Duration::from_millis(RETRY_TIME);
         let since = Instant::now() - entry.last;
-        return since > retry_time * entry.subsequent;
+        return since > RETRY_TIME * entry.subsequent;
     }
 }
 
 impl Policy for SlowerPolicy {
     fn can_try(&self, entry: &Failure) -> bool {
-        let retry_time = Duration::from_millis(SLOW_RETRY_TIME);
         let since = Instant::now() - entry.last;
-        return since > retry_time * entry.subsequent;
+        return since > SLOW_RETRY_TIME * entry.subsequent;
     }
 }
 
