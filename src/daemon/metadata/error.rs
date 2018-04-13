@@ -119,5 +119,8 @@ quick_error! {
         ResumeNoFile(vpath: VPath) {
             display("no state file to resume for {:?}", vpath)
         }
+        IndexGcInterrupted {
+            display("index gc has been unexpectedly interrupted")
+        }
     }
 }

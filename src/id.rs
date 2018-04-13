@@ -1,7 +1,8 @@
 use std::fmt;
 use std::sync::Arc;
+use std::str::FromStr;
 
-use hex::ToHex;
+use hex::{ToHex, FromHex};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::de::{Visitor, Error};
 
@@ -17,6 +18,11 @@ pub struct Hash([u8; 32]);
 /// basically it can be used as an identified in content-addressed store.
 #[derive(Clone, Hash, PartialEq, Eq)]
 pub struct ImageId(Internal);
+
+/// Error parsing hex string into image id
+#[derive(Fail, Debug)]
+#[fail(display="errors parding hexadecimal image id")]
+pub struct ParseError;
 
 struct ImageIdVisitor;
 
@@ -36,6 +42,21 @@ impl<'a> From<&'a [u8]> for ImageId {
         } else {
             ImageId(Internal::Other(Arc::new(
                 value.to_vec().into_boxed_slice())))
+        }
+    }
+}
+
+impl FromStr for ImageId {
+    type Err = ParseError;
+    fn from_str(value: &str) -> Result<ImageId, ParseError> {
+        if value.len() == 64 {
+            let array:[u8; 32] = FromHex::from_hex(value)
+                .map_err(|_| ParseError)?;
+            Ok(ImageId(Internal::B32(array)))
+        } else {
+            Ok(ImageId(Internal::Other(Arc::new(
+                Vec::from_hex(value).map_err(|_| ParseError)?
+                .into_boxed_slice()))))
         }
     }
 }

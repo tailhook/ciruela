@@ -63,5 +63,34 @@ pub fn full_collection(meta: &Meta) -> Result<(), Error> {
     scan(meta)?;
     info!("Found {} used images",
         meta.0.collecting.lock().as_ref().map(|x| x.len()).unwrap_or(0));
+    let root = meta.indexes()?;
+    for prefix in root.list_dirs()? {
+        if let Some(sub_dir) = root.dir_if_exists(&prefix)? {
+            for file_name in sub_dir.list_files(".ds1")? {
+                let image_id = match file_name[..file_name.len()-4].parse() {
+                    Ok(x) => x,
+                    Err(_) => {
+                        error!("bad filename {:?} in indexes", file_name);
+                        continue;
+                    }
+                };
+                let is_marked = match *meta.0.collecting.lock() {
+                    Some(ref set) => set.contains(&image_id),
+                    None => return Err(Error::IndexGcInterrupted),
+                };
+                if !is_marked {
+                    match sub_dir.remove_file(&file_name) {
+                        Ok(()) => {
+                            info!("Deleted index {:?}", image_id);
+                        }
+                        Err(e) => {
+                            error!("Error deleting index {:?}: {}",
+                                image_id, e);
+                        }
+                    }
+                }
+            }
+        }
+    }
     Ok(())
 }
