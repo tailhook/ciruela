@@ -196,8 +196,10 @@ impl Meta {
         self.0.cpu_pool.spawn_fn(move || {
             read_index::read_bytes(&index, &meta)
             .map_err(|e| {
-                info!("Error reading index {:?} from file: {}",
-                      index, e);
+                if !matches!(e, Error::IndexNotFound) {
+                    info!("Error reading index {:?} from file: {}",
+                          index, e);
+                }
                 e
             })
         })

@@ -301,7 +301,7 @@ fn spawn_try_read(path: VPath, index: &ImageId, reg: Arc<Mutex<Registry>>,
             }
             Err(e) => {
                 if matches!(e, MetaError::IndexNotFound) {
-                    info!("Index {:?} can't be found in store", index);
+                    debug!("Index {:?} can't be found in store", index);
                 } else {
                     error!("Error reading index {:?}: {}. \
                             Will try to fetch... ",
