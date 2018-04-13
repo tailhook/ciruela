@@ -65,6 +65,7 @@ fn check_keys(sigdata: &SigData, signatures: &Vec<Signature>,
 pub fn start_append(params: AppendDir, meta: &Meta)
     -> Result<Upload, Error>
 {
+    meta.mark_used(&params.image);
     let vpath = params.path.clone();
     let config = if let Some(cfg) = meta.0.config.dirs.get(vpath.key()) {
         if vpath.level() != cfg.num_levels {
@@ -147,6 +148,7 @@ pub fn start_append(params: AppendDir, meta: &Meta)
 pub fn start_replace(params: ReplaceDir, meta: &Meta)
     -> Result<Upload, Error>
 {
+    meta.mark_used(&params.image);
     let vpath = params.path.clone();
     let config = if let Some(cfg) = meta.0.config.dirs.get(vpath.key()) {
         if vpath.level() != cfg.num_levels {

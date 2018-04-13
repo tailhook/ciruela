@@ -166,6 +166,7 @@ commands:
         - --override-machine-id=77985419c732412ea38b94db00000001
         - --override-hostname=n1
         - --log-machine-id
+        - --aggressive-index-gc
       n2: !Command
         container: xenial
         environ: *exenv

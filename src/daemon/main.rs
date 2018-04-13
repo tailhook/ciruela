@@ -128,6 +128,7 @@ fn main() {
     let mut hostname = hostname::get_hostname();
     let mut log_machine_id = false;
     let mut cantal: bool = false;
+    let mut aggressive_index_gc: bool = false;
     {
         let mut ap = ArgumentParser::new();
         ap.refer(&mut config_dir)
@@ -174,6 +175,14 @@ fn main() {
             .add_option(&["--log-machine-id"], StoreTrue, "
                 Adds machine id to the logs, useful for local multi-node
                 testing such as `vagga trio`.");
+        ap.refer(&mut aggressive_index_gc)
+            .add_option(&["--aggressive-index-gc"], StoreTrue, "
+                Run Index GC after every cleanup
+                (usually run every 100 images deleted or once a day,
+                whichever comes first).
+                This should be used only for debugging, or for the short
+                period of time after DoS attack has happened.
+            ");
         ap.add_option(&["--version"],
             Print(env!("CARGO_PKG_VERSION").to_string()),
             "Show version");
@@ -201,10 +210,8 @@ fn main() {
             Arc::new(config::Config {
                 machine_id: machine_id.clone(),
                 hostname: hostname.clone(),
-                port: port,
-                db_dir: db_dir,
-                config_dir: config_dir,
                 dirs: configs,
+                port, db_dir, config_dir, aggressive_index_gc,
             })
         }
         Err(e) => {

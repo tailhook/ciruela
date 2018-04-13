@@ -1,15 +1,16 @@
 mod dir;
 mod error;
-mod keys;
-mod upload;
 mod first_scan;
+mod hardlink_sources;
+mod index_gc;
+mod keys;
 mod read_index;
 mod scan;
 mod store_index;
-mod hardlink_sources;
+mod upload;
 
 use std::io;
-use std::collections::{HashMap, BTreeMap};
+use std::collections::{HashMap, HashSet, BTreeMap};
 use std::sync::{Arc};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -47,6 +48,7 @@ struct Inner {
     cpu_pool: CpuPool,
     config: Arc<Config>,
     writing: Mutex<HashMap<VPath, Writing>>,
+    collecting: Mutex<Option<HashSet<ImageId>>>,
     base_dir: Dir,
 }
 
@@ -73,6 +75,7 @@ impl Meta {
             config: config.clone(),
             base_dir: dir,
             writing: Mutex::new(HashMap::new(), "metadata_writing"),
+            collecting: Mutex::new(None, "metadata_collecting"),
         })))
     }
     pub fn get_image_id(&self, vpath: &VPath)
@@ -223,6 +226,7 @@ impl Meta {
         let meta = self.clone();
         let id = id.clone();
         self.0.cpu_pool.spawn_fn(move || -> Result<(), ()> {
+            meta.mark_used(&id);
             store_index::write(&id, data, &meta)
                 .map_err(|e| {
                     error!("Can't store index {:?}: {}", id, e);
@@ -279,5 +283,22 @@ impl Meta {
     }
     fn indexes(&self) -> Result<Dir, Error> {
         self.0.base_dir.ensure_dir("indexes")
+    }
+    fn mark_used(&self, image_id: &ImageId) {
+        if let Some(ref mut set) = *self.0.collecting.lock() {
+            set.insert(image_id.clone());
+        }
+    }
+    pub fn index_gc(&self)
+        -> CpuFuture<(), Error>
+    {
+        let meta = self.clone();
+        self.0.cpu_pool.spawn_fn(move || {
+            let writing = meta.writing().values()
+                .map(|w| w.image.clone())
+                .collect();
+            *meta.0.collecting.lock() = Some(writing);
+            index_gc::full_collection(&meta)
+        })
     }
 }

@@ -65,7 +65,7 @@ pub fn spawn_loop(rx: UnboundedReceiver<Command>, sys: &Subsystem) {
                     let sys2 = sys.clone();
                     let sys3 = sys.clone();
                     let time = SystemTime::now();
-                    Either::A(
+                    Either::A(Either::A(
                         sys.meta.scan_dir(&dir.path).map_err(boxerr)
                         .join(sys.disk.read_keep_list(&dir.config)
                               .map_err(boxerr))
@@ -102,12 +102,14 @@ pub fn spawn_loop(rx: UnboundedReceiver<Command>, sys: &Subsystem) {
                                     Ok(())
                                 }
                             }
-                        }))
+                        })))
                 }
                 Command::Reschedule => {
                     let mut state = sys.state();
                     debug!("Rescheduling {} base dirs", state.base_dirs.len());
-                    if state.should_run_index_gc() {
+                    if sys.config.aggressive_index_gc ||
+                        state.should_run_index_gc()
+                    {
                         sys.cleanup.unbounded_send(Command::IndexGc)
                             .expect("can always send in cleanup channel");
                         state.deleted_since_index_gc = 0;
@@ -121,10 +123,22 @@ pub fn spawn_loop(rx: UnboundedReceiver<Command>, sys: &Subsystem) {
                     }
                     sys.cleanup.unbounded_send(Command::Reschedule)
                         .expect("can always send in cleanup channel");
-                    Either::B(ok(()))
+                    Either::A(Either::B(ok(())))
                 }
                 Command::IndexGc => {
-                    unimplemented!();
+                    let sys = sys.clone();
+                    Either::B(sys.meta.index_gc()
+                        .then(move |res| {
+                            match res {
+                                Ok(()) => {}
+                                Err(e) => {
+                                    error!("Index GC failed: {}", e);
+                                }
+                            }
+                            let mut state = sys.state();
+                            state.last_index_gc = SystemTime::now();
+                            Ok(())
+                        }))
                 }
             }
         })

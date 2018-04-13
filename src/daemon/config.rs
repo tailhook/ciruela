@@ -16,6 +16,7 @@ pub struct Config {
     pub port: u16,
     pub db_dir: PathBuf,
     pub config_dir: PathBuf,
+    pub aggressive_index_gc: bool,
     pub dirs: HashMap<String, Arc<Directory>>,
 }
 
