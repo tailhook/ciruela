@@ -209,6 +209,7 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
                                 .map(|&(addr, _)| {
                                     (addr, Instant::now())
                                 }));
+                        // TODO(tailhook) wakeup index/block receivers
                     }
                 }
                 debug!("Replacing {:?} {:?} -> {:?}", name,
@@ -249,6 +250,19 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
                     break;
                 }
                 count += 1;
+                {
+                    let state = &mut *sys.state();
+                    if let Some(items) = state.reconciling.get(&pair2) {
+                        state.recently_received.entry(vpath.clone())
+                            .or_insert_with(HashMap::new)
+                            .extend(
+                                items.iter()
+                                .map(|&(addr, _)| {
+                                    (addr, Instant::now())
+                                }));
+                        // TODO(tailhook) wakeup index/block receivers
+                    }
+                }
                 spawn(
                     sys.meta.append_dir(AppendDir {
                         path: vpath.clone(),
