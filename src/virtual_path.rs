@@ -20,7 +20,7 @@ use serde::de::{Deserialize, Deserializer, Error};
 ///
 /// Type asserts on the presence of the ``key`` and that the path is absolute.
 /// Suffix might be of arbitrary length including zero.
-#[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Debug, Clone)]
+#[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Clone)]
 pub struct VPath(Arc<PathBuf>);
 
 impl VPath {
@@ -163,5 +163,11 @@ fn check_path(path: &str) -> bool {
 impl fmt::Display for VPath {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.0.display().fmt(f)
+    }
+}
+
+impl fmt::Debug for VPath {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "v{:?}", self.0)
     }
 }
