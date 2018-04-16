@@ -6,7 +6,8 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::cell::{RefCell, RefMut};
 
 use abstract_ns::Name;
-use dir_signature::v1::{Parser, Hashes, Header, Entry, ParseError};
+use dir_signature::v1::{Parser, Hashes, Header, Entry, ParseError, Emitter};
+use dir_signature::HashType;
 
 use {VPath};
 use failure_tracker::{SlowHostFailures};
@@ -66,6 +67,8 @@ pub struct MutableIndex {
     header: Header,
     root: BTreeMap<OsString, Item>,
     location: Location,
+    block_size: u64,
+    hash_type: HashType,
 }
 
 pub trait SealedIndex {
@@ -176,7 +179,11 @@ impl RawIndex {
         let root = RefCell::new(BTreeMap::new());
         fill_dirs(&root, parser)?;
         let root = root.into_inner();
-        return Ok(MutableIndex { header, root, location });
+        return Ok(MutableIndex {
+            hash_type: header.get_hash_type(),
+            block_size: header.get_block_size(),
+            header, root, location,
+        });
     }
 }
 
@@ -254,9 +261,50 @@ impl MutableIndex {
     }
     /// Convert index back into raw data, so that it can be used for upload
     fn to_raw_data(&self) -> Vec<u8> {
-        let mut buf = String::with_capacity(1024);
-        unimplemented!();
+        let mut buf = Vec::with_capacity(1024);
+        {
+            let mut emitter = Emitter::new(
+                self.hash_type, self.block_size, &mut buf,
+            ).unwrap();
+            _emit_dir(&mut emitter, &Path::new("/"), &self.root).unwrap();
+            emitter.finish().unwrap();
+        }
+        return buf;
     }
+}
+
+fn _emit_dir(emitter: &mut Emitter, path: &Path,
+    dir: &BTreeMap<OsString, Item>)
+    -> io::Result<()>
+{
+    use self::Item::*;
+    if dir.is_empty() {
+        return Ok(());
+    }
+    emitter.start_dir(path)?;
+    for (key, item) in dir {
+        match *item {
+            Dir(..) => {},
+            | RemoteFile { exe, size, ref hashes }
+            | LocalFile { exe, size, ref hashes }
+            => {
+                emitter.add_file(key, exe, size, hashes)?;
+            }
+            Link(ref dest) => {
+                emitter.add_symlink(key, dest)?;
+            }
+        }
+    }
+    for (key, item) in dir {
+        match *item {
+            Dir(ref subdir) => {
+                let path = path.join(key);
+                _emit_dir(emitter, &path, subdir)?;
+            },
+            _ => {}
+        }
+    }
+    Ok(())
 }
 
 fn _insert_file(dir: &mut BTreeMap<OsString, Item>,
@@ -287,6 +335,7 @@ fn _insert_file(dir: &mut BTreeMap<OsString, Item>,
 }
 
 
+#[cfg(test)]
 mod test {
     use std::sync::{Arc, Mutex};
     use std::collections::HashSet;
@@ -294,21 +343,21 @@ mod test {
     use VPath;
     use super::{Location, Pointer, RawIndex};
 
-    const EXAMPLE: &[u8] = b"\
+    const EXAMPLE: &str = "\
 DIRSIGNATURE.v1 sha512/256 block_size=32768
 /
-  hello.txt f 6 8dd499a36d950b8732f85a3bffbc8d8bee4a0af391e8ee2bb0aa0c4553b6c0fc
+  hello.txt f 6 a79eef66019bfb9a41f798f2cff2d2d36ed294cc3f96bf53bbfc5192ebe60192
   test.txt f 0
 /subdir
-  .hidden f 7 24f72d3a930b5f7933ddd91a5c7cb7ba09a093f936a04bf6486c8b1763c59819
-  file.txt f 10 9ce28248299290fe84340d7821adf01b3b6a579ef827e1e58bc3949de4b7e5d9
-11928917e3e44838af46bad1c7a43a8c16eb26052997f70328d7b07ae4dd6eac
+  .hidden f 7 6d7f5f9804ee4dbc1ff7e12c7665387e0119e8ea629996c52d38b75c12ad0acf
+  file.txt f 10 0119865c765e02554f6fc5a06fa76aa92c590c09225775c092144079f9964899
+552ca5730ee95727e890a2155c88609d244624034ff70de264cf88220d11d6df
 ";
 
     #[test]
     fn roundtrip() {
         let test = RawIndex {
-            data: EXAMPLE.to_owned(),
+            data: EXAMPLE.as_bytes().to_owned(),
             location: Location(Arc::new(Mutex::new(Pointer {
                 vpath: VPath::from("/somewhere/path"),
                 candidate_hosts: HashSet::new(),
@@ -317,7 +366,7 @@ DIRSIGNATURE.v1 sha512/256 block_size=32768
         };
         let idx = test.into_mut().unwrap();
         let data = idx.to_raw_data();
-        assert_eq!(data, EXAMPLE);
+        assert_eq!(String::from_utf8(data).unwrap(), EXAMPLE);
     }
 
 }
