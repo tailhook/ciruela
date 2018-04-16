@@ -46,7 +46,8 @@ pub fn edit(config: Arc<Config>, clusters: Vec<Vec<Name>>,
                         Ok(()) => {}
                         Err(e) => return err(e.into()),
                     }
-                    println!("New data {} bytes", ndata.len());
+                    let new_index = idx.to_raw_data();
+                    println!("New index is {} bytes", new_index.len());
                     unimplemented!();
                 } else {
                     warn!("File is unchanged");

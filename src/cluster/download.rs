@@ -228,10 +228,6 @@ impl SealedIndex for MutableIndex {
 impl MaterializedIndex for MutableIndex {
 }
 
-fn hash_file<R: Read>(file: R) -> Result<(u64, Hashes), io::Error> {
-    unimplemented!();
-}
-
 impl MutableIndex {
     /// Insert or replace a file creating intermediate directories
     ///
@@ -253,14 +249,16 @@ impl MutableIndex {
             (Some(f), Some(p)) => (f, p),
             _ => return Err(E::BadPath),
         };
-        let (size, hashes) = hash_file(file).map_err(|e| E::Read(e))?;
+        let (size, hashes) = Hashes::hash_file(
+            self.hash_type, self.block_size, file,
+        ).map_err(|e| E::Read(e))?;
         _insert_file(&mut self.root, fname, parent.components(),
             Item::LocalFile {
                 exe: executable, size, hashes,
             })
     }
     /// Convert index back into raw data, so that it can be used for upload
-    fn to_raw_data(&self) -> Vec<u8> {
+    pub fn to_raw_data(&self) -> Vec<u8> {
         let mut buf = Vec::with_capacity(1024);
         {
             let mut emitter = Emitter::new(
