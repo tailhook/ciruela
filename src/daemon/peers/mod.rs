@@ -16,21 +16,26 @@ use futures::sync::mpsc::{unbounded, UnboundedSender, UnboundedReceiver};
 use ns_router::Router;
 use tk_easyloop::spawn;
 
-use index::{ImageId};
-use {VPath};
-use machine_id::{MachineId};
 use config::{Config};
 use disk::Disk;
+use index::{ImageId};
+use machine_id::{MachineId};
 use mask::Mask;
+use metrics::{List, Metric, Integer};
 use named_mutex::{Mutex, MutexGuard};
-use self::packets::Message;
-use tracking::Tracking;
 use peers::gossip::{HostData};
 use peers::two_way_map::ConfigMap;
 use proto::Hash;
+use self::packets::Message;
+use tracking::Tracking;
+use {VPath};
 
 
-#[derive(Debug, Clone)]
+lazy_static! {
+    static ref PEERS: Integer = Integer::new();
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct Peer {
     pub id: MachineId,
     pub addr: SocketAddr,
@@ -165,6 +170,9 @@ impl Peers {
     {
         self.configs.lock()
     }
+    pub fn get_peers(&self) -> Arc<HashMap<MachineId, Peer>> {
+        self.peers.get()
+    }
 
     // this is only for calling from UI, probably not safe in different threads
     pub fn get_all_watching(&self) -> HashSet<VPath> {
@@ -253,4 +261,11 @@ pub fn start(me: PeersInit, addr: SocketAddr,
             config, tracking, HashMap::new())?;
     }
     Ok(())
+}
+
+pub fn metrics() -> List {
+    let gossip = "gossip";
+    vec![
+        (Metric(gossip, "known_peers"), &*PEERS),
+    ]
 }

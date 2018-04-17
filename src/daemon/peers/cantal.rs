@@ -9,7 +9,7 @@ use futures::{Future, Stream};
 use tk_cantal;
 use tk_easyloop::{spawn, interval, handle};
 
-use peers::Peer;
+use peers::{Peer, PEERS};
 
 
 pub fn spawn_fetcher(cell: &Arc<ArcCell<HashMap<MachineId, Peer>>>,
@@ -49,6 +49,7 @@ pub fn spawn_fetcher(cell: &Arc<ArcCell<HashMap<MachineId, Peer>>>,
 
                 debug!("Peer list {:?}",
                     peers.iter().map(|(_, p)| &p.name).collect::<Vec<_>>());
+                PEERS.set(peers.len() as i64);
                 cell.set(Arc::new(peers));
                 Ok(())
             })
