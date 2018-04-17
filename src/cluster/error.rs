@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::fmt;
 
 use failure::Error;
 
@@ -26,15 +27,26 @@ pub enum ErrorKind {
 #[derive(Debug, Fail)]
 pub enum UploadErr {
     /// Unexpected fatal error happened
-    #[fail(display="{:?}", _0)]
     Fatal(Error),
     /// Deadline reached
     // TODO(tailhook) maybe make stats here
-    #[fail(display="network error: {}", _0)]
     NetworkError(ErrorKind, Arc<Stats>),
     #[doc(hidden)]
-    #[fail(display="undefined error")]
     __Nonexhaustive,
+}
+
+impl fmt::Display for UploadErr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use self::UploadErr::*;
+        match *self {
+            Fatal(ref e) => write!(f, "fatal error: {:?}", e),
+            NetworkError(ref kind, ref stats) => {
+                write!(f, "network error: {}. Overall progress: {}",
+                    kind, stats.one_line_progress())
+            }
+            __Nonexhaustive => write!(f, "undefined error"),
+        }
+    }
 }
 
 /// Error when downloading index or block
