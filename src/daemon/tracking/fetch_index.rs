@@ -28,8 +28,13 @@ use tokio_core::reactor::Timeout;
 use tracking::Tracking;
 
 
-const RETRY_FOR: u64 = 3600_000;  // retry no more than an hour
-const RETRY_TIMEOUT: u64 = 1000;
+/// Retry just 30 seconds
+///
+/// In case there is no place to download image it's safe to cancel it as
+/// there's not much work already started. If image appears again it will be
+/// uploaded by client or pushed by reconciliation algorithm again.
+const RETRY_FOR: Duration = Duration::from_secs(30);
+const RETRY_TIMEOUT: Duration = Duration::from_secs(1);
 
 lazy_static! {
     pub static ref INDEXES: Integer = Integer::new();
@@ -119,7 +124,7 @@ fn poll_state(mut state: State, id: &ImageId, tracking: &Tracking,
                     let (tx, rx) = channel();
                     inp.wakeup = Some(tx);
                     info!("No host for {}. Waiting...", id);
-                    Waiting(rx, timeout(Duration::from_millis(RETRY_TIMEOUT)))
+                    Waiting(rx, timeout(RETRY_TIMEOUT))
                 }
             }
             Fetching(addr, mut fut) => {
@@ -334,12 +339,11 @@ impl futures::Future for IndexFuture {
 fn spawn_fetcher(id: ImageId, reg: Arc<Mutex<Registry>>, tracking: Tracking,
        tx: Sender<Index>)
 {
-    let retry_timeout = Duration::from_millis(RETRY_FOR);
     spawn(Supply::new(FetchContext {
             id: id,
             reg: reg,
             tracking: tracking,
-        }, FetchBase(tx, timeout(retry_timeout), State::Start)));
+        }, FetchBase(tx, timeout(RETRY_FOR), State::Start)));
 }
 
 impl fmt::Debug for IndexRef {
