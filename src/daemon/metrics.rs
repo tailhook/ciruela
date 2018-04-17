@@ -25,5 +25,6 @@ pub fn all() -> Vec<Box<Collection>> {
     vec![
         Box::new(::tracking::metrics()),
         Box::new(::disk::metrics()),
+        Box::new(::peers::metrics()),
     ]
 }

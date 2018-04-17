@@ -21,7 +21,7 @@ use index::{ImageId};
 use machine_id::{MachineId};
 use mask::Mask;
 use named_mutex::Mutex;
-use peers::Peer;
+use peers::{Peer, PEERS};
 use peers::packets::{Packet, Message, PacketRef, MessageRef};
 use peers::two_way_map::ConfigMap;
 use proto::Hash;
@@ -108,6 +108,7 @@ impl Gossip {
                             hostname: name.clone(),
                             name: name.clone(),
                         });
+                    PEERS.set(peers.len() as i64);
                     self.peers.set(peers);
                 }
                 if pkt.your_config != Some(self.config_hash) {
