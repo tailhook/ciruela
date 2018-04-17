@@ -26,6 +26,7 @@ use config::Config;
 use tracking::Index;
 use index::{ImageId};
 use index_cache::{IndexData};
+use metrics::{List, Metric};
 use named_mutex::{Mutex, MutexGuard};
 use void::Void;
 
@@ -303,4 +304,13 @@ impl Meta {
             index_gc::full_collection(&meta)
         })
     }
+}
+
+pub fn metrics() -> List {
+    let gc = "metadata.index_gc";
+    vec![
+        (Metric(gc, "started"), &*index_gc::STARTED),
+        (Metric(gc, "completed"), &*index_gc::COMPLETED),
+        (Metric(gc, "deleted_images"), &*index_gc::DELETED_IMAGES),
+    ]
 }

@@ -9,6 +9,14 @@ use VPath;
 use database::signatures::State;
 use metadata::dir::Dir;
 use metadata::{Meta, Error};
+use metrics::{Counter};
+
+
+lazy_static! {
+    pub static ref STARTED: Counter = Counter::new();
+    pub static ref COMPLETED: Counter = Counter::new();
+    pub static ref DELETED_IMAGES: Counter = Counter::new();
+}
 
 
 fn collect_dir(dir: &Dir, meta: &Meta) -> Result<(), Error> {
@@ -60,6 +68,7 @@ fn scan(meta: &Meta) -> Result<(), Error>
 }
 
 pub fn full_collection(meta: &Meta) -> Result<(), Error> {
+    STARTED.incr(1);
     scan(meta)?;
     info!("Found {} used images",
         meta.0.collecting.lock().as_ref().map(|x| x.len()).unwrap_or(0));
@@ -81,6 +90,7 @@ pub fn full_collection(meta: &Meta) -> Result<(), Error> {
                 if !is_marked {
                     match sub_dir.remove_file(&file_name) {
                         Ok(()) => {
+                            DELETED_IMAGES.incr(1);
                             info!("Deleted index {:?}", image_id);
                         }
                         Err(e) => {
@@ -92,5 +102,6 @@ pub fn full_collection(meta: &Meta) -> Result<(), Error> {
             }
         }
     }
+    COMPLETED.incr(1);
     Ok(())
 }

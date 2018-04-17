@@ -24,6 +24,7 @@ impl<'a> Name for Metric<'a> {
 pub fn all() -> Vec<Box<Collection>> {
     vec![
         Box::new(::tracking::metrics()),
+        Box::new(::metadata::metrics()),
         Box::new(::disk::metrics()),
         Box::new(::peers::metrics()),
     ]
