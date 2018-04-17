@@ -1,5 +1,5 @@
 mod uploads;
-mod network;
+pub mod network;
 
 use std::process::exit;
 use std::mem;

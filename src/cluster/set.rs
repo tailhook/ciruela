@@ -348,6 +348,7 @@ impl<R, I, B> ConnectionSet<R, I, B>
                 .filter_map(|h| self.addrs.get(h).and_then(|a| a.pick_one()))
                 .filter(|a| location.failures.can_try(a))
                 .filter(|a| !self.pending.contains_key(a))
+                .filter(|a| !self.active.contains_key(a))
                 .filter(|a| self.failures.can_try(a)),
             1)
             .unwrap_or_else(|v| v);
@@ -368,6 +369,7 @@ impl<R, I, B> ConnectionSet<R, I, B>
             new_addresses = sample_iter(&mut rng,
                 self.initial_addr.get().addresses_at(0)
                 .filter(|a| !self.pending.contains_key(a))
+                .filter(|a| !self.active.contains_key(a))
                 .filter(|a| self.failures.can_try(a))
                 .filter(|a| location.failures.can_try(a)),
                 1)
@@ -552,6 +554,7 @@ impl<R, I, B> ConnectionSet<R, I, B>
                             }
                             Err(e) => {
                                 error!("AppendDir error at {}: {}", addr, e);
+                                connections.remove(addr);
                                 false
                             }
                         }
@@ -575,6 +578,7 @@ impl<R, I, B> ConnectionSet<R, I, B>
                             }
                             Err(e) => {
                                 error!("ReplaceDir error at {}: {}", addr, e);
+                                connections.remove(addr);
                                 false
                             }
                         }

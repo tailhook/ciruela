@@ -1,9 +1,10 @@
 use std::sync::Arc;
+use std::time::SystemTime;
 
 use abstract_ns::Name;
 use failure::{Error, ResultExt};
 use futures::Future;
-use futures::future::{ok, err};
+use futures::future::{ok, err, Either};
 use tk_easyloop::{self, handle};
 use ns_env_config;
 use ssh_keys::PrivateKey;
@@ -12,7 +13,9 @@ use {VPath};
 use ciruela::blocks::ThreadedBlockReader;
 use ciruela::index::InMemoryIndexes;
 use ciruela::cluster::{Config, Connection};
+use ciruela::signature::sign_upload;
 
+use sync::network::upload_with_progress;
 use edit::EditOptions;
 use edit::editor;
 
@@ -25,11 +28,12 @@ pub fn edit(config: Arc<Config>, clusters: Vec<Vec<Name>>,
     let file = opts.file.file_name()
         .and_then(|x| x.to_str()).map(|x| x.to_string())
         .ok_or(format_err!("path {:?} should have filename", opts.file))?;
-    tk_easyloop::run(|| {
+    let res = tk_easyloop::run(|| {
         let ns = ns_env_config::init(&handle()).expect("init dns");
         let conn = Connection::new(clusters[0].clone(),
             ns, indexes.clone(), blocks.clone(), &config);
-        conn.fetch_index(&VPath::from(&opts.dir))
+        let vpath = VPath::from(&opts.dir);
+        conn.fetch_index(&vpath)
         .then(|res| res.context("can't fetch index").map_err(Error::from))
         .and_then(|idx| idx.into_mut()
             .context("can't parse index").map_err(Error::from))
@@ -44,16 +48,29 @@ pub fn edit(config: Arc<Config>, clusters: Vec<Vec<Name>>,
                     let mut idx = idx;
                     match idx.insert_file(&opts.file, &ndata[..], false) {
                         Ok(()) => {}
-                        Err(e) => return err(e.into()),
+                        Err(e) => return Either::B(err(e.into())),
                     }
                     let new_index = idx.to_raw_data();
-                    println!("New index is {} bytes", new_index.len());
-                    unimplemented!();
+                    let image_id = indexes.register_index(&new_index)
+                        .expect("index is valid");
+                    let upload = sign_upload(&vpath,
+                        &image_id, SystemTime::now(), &keys);
+                    // TODO(tailhook) send to other clusters too
+                    // TODO(tailhook) use atomic replace operation
+                    let up = conn.replace(upload);
+                    Either::A(upload_with_progress(up)
+                        .map(Either::A).map_err(Into::into))
                 } else {
-                    warn!("File is unchanged");
-                    return ok(());
+                    Either::B(ok(Either::B(())))
                 }
             })
         })
-    })
+    })?;
+    println!("REsult {:?}", res);
+    /*
+    for res in res.iter().flat_map(|x| x) {
+        println!("{}", res);
+    }
+    */
+    Ok(())
 }
