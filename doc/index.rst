@@ -6,6 +6,10 @@
 Ciruela
 =======
 
+`Github <https://github.com/tailhook/ciruela/>_ |
+`Crate <https://crates.io/crates/ciruela>_ |
+`Rust API <https://docs.rs/ciruela/>`_
+
 .. toctree::
    :maxdepth: 2
    :caption: User Guide:
