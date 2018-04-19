@@ -18,7 +18,7 @@ pub fn read_peers(peer_file: PathBuf, disk: &Disk,
         .and_then(move |lst| {
             if lst.len() == 0 {
                 info!("No other peers specified, \
-                    running in astandalone mode");
+                    running in a standalone mode");
             } else {
                 debug!("Read {} peers.", lst.len());
             }
