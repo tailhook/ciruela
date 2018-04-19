@@ -69,7 +69,7 @@ pub fn start_append(params: AppendDir, meta: &Meta)
     let vpath = params.path.clone();
     let config = if let Some(cfg) = meta.0.config.dirs.get(vpath.key()) {
         if vpath.level() != cfg.num_levels {
-            return Err(Error::LevelMismatch(vpath.level(), cfg.num_levels));
+            return Ok(Upload::Rejected("config_level_mismatch", None));
         }
         cfg
     } else {
@@ -152,7 +152,7 @@ pub fn start_replace(params: ReplaceDir, meta: &Meta)
     let vpath = params.path.clone();
     let config = if let Some(cfg) = meta.0.config.dirs.get(vpath.key()) {
         if vpath.level() != cfg.num_levels {
-            return Err(Error::LevelMismatch(vpath.level(), cfg.num_levels));
+            return Ok(Upload::Rejected("config_level_mismatch", None));
         }
         cfg
     } else {
