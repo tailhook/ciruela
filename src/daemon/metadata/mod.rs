@@ -263,14 +263,19 @@ impl Meta {
             }
         })
     }
-    pub fn files_to_hardlink(&self, dir: &VPath, index: &Index)
+    pub fn files_to_hardlink(&self, dir: &VPath, index: &Index,
+        replacing: bool)
         -> CpuFuture<Vec<Hardlink>, Error>
     {
-        let dir = dir.parent();
+        let dir = dir.clone();
         let meta = self.clone();
         let index = index.clone();
         self.0.cpu_pool.spawn_fn(move || {
-            hardlink_sources::files_to_link(index, dir, meta)
+            if replacing {
+                hardlink_sources::replace_mode(index, dir, meta)
+            } else {
+                hardlink_sources::append_mode(index, dir.parent(), meta)
+            }
         })
     }
     pub fn is_writing(&self, dir: &VPath)
