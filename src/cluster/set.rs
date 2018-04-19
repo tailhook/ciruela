@@ -591,7 +591,9 @@ impl<R, I, B> ConnectionSet<R, I, B>
         trace!("Pending futures: {}, responses: {}", up.futures.len(),
                up.stats.total_responses());
         if up.futures.len() == 0 && up.stats.total_responses() > 0 {
-            match upload::check(&up.stats, &self.config, early_timeout) {
+            let check = upload::check(&up.stats, &self.config,
+                &self.initial_addr, early_timeout);
+            match check {
                 Some(Ok(result)) => {
                     up.resolve.send(Ok(result)).ok();
                     return VAsync::Ready(())
@@ -607,10 +609,9 @@ impl<R, I, B> ConnectionSet<R, I, B>
         }
 
         if up.deadline.poll().expect("timeout is infallible").is_ready() {
-            error!("Error uploading {:?}[{}]: deadline reached. \
-                Current stats {:?}",
-                up.upload.path, up.upload.image_id, up.stats);
-            match upload::check(&up.stats, &self.config, early_timeout) {
+            let check = upload::check(&up.stats, &self.config,
+                &self.initial_addr, early_timeout);
+            match check {
                 Some(Ok(result)) => {
                     up.resolve.send(Ok(result)).ok();
                     return VAsync::Ready(())
@@ -622,6 +623,9 @@ impl<R, I, B> ConnectionSet<R, I, B>
                     return VAsync::Ready(())
                 }
                 None => {
+                    error!("Error uploading {:?}[{}]: deadline reached. \
+                        Current stats {:?}",
+                        up.upload.path, up.upload.image_id, up.stats);
                     up.resolve.send(Err(Arc::new(
                         UploadErr::NetworkError(ErrorKind::DeadlineReached,
                                                 up.stats.clone())

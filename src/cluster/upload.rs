@@ -8,6 +8,7 @@ use std::time::Instant;
 
 use abstract_ns::Name;
 use proto::{ReceivedImage, AbortedImage};
+use cluster::addr::AddrCell;
 use cluster::future::UploadOk;
 use cluster::error::ErrorKind;
 use cluster::config::Config;
@@ -167,13 +168,13 @@ impl Stats {
             write!(f, " (out of {} hosts)", book.discovered_servers.len())?;
         }
         if !book.rejected_ips.is_empty() {
-            f.write_str(", rejected by")?;
+            f.write_str(", rejected by ")?;
             fmt_iter(f,
                 book.rejected_ips.iter()
                 .map(|(k, v)| format!("{}: {}", k, v)))?;
         }
         if !book.aborted_ids.is_empty() {
-            f.write_str(", aborted by")?;
+            f.write_str(", aborted by ")?;
             fmt_iter(f,
                 book.aborted_hostnames.iter()
                 .map(|(k, v)| format!("{}: {}", k, v)))?;
@@ -207,14 +208,24 @@ fn is_superset(done: &HashMap<MachineId, String>,
     discovered.keys().all(|x| done.contains_key(x))
 }
 
-pub(crate) fn check(stats: &Arc<Stats>, config: &Config,
-    early_timeout_timed_out: bool)
+pub(in cluster) fn check(stats: &Arc<Stats>, config: &Config,
+    initial_addr: &AddrCell, early_timeout_timed_out: bool)
     -> Option<Result<UploadOk, ErrorKind>>
 {
     let book = stats.book.read()
         .expect("bookkeeping is not poisoned");
     trace!("Current state {:?}{}", book,
         if early_timeout_timed_out { "" } else { " early" });
+    if book.accepted_ips.len() == 0 && book.rejected_ips.len() > 0
+       && initial_addr.is_done()
+    {
+        let all_rejected = initial_addr.get().addresses_at(0)
+            .all(|a| book.rejected_ips.contains_key(&a) ||
+                     book.aborted_ips.contains_key(&a));
+        if all_rejected {
+            return Some(Err(ErrorKind::Rejected));
+        }
+    }
     if early_timeout_timed_out {
         let fract_hosts = (
             book.discovered_num() as f32 *
@@ -266,6 +277,18 @@ impl<'a> fmt::Display for ProgressOneLiner<'a> {
             0.
         };
         write!(f, "Progress of {}: {:.0}%", UploadName(self.0), percent)?;
+        if !book.rejected_ips.is_empty() {
+            f.write_str(", rejected by ")?;
+            fmt_iter(f,
+                book.rejected_ips.iter()
+                .map(|(k, v)| format!("{}: {}", k, v)))?;
+        }
+        if !book.aborted_ids.is_empty() {
+            f.write_str(", aborted by ")?;
+            fmt_iter(f,
+                book.aborted_hostnames.iter()
+                .map(|(k, v)| format!("{}: {}", k, v)))?;
+        }
         if disc > done {
             write!(f, ", {} servers left: ", disc - done)?;
             let mut count = 0;
