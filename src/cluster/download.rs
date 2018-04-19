@@ -269,6 +269,14 @@ impl MutableIndex {
         }
         return buf;
     }
+    /// Get hash type of the underlying index
+    pub fn hash_type(&self) -> HashType {
+        self.hash_type
+    }
+    /// Get block size of the underlying index
+    pub fn block_size(&self) -> u64 {
+        self.block_size
+    }
 }
 
 fn _emit_dir(emitter: &mut Emitter, path: &Path,

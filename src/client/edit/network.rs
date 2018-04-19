@@ -50,6 +50,8 @@ pub fn edit(config: Arc<Config>, clusters: Vec<Vec<Name>>,
                         Ok(()) => {}
                         Err(e) => return Either::B(err(e.into())),
                     }
+                    blocks.register_memory_blocks(
+                        idx.hash_type(), idx.block_size(), ndata);
                     let new_index = idx.to_raw_data();
                     let image_id = indexes.register_index(&new_index)
                         .expect("index is valid");
