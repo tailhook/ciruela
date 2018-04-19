@@ -91,6 +91,7 @@ struct SyncOptions {
                 help="
         Report successful exit after this timeout even if not all hosts
         received directories as long as most of them done
+        (format: http://bit.ly/durationf).
     ")]
     early_timeout: Duration,
 
@@ -118,7 +119,7 @@ struct SyncOptions {
                 help="
         Maximum time ciruela sync is allowed to run. If not all hosts are
         done and early exit conditions are not met utility will exit with
-        non-zero status.
+        non-zero status (format: http://bit.ly/durationf).
     ")]
     deadline: Duration,
 }
