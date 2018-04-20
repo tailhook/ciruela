@@ -6,6 +6,10 @@ We use the same format as openssh daemon for storing keys. Currently only
 ``ssh-ed25519`` (eliptic curve) keys are supported. More key types may
 be supported in future.
 
+To generate it, run::
+
+    ssh-keygen -t ed25519 -f ~/.ssh/id_ciruela -P ""
+
 Search Paths
 ============
 

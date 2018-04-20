@@ -61,7 +61,7 @@ This is mostly useful for testing, because work well mostly for a single user.
 
 1. Generate a key, it's same as ssh but in ``ed25519`` format::
 
-        ssh-keygen -t ed25519 -f ~/.ssh/id_ciruela
+        ssh-keygen -t ed25519 -f ~/.ssh/id_ciruela -P ""
 
    .. note::
 
@@ -81,7 +81,7 @@ This is mostly useful for testing, because work well mostly for a single user.
 
 3. Run the following every time you need to upload new configs::
 
-       ciruela upload --replace -d local_config_copy server.name:/my-daemonio/current
+       ciruela sync server.name --replace local/config/path:/my-daemonio/current
 
 
 CI Setup
@@ -92,7 +92,7 @@ you can use ``CIRUELA_KEY`` environment variable for storing keys.
 
 1. Generate a key, it's same as ssh but in ``id_ed25519`` format::
 
-        ssh-keygen -t ed25519 -f tmp-key
+        ssh-keygen -t ed25519 -f tmp-key -P ""
 
 2. Upload the private key into CI for ``CIRUELA_KEY``, for example for
    travis you may use ``travis encrypt``::
@@ -101,7 +101,7 @@ you can use ``CIRUELA_KEY`` environment variable for storing keys.
 
 3. Add upload command to the task::
 
-       ciruela upload --replace -d ./cfg server.name:/my-daemonio/current
+       ciruela sync server.name --replace ./cfg:/my-daemonio/current
 
 
 Reloading Configs
@@ -172,19 +172,30 @@ Additional Options
   For example run ``daemonio --config=./local_config_dir --check-config``
   on the CI server before upload.
 
-* You can override keys via ``-i``, ``-e`` (see ``ciruela upload --help``)
+* You can override keys via ``-i``, ``-e`` (see ``ciruela sync --help``)
 
-* You can upload to multiple servers via::
+* You can upload multiple dirs simultaneously via::
 
-    ciruela upload -d x --replace s1.example.org:/dir s2.example.org:/dir
-
-  Ciruela will ensure that at least one server with that host name (if
-  host name resolves to multiple addresses) accepts the upload. This works
-  even for multiple clusters.
+    ciruela sync s1.example.org --replace ./dir1:/dest1 --replace ./dir2:/dest
 
 * If server name resolves to multiple IP addresses, ciruela will try to upload
   to at most three of them (random ones if there are more) and will return
   non-zero exit status if none of them accepts the upload.
+
+* Multiple names on command-line treated as a separate clusters. So ciruela
+  will upload on three servers on each of them::
+
+    ciruela sync s1.example.org s1.example.org --replace ./dir1:/dest1
+
+  This will report upload progress for every cluster on it's own.
+
+  If these are individual servers use ``-m`::
+
+    ciruela sync -m s1.example.org s1.example.org --replace ./dir1:/dest1
+
+  With > 4 servers this makes ciruela upload to at least 75% of them and
+  tolerate few failures. Just like it does for a single cluster name and
+  multiple servers behind.
 
 * Mutliple instances of ``daemonio`` can be configured with a single upload key
   you may put multiple configurations into the single directory:
