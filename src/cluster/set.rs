@@ -29,6 +29,7 @@ use cluster::future::UploadOk;
 use signature::SignedUpload;
 use failure_tracker::{HostFailures, DnsFailures, SlowHostFailures};
 use proto::{self, Client, ClientFuture, RequestClient, RequestFuture};
+use proto::Error::UnexpectedTermination;
 use proto::message::Notification;
 use proto::{AppendDir, ReplaceDir};
 use proto::{AppendDirAck, ReplaceDirAck};
@@ -215,6 +216,13 @@ impl<R, I, B> ConnectionSet<R, I, B>
                     debug!("Host {} sent notification {:?}", addr, n);
                 }
                 Closed(addr) => {
+                    info!("Connection to {} closed", addr);
+                    // TODO(tailhook) consider same for fetches
+                    //                Currently fetches rely on failure
+                    //                of the Future, which seems to be okay.
+                    for up in &mut self.uploads {
+                        up.connections.remove(&addr);
+                    }
                     self.active.remove(&addr).expect("duplicate close");
                 }
             }
@@ -551,7 +559,11 @@ impl<R, I, B> ConnectionSet<R, I, B>
                                 false
                             }
                             Err(e) => {
+                                if !matches!(e, UnexpectedTermination) {
+                                    self.failures.add_failure(*addr);
+                                }
                                 error!("AppendDir error at {}: {}", addr, e);
+                                connections.remove(addr);
                                 false
                             }
                         }
@@ -574,7 +586,11 @@ impl<R, I, B> ConnectionSet<R, I, B>
                                 false
                             }
                             Err(e) => {
+                                if !matches!(e, UnexpectedTermination) {
+                                    self.failures.add_failure(*addr);
+                                }
                                 error!("ReplaceDir error at {}: {}", addr, e);
+                                connections.remove(addr);
                                 false
                             }
                         }
