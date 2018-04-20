@@ -16,6 +16,7 @@ extern crate futures;
 extern crate futures_cpupool;
 extern crate hex;
 extern crate hostname;
+extern crate humantime;
 extern crate libc;
 extern crate ns_router;
 extern crate ns_std_threaded;
@@ -48,8 +49,6 @@ extern crate libcantal;
 #[macro_use] extern crate mopa;
 #[macro_use] extern crate quick_error;
 #[macro_use] extern crate serde_derive;
-
-#[cfg(test)] extern crate humantime;
 
 use std::env;
 use std::error::Error;

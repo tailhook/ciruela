@@ -249,6 +249,8 @@ impl Meta {
     pub fn scan_dir(&self, path: &VPath)
         -> CpuFuture<BTreeMap<String, State>, Error>
     {
+        // TODO(tailhook) check against config
+        //                because it's called in web UI
         let path = path.clone();
         let meta = self.clone();
         self.0.cpu_pool.spawn_fn(move || {

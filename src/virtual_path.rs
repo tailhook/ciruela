@@ -23,6 +23,10 @@ use serde::de::{Deserialize, Deserializer, Error};
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Clone)]
 pub struct VPath(Arc<PathBuf>);
 
+#[derive(Fail, Debug)]
+#[fail(display="path is not a valid virtual path")]
+pub struct PathError;
+
 impl VPath {
     /// Returns a `key`, i.e. the first component
     pub fn key(&self) -> &str {
@@ -102,6 +106,17 @@ impl VPath {
         assert!(buf.is_absolute());
         assert!(buf != Path::new("/"));
         VPath(Arc::new(buf))
+    }
+
+    /// Create a virtual path from path
+    ///
+    pub fn try_from<T: Into<PathBuf>>(t: T) -> Result<VPath, PathError> {
+        let buf = t.into();
+        // TODO(tailhook) check all components, check `/` at the end
+        if !buf.is_absolute() || buf == Path::new("/") {
+            return Err(PathError);
+        }
+        Ok(VPath(Arc::new(buf)))
     }
 
     /// Check this directory belongs to the specified basedir

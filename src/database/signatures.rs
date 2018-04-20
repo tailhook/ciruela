@@ -2,6 +2,7 @@ use std::time::SystemTime;
 
 use serde::{Serialize, Deserialize, Serializer, Deserializer};
 
+use humantime::format_rfc3339;
 use index::{ImageId};
 use proto::Signature;
 use time_util::{to_ms, from_ms};
@@ -23,7 +24,21 @@ pub struct State {
 
 impl Serialize for SignatureEntry {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        (to_ms(self.timestamp), &self.signature).serialize(s)
+
+        if s.is_human_readable() {
+            #[derive(Serialize)]
+            struct JsonSign<'a> {
+                timestamp: String,
+                signature: &'a Signature,
+            }
+
+            JsonSign {
+                timestamp: format_rfc3339(self.timestamp).to_string(),
+                signature: &self.signature,
+            }.serialize(s)
+        } else {
+            (to_ms(self.timestamp), &self.signature).serialize(s)
+        }
     }
 }
 

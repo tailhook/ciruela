@@ -86,11 +86,20 @@ impl Serialize for Signature {
         where S: Serializer
     {
         use self::Signature::*;
+        if serializer.is_human_readable() {
+            match *self {
+                SshEd25519(val) => {
+                    format!("ssh-ed25519 {}", base64::encode(&val[..]))
+                    .serialize(serializer)
+                }
 
-        match *self {
-            SshEd25519(val) => (
-                "ssh-ed25519", Bytes(&val[..])
-                ).serialize(serializer)
+            }
+        } else {
+            match *self {
+                SshEd25519(val) => (
+                    "ssh-ed25519", Bytes(&val[..])
+                    ).serialize(serializer)
+            }
         }
     }
 }

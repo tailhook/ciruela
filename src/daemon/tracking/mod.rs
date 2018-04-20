@@ -278,6 +278,10 @@ impl Tracking {
         &self.0.peers
     }
     // only for http
+    pub fn meta(&self) -> &Meta {
+        &self.0.meta
+    }
+    // only for http
     pub fn config(&self) -> &Arc<Config> {
         &self.0.config
     }

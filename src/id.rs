@@ -126,9 +126,13 @@ impl Serialize for ImageId {
     fn serialize<S>(&self, ser: S) -> Result<S::Ok, S::Error>
         where S: Serializer
     {
-        match self.0 {
-            Internal::B32(ref ar) => ser.serialize_bytes(ar),
-            Internal::Other(ref slc) => ser.serialize_bytes(slc),
+        if ser.is_human_readable() {
+            ser.serialize_str(&self.to_string())
+        } else {
+            match self.0 {
+                Internal::B32(ref ar) => ser.serialize_bytes(ar),
+                Internal::Other(ref slc) => ser.serialize_bytes(slc),
+            }
         }
     }
 }

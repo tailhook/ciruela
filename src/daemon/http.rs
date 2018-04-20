@@ -4,7 +4,7 @@ use std::net::SocketAddr;
 use std::time::{Duration, SystemTime};
 
 use futures::Async;
-use futures::future::{Future, FutureResult, ok};
+use futures::future::{Future, FutureResult, Either, ok};
 use futures::stream::Stream;
 use libcantal::{Json, Collection};
 use self_meter_http::{Meter, ProcessReport, ThreadReport};
@@ -22,6 +22,7 @@ use tk_listen::ListenExt;
 use tokio_core::net::TcpListener;
 use tokio_io::{AsyncRead, AsyncWrite};
 
+use ciruela::VPath;
 use machine_id::MachineId;
 use mask::Mask;
 use metrics;
@@ -67,6 +68,7 @@ enum Route {
     Watching,
     Watched,
     Peers,
+    ListDir(VPath),
 }
 
 
@@ -104,7 +106,10 @@ impl<S> server::Dispatcher<S> for Dispatcher
 impl<S> server::Codec<S> for HttpCodec
     where S: AsyncRead + AsyncWrite + 'static,
 {
-    type ResponseFuture = FutureResult<EncoderDone<S>, Error>;
+    type ResponseFuture = Either<
+        FutureResult<EncoderDone<S>, Error>,
+        Box<Future<Item=EncoderDone<S>, Error=Error>>,
+    >;
     fn recv_mode(&mut self) -> RecvMode {
         if let Some(Route::Websocket(..)) = self.route {
             RecvMode::hijack()
@@ -131,7 +136,7 @@ impl<S> server::Codec<S> for HttpCodec
                 e.add_header("Upgrade", "websocket").unwrap();
                 e.format_header("Sec-Websocket-Accept", &ws.accept).unwrap();
                 e.done_headers().unwrap();
-                ok(e.done())
+                Either::A(ok(e.done()))
             }
             Route::Status => {
                 #[derive(Serialize)]
@@ -143,14 +148,14 @@ impl<S> server::Codec<S> for HttpCodec
                     threads: ThreadReport<'a>,
                     metrics: Json<'a, Vec<Box<Collection>>>,
                 }
-                ok(serve_json(e, &Report {
+                Either::A(ok(serve_json(e, &Report {
                     machine_id: &self.tracking.config().machine_id,
                     hostname: &self.tracking.config().hostname,
                     version: env!("CARGO_PKG_VERSION"),
                     process: self.meter.process_report(),
                     threads: self.meter.thread_report(),
                     metrics: Json(&metrics::all()),
-                }))
+                })))
             }
             Route::Downloading => {
                 #[derive(Serialize)]
@@ -160,13 +165,13 @@ impl<S> server::Codec<S> for HttpCodec
                     pub stalled: bool,
                     pub source: bool,
                 }
-                ok(serve_json(e, &self.tracking.get_in_progress()
+                Either::A(ok(serve_json(e, &self.tracking.get_in_progress()
                     .iter().map(|(path, p)| (path, Progress {
                         image_id: format!("{}", p.image_id),
                         mask: p.mask,
                         stalled: p.stalled,
                         source: p.source,
-                    })).collect::<BTreeMap<_, _>>()))
+                    })).collect::<BTreeMap<_, _>>())))
             }
             Route::BaseDirs => {
                 #[derive(Serialize)]
@@ -177,13 +182,13 @@ impl<S> server::Codec<S> for HttpCodec
                     #[serde(with="::serialize::timestamp")]
                     pub last_scan: SystemTime,
                 }
-                ok(serve_json(e, &self.tracking.get_base_dirs()
+                Either::A(ok(serve_json(e, &self.tracking.get_base_dirs()
                     .iter().map(|(path, d)| (path, BaseDir {
                         hash: format!("{}", d.hash),
                         num_subdirs: d.num_subdirs,
                         num_downloading: d.num_downloading,
                         last_scan: d.last_scan,
-                    })).collect::<BTreeMap<_, _>>()))
+                    })).collect::<BTreeMap<_, _>>())))
             }
             Route::Configs => {
                 #[derive(Serialize)]
@@ -192,27 +197,35 @@ impl<S> server::Codec<S> for HttpCodec
                     num_levels: usize,
                     auto_clean: bool,
                 }
-                ok(serve_json(e, &self.tracking.config().dirs
+                Either::A(ok(serve_json(e, &self.tracking.config().dirs
                     .iter().map(|(path, d)| (path, Config {
                         append_only: d.append_only,
                         num_levels: d.num_levels,
                         auto_clean: d.auto_clean,
-                    })).collect::<BTreeMap<_, _>>()))
+                    })).collect::<BTreeMap<_, _>>())))
             }
             Route::Deleted => {
-                ok(serve_json(e, &self.tracking.get_deleted()
+                Either::A(ok(serve_json(e, &self.tracking.get_deleted()
                     .iter()
                     .map(|&(ref vpath, ref id)| (vpath.clone(), id.to_string()))
-                    .collect::<Vec<_>>()))
+                    .collect::<Vec<_>>())))
             }
             Route::Watching => {
-                ok(serve_json(e, &self.tracking.get_watching()))
+                Either::A(ok(serve_json(e, &self.tracking.get_watching())))
             }
             Route::Watched => {
-                ok(serve_json(e, &self.tracking.get_watched()))
+                Either::A(ok(serve_json(e, &self.tracking.get_watched())))
             }
             Route::Peers => {
-                ok(serve_json(e, &self.tracking.peers().get_peers()))
+                Either::A(ok(serve_json(e,
+                    &self.tracking.peers().get_peers())))
+            }
+            Route::ListDir(path) => {
+                Either::B(Box::new(self.tracking.meta().scan_dir(&path)
+                    .map_err(|e| Error::custom(e.to_string()))
+                    .and_then(|data| {
+                        Ok(serve_json(e, &data))
+                    })))
             }
             Route::Cluster(ClusterRoute::Downloading) => {
                 #[derive(Serialize)]
@@ -223,7 +236,7 @@ impl<S> server::Codec<S> for HttpCodec
                     pub source: bool,
                 }
                 let dl = &*self.tracking.peers().get_host_data();
-                ok(serve_json(e, &dl
+                Either::A(ok(serve_json(e, &dl
                     .iter().map(|(machine_id, data)| {
                         (format!("{}", machine_id), data.downloading.iter()
                             .map(|(path, p)| (path, Progress {
@@ -232,44 +245,44 @@ impl<S> server::Codec<S> for HttpCodec
                                 stalled: p.stalled,
                                 source: p.source,
                             })).collect::<BTreeMap<_, _>>())
-                    }).collect::<BTreeMap<_, _>>()))
+                    }).collect::<BTreeMap<_, _>>())))
             }
             Route::Cluster(ClusterRoute::Deleted) => {
                 let dl = &*self.tracking.peers().get_host_data();
-                ok(serve_json(e, &dl
+                Either::A(ok(serve_json(e, &dl
                     .iter().map(|(machine_id, data)| {
                         (format!("{}", machine_id), data.deleted.iter()
                             .map(|&(ref vpath, ref id)| {
                                 (vpath.clone(), id.to_string())
                             })
                             .collect::<Vec<_>>())
-                    }).collect::<BTreeMap<_, _>>()))
+                    }).collect::<BTreeMap<_, _>>())))
             }
             Route::Cluster(ClusterRoute::Complete) => {
                 let dl = &*self.tracking.peers().get_host_data();
-                ok(serve_json(e, &dl
+                Either::A(ok(serve_json(e, &dl
                     .iter().map(|(machine_id, data)| {
                         (format!("{}", machine_id), data.complete.iter()
                             .map(|(ref vpath, ref id)| {
                                 (vpath.clone(), id.to_string())
                             })
                             .collect::<Vec<_>>())
-                    }).collect::<BTreeMap<_, _>>()))
+                    }).collect::<BTreeMap<_, _>>())))
             }
             Route::Cluster(ClusterRoute::Watching) => {
                 let hdata = &*self.tracking.peers().get_host_data();
-                ok(serve_json(e, &hdata
+                Either::A(ok(serve_json(e, &hdata
                     .iter().map(|(machine_id, data)| {
                         (format!("{}", machine_id), &data.watching)
-                    }).collect::<BTreeMap<_, _>>()))
+                    }).collect::<BTreeMap<_, _>>())))
             }
             Route::Cluster(ClusterRoute::ByDir) => {
                 let configs = &*self.tracking.peers().get_configs();
-                ok(serve_json(e, &configs.all_dirs()))
+                Either::A(ok(serve_json(e, &configs.all_dirs())))
             }
             Route::Cluster(ClusterRoute::Configs) => {
                 let configs = &*self.tracking.peers().get_configs();
-                ok(serve_json(e, &configs.all_hosts()))
+                Either::A(ok(serve_json(e, &configs.all_hosts())))
             }
             Route::BadRequest => {
                 e.status(Status::BadRequest);
@@ -281,7 +294,7 @@ impl<S> server::Codec<S> for HttpCodec
                 if e.done_headers().unwrap() {
                     e.write_body(BAD_REQUEST.as_bytes());
                 }
-                ok(e.done())
+                Either::A(ok(e.done()))
             }
             Route::NotFound => {
                 e.status(Status::NotFound);
@@ -293,7 +306,7 @@ impl<S> server::Codec<S> for HttpCodec
                 if e.done_headers().unwrap() {
                     e.write_body(BODY.as_bytes());
                 }
-                ok(e.done())
+                Either::A(ok(e.done()))
             }
         }
     }
@@ -353,6 +366,12 @@ impl Route {
             return Route::Watched;
         } else if path == "/peers/" {
             return Route::Peers;
+        } else if path.starts_with("/list-dir/") {
+            let subpath = &path["/list-dir".len()..];
+            match VPath::try_from(subpath) {
+                Ok(path) => return Route::ListDir(path),
+                Err(_) => return Route::NotFound,
+            }
         } else if path.starts_with("/cluster/") {
             if path == "/cluster/downloading/" {
                 return Route::Cluster(ClusterRoute::Downloading);
