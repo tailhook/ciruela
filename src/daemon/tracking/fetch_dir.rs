@@ -82,7 +82,8 @@ fn hardlink_blocks(sys: Subsystem, image: Arc<Image>, cmd: Arc<Downloading>) {
     let sys3 = sys.clone();
     let cmd2 = cmd.clone();
     let image2 = image.clone();
-    spawn(sys.meta.files_to_hardlink(&cmd.virtual_path, &image.index)
+    spawn(sys.meta.files_to_hardlink(&cmd.virtual_path, &image.index,
+                                     cmd.replacing)
         .map_err(move |e| {
             error!("Error fetching hardlink sources: {}", e);
             // TODO(tailhook) remove temporary directory

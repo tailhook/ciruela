@@ -8,7 +8,6 @@ extern crate crypto;
 extern crate digest_writer;
 extern crate dir_signature;
 extern crate env_logger;
-extern crate failure;
 extern crate futures;
 extern crate futures_cpupool;
 extern crate hex;
@@ -20,6 +19,7 @@ extern crate serde;
 extern crate serde_bytes;
 extern crate serde_cbor;
 extern crate ssh_keys;
+extern crate tempfile;
 extern crate tk_bufstream;
 extern crate tk_easyloop;
 extern crate tk_http;
@@ -27,12 +27,13 @@ extern crate tokio_core;
 extern crate tokio_io;
 extern crate void;
 
-#[macro_use] extern crate structopt;
+#[macro_use] extern crate failure;
 #[macro_use] extern crate log;
 #[macro_use] extern crate matches;
 #[macro_use] extern crate mopa;
 #[macro_use] extern crate quick_error;
 #[macro_use] extern crate serde_derive;
+#[macro_use] extern crate structopt;
 
 mod global_options;
 mod name;
@@ -41,6 +42,7 @@ mod keys;
 // Commands
 mod upload;
 mod sync;
+mod edit;
 
 // common modules for lib and daemon, we don't expose them in the lib because
 // that would mean keep backwards compatibility
@@ -75,7 +77,8 @@ fn main() {
         opt.define(&mut ap);
         ap.refer(&mut cmd)
             .add_argument("command", StoreOption, r#"
-                Command to run. Available commands: `upload`.
+                Command to run. Available commands:
+                `sync`, `edit`, `upload` (deprecated).
             "#);
         ap.refer(&mut args)
             .add_argument("args", Collect, r#"
@@ -93,6 +96,9 @@ fn main() {
         }
         Some("sync") => {
             sync::cli(opt, args);
+        }
+        Some("edit") => {
+            edit::cli(opt, args);
         }
         None => {
             writeln!(&mut stderr(), "\

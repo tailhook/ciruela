@@ -17,7 +17,7 @@ use std::fs::{File};
 use failure::Backtrace;
 use futures::{Future, Async};
 use futures_cpupool::{CpuPool, CpuFuture};
-use dir_signature::v1::{self, ParseError};
+use dir_signature::{HashType, v1::{self, ParseError, Hashes}};
 use virtual_path::VPath;
 
 pub use block_id::{BlockHash};
@@ -58,10 +58,17 @@ fn _object_safe() {
 }
 
 #[derive(Debug, Clone)]
-struct BlockPointer {
-    path: Arc<PathBuf>,
-    offset: u64,
-    size: usize,
+enum BlockPointer {
+    Disk {
+        path: Arc<PathBuf>,
+        offset: u64,
+        size: usize,
+    },
+    Mem {
+        data: Arc<[u8]>,
+        offset: usize,
+        size: usize,
+    },
 }
 
 /// A default threaded block reader
@@ -161,7 +168,7 @@ impl ThreadedBlockReader {
                         let id = BlockHash::from_bytes(hash)
                             .ok_or_else(||
                                 DirError::HashSize(Backtrace::new()))?;
-                        blocks.insert(id, BlockPointer {
+                        blocks.insert(id, BlockPointer::Disk {
                             path: path.clone(),
                             offset: idx as u64 * block_size,
                             size: min(left, block_size) as usize,
@@ -173,6 +180,27 @@ impl ThreadedBlockReader {
             }
         }
         Ok(())
+    }
+    /// Register some data that will be served from memory
+    ///
+    /// Data will be provided by hashes, so isn't tied to any index or path
+    pub fn register_memory_blocks<T>(&self,
+        hash_type: HashType, block_size: u64, data: T)
+        where T: Into<Arc<[u8]>>,
+    {
+        let mut blocks = self.blocks.write().expect("lock not poisoned");
+        let data = data.into();
+        let (_, hashes) = Hashes::hash_file(hash_type, block_size, &data[..])
+            .expect("can't fail to read");
+        for (idx, hash) in hashes.iter().enumerate() {
+            let id = BlockHash::from_bytes(hash)
+                .expect("block hash converted");
+            blocks.insert(id, BlockPointer::Mem {
+                data: data.clone(),
+                offset: idx * block_size as usize,
+                size: min(data.len(), (idx+1) * block_size as usize),
+            });
+        }
     }
 }
 
@@ -187,19 +215,26 @@ impl GetBlock for ThreadedBlockReader {
                 .map_err(|_| ReadError::LockError(Backtrace::new()))?;
             let pointer = blocks.get(&hash)
                 .ok_or_else(|| ReadError::NotFound(hash))?;
-            let mut result = vec![0u8; pointer.size];
-            let mut file = File::open(&*pointer.path)
-                .map_err(|e| ReadError::Fs(pointer.path.to_path_buf(), e,
-                                           Backtrace::new()))?;
-            file.seek(SeekFrom::Start(pointer.offset))
-                .map_err(|e| ReadError::Fs(pointer.path.to_path_buf(), e,
-                                           Backtrace::new()))?;
-            let bytes = file.read(&mut result[..])
-                .map_err(|e| ReadError::Fs(pointer.path.to_path_buf(), e,
-                                           Backtrace::new()))?;
-            result.truncate(bytes);
-            assert_eq!(result.len(), pointer.size);
-            Ok(result)
+            match *pointer {
+                BlockPointer::Disk { ref path, offset, size } => {
+                    let mut result = vec![0u8; size];
+                    let mut file = File::open(&**path)
+                        .map_err(|e| ReadError::Fs(path.to_path_buf(), e,
+                                                   Backtrace::new()))?;
+                    file.seek(SeekFrom::Start(offset))
+                        .map_err(|e| ReadError::Fs(path.to_path_buf(), e,
+                                                   Backtrace::new()))?;
+                    let bytes = file.read(&mut result[..])
+                        .map_err(|e| ReadError::Fs(path.to_path_buf(), e,
+                                                   Backtrace::new()))?;
+                    result.truncate(bytes);
+                    assert_eq!(result.len(), size);
+                    Ok(result)
+                }
+                BlockPointer::Mem { ref data, offset, size } => {
+                    Ok(data[offset..][..size].to_vec())
+                }
+            }
         }))
     }
 }

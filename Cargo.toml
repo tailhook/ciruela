@@ -32,7 +32,7 @@ time = "0.1.37"
 tk-bufstream = "0.3.0"
 tk-http = { version="0.3.8", default-features=false }
 ssh-keys = "0.1.0"
-dir-signature = "0.2.7"
+dir-signature = "0.2.9"
 tk-easyloop = "0.1.1"
 abstract-ns = "0.4.1"
 ns-std-threaded = "0.3.0"
@@ -67,6 +67,10 @@ libc = "0.2.36"
 failure = "0.1.1"
 structopt = "0.2.4"
 humantime = "1.1.1"
+tempfile = "3.0.0"
+
+[dev-dependencies]
+pretty_assertions = "0.5.1"
 
 [profile.release]
 debug = true

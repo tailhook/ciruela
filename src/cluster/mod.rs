@@ -20,7 +20,7 @@ mod error;
 pub use cluster::config::Config;
 pub use cluster::upload::{Stats, ProgressOneLiner};
 pub use cluster::download::{RawIndex, MutableIndex, MaterializedIndex};
-pub use cluster::download::{IndexParseError};
+pub use cluster::download::{IndexParseError, IndexUpdateError};
 pub use cluster::future::{UploadFuture, UploadOk, UploadFail};
 pub use cluster::error::{UploadErr, ErrorKind};
 
