@@ -4,7 +4,7 @@ use std::time::SystemTime;
 use abstract_ns::Name;
 use failure::{Error, ResultExt};
 use futures::Future;
-use futures::future::{ok, err, Either};
+use futures::future::{ok, err, join_all, Either};
 use tk_easyloop::{self, handle};
 use ns_env_config;
 use ssh_keys::PrivateKey;
@@ -25,20 +25,25 @@ pub fn edit(config: Arc<Config>, clusters: Vec<Vec<Name>>,
     opts: EditOptions)
     -> Result<(), Error>
 {
+    if clusters.len() == 0 {
+        bail!("at least one destination host name is expected");
+    }
     let file = opts.file.file_name()
         .and_then(|x| x.to_str()).map(|x| x.to_string())
         .ok_or(format_err!("path {:?} should have filename", opts.file))?;
     let res = tk_easyloop::run(|| {
         let ns = ns_env_config::init(&handle()).expect("init dns");
-        let conn = Connection::new(clusters[0].clone(),
-            ns, indexes.clone(), blocks.clone(), &config);
+        let conns = clusters.iter().map(|addr| {
+            Connection::new(addr.clone(),
+                ns.clone(), indexes.clone(), blocks.clone(), &config)
+        }).collect::<Vec<_>>();
         let vpath = VPath::from(&opts.dir);
-        conn.fetch_index(&vpath)
+        conns[0].fetch_index(&vpath)
         .then(|res| res.context("can't fetch index").map_err(Error::from))
         .and_then(|idx| idx.into_mut()
             .context("can't parse index").map_err(Error::from))
         .and_then(move |idx| {
-            conn.fetch_file(&idx, &opts.file)
+            conns[0].fetch_file(&idx, &opts.file)
             .then(|res| res.context("can't fetch file").map_err(Error::from))
             .and_then(move |data| {
                 editor::run(&file, data)
@@ -59,20 +64,24 @@ pub fn edit(config: Arc<Config>, clusters: Vec<Vec<Name>>,
                         &image_id, SystemTime::now(), &keys);
                     // TODO(tailhook) send to other clusters too
                     // TODO(tailhook) use atomic replace operation
-                    let up = conn.replace(upload);
-                    Either::A(upload_with_progress(up)
-                        .map(Either::A).map_err(Into::into))
+                    Either::A(join_all(conns.into_iter().map(move |conn| {
+                        let up = conn.replace(upload.clone());
+                        upload_with_progress(up).map_err(Into::into)
+                    })).map(Either::A))
                 } else {
                     Either::B(ok(Either::B(())))
                 }
             })
         })
     })?;
-    println!("REsult {:?}", res);
-    /*
-    for res in res.iter().flat_map(|x| x) {
-        println!("{}", res);
+    match res {
+        Either::A(results) => {
+            for res in results {
+                println!("{}", res);
+            }
+        }
+        Either::B(()) => warn!("file is unchanged."),
     }
-    */
+
     Ok(())
 }
