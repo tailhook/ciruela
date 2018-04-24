@@ -245,7 +245,8 @@ impl Gossip {
             }
         }
     }
-    fn dest_for_packet(&self, msg: &Message) -> HashSet<SocketAddr> {
+    fn dest_for_packet(&self, msg: &Message) -> HashMap<SocketAddr, MachineId>
+    {
         match *msg {
             Message::BaseDirs {..} => unreachable!(),
             Message::ConfigSync { .. } => unreachable!(),
@@ -253,12 +254,12 @@ impl Gossip {
             Message::Downloading { ref path, .. } |
             Message::Complete { ref path, .. } => {
                 let all = self.peers.get();
-                let mut peers = HashSet::new();
+                let mut peers = HashMap::new();
                 // Always send to **all** watchers ...
                 for (hid, hdata) in self.by_host.lock().iter() {
                     if hdata.watching.contains(path) {
                         if let Some(peer) = all.get(hid) {
-                            peers.insert(peer.addr);
+                            peers.insert(peer.addr, hid.clone());
                         }
                     }
                 }
@@ -272,16 +273,17 @@ impl Gossip {
                             peers, PACKETS_AT_ONCE)
                         .unwrap_or_else(|v| v)
                         .into_iter()
-                        .filter_map(|id| all.get(id).map(|p| p.addr))
+                        .filter_map(|id| all.get(id)
+                            .map(|p| (p.addr, id.clone())))
                         .collect()
                     }
                     None => Vec::new(),
                 };
                 if peers.len() < PACKETS_AT_ONCE {
                     peers.extend(sample_iter(&mut thread_rng(),
-                            all.values(), PACKETS_AT_ONCE)
+                            all.iter(), PACKETS_AT_ONCE)
                         .unwrap_or_else(|v| v)
-                        .into_iter().map(|p| p.addr));
+                        .into_iter().map(|(id, p)| (p.addr, id.clone())));
                 }
                 return peers;
             }
@@ -327,16 +329,18 @@ impl Gossip {
         while let Ok(Async::Ready(Some(mut msg))) = self.messages.poll() {
             let peers = self.dest_for_packet(&msg);
             self.fill_msg(&mut msg);
-            let packet = Packet {
-                machine_id: self.machine_id.clone(),
-                your_config: Some(self.config_hash.clone()),
-                message: msg,
-            };
             let mut buf = Vec::with_capacity(1400);
-            to_writer(&mut buf, &packet).expect("can serialize packet");
-            for addr in &peers {
-                debug!("Sending progress to {}: {:?}",
-                    addr, packet.message);
+            for (addr, id) in &peers {
+                let hash = self.configs.lock().get(&id).map(|x| x.hash);
+                let packet = Packet {
+                    machine_id: self.machine_id.clone(),
+                    your_config: hash,
+                    message: msg,
+                };
+                buf.truncate(0);
+                to_writer(&mut buf, &packet).expect("can serialize packet");
+                msg = packet.message;
+                trace!("Sending message to {}: {:?}", addr, msg);
                 self.socket.send_to(&buf, &addr)
                     .map_err(|e| {
                         warn!("Error sending message to {:?}: {}", addr, e)
