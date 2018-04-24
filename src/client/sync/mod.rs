@@ -123,6 +123,12 @@ struct SyncOptions {
         non-zero status (format: http://bit.ly/durationf). \
     ")]
     deadline: Duration,
+
+    #[structopt(long="print-progress", name="SECONDS",
+                parse(try_from_str="::humantime::parse_duration"),
+                default_value="30sec",
+                help="An interval at which progress info will be printed.")]
+    print_progress: Duration,
 }
 
 
@@ -198,7 +204,8 @@ pub fn cli(gopt: GlobalOptions, mut args: Vec<String>) -> ! {
         .maximum_timeout(opts.deadline)
         .done();
     match
-        network::upload(config, clusters, uploads, &indexes, &block_reader)
+        network::upload(config, clusters, uploads, &indexes, &block_reader,
+                        opts.print_progress)
     {
         Ok(()) => {}
         Err(e) => {

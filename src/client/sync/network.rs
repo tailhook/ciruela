@@ -14,11 +14,11 @@ use ciruela::cluster::{self, Config, Connection, UploadOk, UploadFail};
 
 use sync::uploads::Upload;
 
-pub fn upload_with_progress(up: cluster::Upload)
+pub fn upload_with_progress(up: cluster::Upload, progress_ivl: Duration)
     -> Box<Future<Item=UploadOk, Error=UploadFail>>
 {
     let up2 = up.clone();
-    Box::new(interval(Duration::new(30, 0))
+    Box::new(interval(progress_ivl)
         .for_each(move |()| {
             println!("{}", up2.stats().one_line_progress());
             Ok(())
@@ -35,7 +35,8 @@ pub fn upload_with_progress(up: cluster::Upload)
 
 pub fn upload(config: Arc<Config>, clusters: Vec<Vec<Name>>,
     uploads: Vec<Upload>,
-    indexes: &InMemoryIndexes, blocks: &ThreadedBlockReader)
+    indexes: &InMemoryIndexes, blocks: &ThreadedBlockReader,
+    progress_interval: Duration)
     -> Result<(), Error>
 {
     let res = tk_easyloop::run(move || {
@@ -53,7 +54,7 @@ pub fn upload(config: Arc<Config>, clusters: Vec<Vec<Name>>,
                     Upload::Replace(r) => conn.replace(r.clone()),
                     Upload::WeakAppend(a) => conn.append_weak(a.clone()),
                 };
-                upload_with_progress(up)
+                upload_with_progress(up, progress_interval)
             }))
         }))
     })?;

@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use std::time::SystemTime;
+use std::time::{SystemTime, Duration};
 
 use abstract_ns::Name;
 use failure::{Error, ResultExt};
@@ -66,7 +66,8 @@ pub fn edit(config: Arc<Config>, clusters: Vec<Vec<Name>>,
                     // TODO(tailhook) use atomic replace operation
                     Either::A(join_all(conns.into_iter().map(move |conn| {
                         let up = conn.replace(upload.clone());
-                        upload_with_progress(up).map_err(Into::into)
+                        upload_with_progress(up, Duration::new(30,0))
+                            .map_err(Into::into)
                     })).map(Either::A))
                 } else {
                     Either::B(ok(Either::B(())))
