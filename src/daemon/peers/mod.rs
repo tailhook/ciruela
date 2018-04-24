@@ -88,6 +88,7 @@ impl Peers {
             path: path.clone(),
             image: image_id.clone(),
             mask, source,
+            watches: HashSet::new(),
         }).expect("gossip subsystem crashed");
     }
     pub fn notify_basedir(&self, path: &VPath, hash: &Hash) {

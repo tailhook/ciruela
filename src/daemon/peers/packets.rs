@@ -22,8 +22,14 @@ pub enum Message {
         deleted: HashSet<(VPath, ImageId)>,
         base_dirs: BTreeMap<VPath, Hash>,
     },
-    Downloading { path: VPath, image: ImageId, mask: Mask,
-                  source: bool },
+    Downloading {
+        path: VPath,
+        image: ImageId,
+        mask: Mask,
+        source: bool,
+        #[serde(default, skip_serializing_if="HashSet::is_empty")]
+        watches: HashSet<MachineId>,
+    },
     Reconcile {
         path: VPath, hash: Hash,
         #[serde(default, skip_serializing_if="BTreeMap::is_empty")]

@@ -157,8 +157,10 @@ impl Gossip {
                                 });
                         }
                     }
-                    Message::Downloading { path, image, mask, source } => {
-                        self.by_host.lock()
+                    Message::Downloading { path, image, mask, source, watches }
+                    => {
+                        let mut hosts = self.by_host.lock();
+                        hosts
                             .entry(pkt.machine_id.clone())
                             .or_insert_with(|| HostData {
                                 downloading: HashMap::new(),
@@ -166,12 +168,26 @@ impl Gossip {
                                 watching: BTreeSet::new(),
                                 complete: BTreeMap::new(),
                             })
-                            .downloading.insert(path, Downloading {
+                            .downloading.insert(path.clone(), Downloading {
                                 image: image,
                                 mask: mask,
                                 source: source,
                                 stalled: false,
                             });
+                        for mid in watches {
+                            if mid == self.machine_id {
+                                continue;
+                            }
+                            hosts.entry(mid)
+                                .or_insert_with(|| HostData {
+                                    downloading: HashMap::new(),
+                                    deleted: HashSet::new(),
+                                    watching: BTreeSet::new(),
+                                    complete: BTreeMap::new(),
+                                })
+                                .watching
+                                .insert(path.clone());
+                        }
                     }
                     Message::Complete { path, image } => {
                         {
@@ -203,7 +219,7 @@ impl Gossip {
                             pkt.machine_id.clone());
                         {
                             let mut hosts = self.by_host.lock();
-                            for (path, ids) in watches {
+                            for (wpath, ids) in watches {
                                 for mid in ids {
                                     if mid == self.machine_id {
                                         continue;
@@ -216,7 +232,7 @@ impl Gossip {
                                             complete: BTreeMap::new(),
                                         })
                                         .watching
-                                        .insert(path.clone());
+                                        .insert(wpath.clone());
                                 }
                             }
                         }
@@ -288,6 +304,19 @@ impl Gossip {
                             .or_insert_with(HashSet::new)
                             .insert(self.machine_id.clone());
                     }
+                }
+            }
+            Message::Downloading {ref path,  ref mut watches, .. } => {
+                for (mid, host) in self.by_host.lock().iter() {
+                    for hpath in &host.watching {
+                        if hpath == path {
+                            watches.insert(mid.clone());
+                            break;
+                        }
+                    }
+                }
+                if self.tracking.get_watching().contains(path) {
+                    watches.insert(self.machine_id.clone());
                 }
             }
             _ => {}
