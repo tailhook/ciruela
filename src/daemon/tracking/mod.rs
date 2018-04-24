@@ -241,7 +241,8 @@ impl Tracking {
             stalled: AtomicBool::new(false),
         }));
     }
-    pub fn check_watched(&self, paths: &BTreeSet<VPath>) {
+    pub fn check_watched<'a, I: IntoIterator<Item=&'a VPath>>(&self, paths: I)
+    {
         let mut state = self.state();
         for p in paths {
             if !state.watched.contains_key(p) &&

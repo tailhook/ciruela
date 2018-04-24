@@ -174,6 +174,7 @@ impl Gossip {
                                 source: source,
                                 stalled: false,
                             });
+                        self.tracking.check_watched(Some(&path));
                         for mid in watches {
                             if mid == self.machine_id {
                                 continue;
