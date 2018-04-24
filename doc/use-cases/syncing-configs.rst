@@ -8,7 +8,8 @@ for daemon).
 About ``daemonio``:
 
 1. It stores it's configs in the directory ``/etc/daemonio.d``
-2. It can detect configuration changes itself (See :ref:`Reloading Config`)
+2. It can detect configuration changes itself
+   (See :ref:`Reloading Configs <reloading>`)
 3. This config of daemon is named ``my_daemonio`` [#instances]_
 
 
@@ -104,6 +105,8 @@ you can use ``CIRUELA_KEY`` environment variable for storing keys.
        ciruela sync server.name --replace ./cfg:/my-daemonio/current
 
 
+.. _reloading:
+
 Reloading Configs
 -----------------
 
@@ -123,8 +126,8 @@ here are some ideas:
    * modd_
    * watchdog_
 
-3. Some supervisors like supervisord_ (`API <supervisord-api>`_)
-   and systemd_ (`API <systemd-api>`_) have RPC for the task
+3. Some supervisors like supervisord_ (`API <supervisord-api_>`_)
+   and systemd_ (`API <systemd-api_>`_) have RPC for the task
 4. Maybe you have a UI for the service?
 
 .. _nodemon: https://github.com/remy/nodemon

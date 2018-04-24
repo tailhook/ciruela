@@ -1,3 +1,5 @@
+.. _sync-flow:
+
 How Sync Works
 ==============
 

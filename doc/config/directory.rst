@@ -53,6 +53,7 @@ Options Reference
    (required) A base path to a directory where these paths will be placed.
    This directory can be (temporarily) overridden in ``overrides.yaml``.
 
+.. _append-only:
 .. index:: pair: append-only; Directory Config
 .. describe:: append-only
 

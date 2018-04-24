@@ -1,4 +1,4 @@
-.. _config:
+.. _use-cases:
 
 =========
 Use Cases

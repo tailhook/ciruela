@@ -9,3 +9,4 @@ Command-line Client Usage
    :caption: Contents:
 
    keys
+   sync
