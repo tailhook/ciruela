@@ -1,7 +1,7 @@
 Sync Command
 ============
 
-Basic command-line of sync looks like:
+Basic command-line of sync looks like [1]_:
 
 .. code-block:: console
 
@@ -45,3 +45,5 @@ instead:
 This works the same but tedious to write and hard to maintain.
 
 See ``ciruela --help`` for more options.
+
+.. [1] You also need keys for upload. See :ref:`client-keys`
