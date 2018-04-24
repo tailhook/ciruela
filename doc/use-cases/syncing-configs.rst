@@ -189,7 +189,7 @@ Additional Options
 
   This will report upload progress for every cluster on it's own.
 
-  If these are individual servers use ``-m`::
+  If these are individual servers use ``-m``::
 
     ciruela sync -m s1.example.org s1.example.org --replace ./dir1:/dest1
 
