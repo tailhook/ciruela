@@ -320,7 +320,7 @@ impl Tracking {
     }
     pub fn get_complete(&self) -> BTreeMap<VPath, ImageId> {
         let mut state = self.state();
-        state.poll_watched();
+        state.poll_watched(&self.0.peers);
         state.watched.iter()
             .filter_map(|(x, y)| match y {
                 &WatchedStatus::Complete(ref id) => {
@@ -332,7 +332,7 @@ impl Tracking {
     // only for UI
     pub fn get_watched(&self) -> BTreeMap<VPath, String> {
         let mut state = self.state();
-        state.poll_watched();
+        state.poll_watched(&self.0.peers);
         state.watched.iter()
             .map(|(x, y)| match y {
                 &WatchedStatus::Complete(ref id) => {
@@ -620,7 +620,7 @@ pub fn start(init: TrackingInit) -> Result<(), String> // actually void
             state.recently_deleted.retain(|_, v| *v > cutoff);
             state.recently_deleted.shrink_to_fit();
 
-            state.poll_watched();
+            state.poll_watched(&sys5.peers);
             state.watched.retain(|k, _| {
                 cluster_watching.contains(k)
             });
@@ -637,12 +637,15 @@ pub fn start(init: TrackingInit) -> Result<(), String> // actually void
 }
 
 impl State {
-    fn poll_watched(&mut self) {
+    fn poll_watched(&mut self, peers: &Peers) {
         self.watched.retain(|path, status| {
             let new_status = match status {
                 &mut WatchedStatus::Checking(ref mut f) => match f.poll() {
                     Ok(Async::NotReady) => return true,
-                    Ok(Async::Ready(id)) => WatchedStatus::Complete(id),
+                    Ok(Async::Ready(id)) => {
+                        peers.notify_complete(&path, &id);
+                        WatchedStatus::Complete(id)
+                    }
                     Err(metadata::Error::PathNotFound(..))
                     => WatchedStatus::Absent,
                     Err(e) => {
