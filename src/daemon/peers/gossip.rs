@@ -398,7 +398,7 @@ impl Gossip {
         }
         // Note: Max PACKETS_AT_ONCE for watches + PACKETS_AT_ONCE random
         // are intentional. There might be too many watches, we still want
-        // some random gossip. But most of the time the aren't any watches.
+        // some random gossip. But most of the time there aren't any watches.
         hosts.extend(sample_iter(&mut thread_rng(),
             lst.iter().map(|(k, v)| (k.clone(), v)), PACKETS_AT_ONCE)
             .unwrap_or_else(|v| v));
