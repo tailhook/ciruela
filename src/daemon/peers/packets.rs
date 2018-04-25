@@ -36,6 +36,7 @@ pub enum Message {
         watches: BTreeMap<VPath, HashSet<MachineId>>,
     },
     Complete { path: VPath, image: ImageId },
+    CompleteAck { path: VPath },
     ConfigSync { paths: BTreeSet<VPath>  },
 }
 
@@ -57,4 +58,5 @@ pub enum MessageRef<'a> {
         complete: &'a BTreeMap<VPath, ImageId>,
     },
     ConfigSync { paths: &'a BTreeSet<VPath>  },
+    CompleteAck { path: &'a VPath },
 }

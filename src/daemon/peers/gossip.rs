@@ -128,6 +128,8 @@ impl Gossip {
                                     self.tracking.remote()
                                         .forward_notify_received_image(
                                             &image, &path, peer);
+                                    self.complete_ack(addr, &pkt.machine_id,
+                                                      path);
                                 }
                             }
                             None => {}
@@ -208,8 +210,16 @@ impl Gossip {
                                 self.tracking.remote()
                                     .forward_notify_received_image(
                                         &image, &path, peer);
+                                self.complete_ack(addr, &pkt.machine_id,
+                                                  &path);
                             }
                             None => {}
+                        }
+                    }
+                    Message::CompleteAck { path } => {
+                        let mut hosts = self.by_host.lock();
+                        if let Some(hdata) = hosts.get_mut(&pkt.machine_id) {
+                            hdata.watching.remove(&path);
                         }
                     }
                     Message::ConfigSync { paths } => {
@@ -250,6 +260,7 @@ impl Gossip {
         match *msg {
             Message::BaseDirs {..} => unreachable!(),
             Message::ConfigSync { .. } => unreachable!(),
+            Message::CompleteAck { .. } => unreachable!(),
             Message::Reconcile { ref path, .. } |
             Message::Downloading { ref path, .. } |
             Message::Complete { ref path, .. } => {
@@ -348,6 +359,10 @@ impl Gossip {
             }
         }
     }
+    fn complete_ack(&mut self, addr: SocketAddr, id: &MachineId, path: &VPath)
+    {
+        self.send_packet(addr, Some(id), MessageRef::CompleteAck { path });
+    }
     fn send_gossips(&mut self) {
         // Need to ping future peers to find out addresses
         // We ping them until they respond, and are removed from future
@@ -373,6 +388,8 @@ impl Gossip {
                 }
             }
         }
+        trace!("{} watching hosts total, selecting {}",
+            hosts.len(), PACKETS_AT_ONCE);
         if hosts.len() > PACKETS_AT_ONCE {
             hosts = sample_iter(&mut thread_rng(),
                 hosts.into_iter(), PACKETS_AT_ONCE)
@@ -396,7 +413,6 @@ impl Gossip {
         watching: &BTreeSet<VPath>,
         deleted: &Vec<(VPath, ImageId)>)
     {
-        let mut buf = Vec::with_capacity(1400);
         let mut base_dirs = BTreeMap::new();
         for _ in 0..MAX_BASE_DIRS {
             match self.tracking.pick_random_dir() {
@@ -406,43 +422,38 @@ impl Gossip {
                 None => break,
             }
         }
+        self.send_packet(addr, id, MessageRef::BaseDirs {
+            in_progress: in_progress.iter()
+                .map(|(k, s)| {
+                    (k, (&s.image_id, &s.mask, s.source, s.stalled))
+                })
+                .collect(),
+            deleted, complete, watching,
+            base_dirs: &base_dirs,
+        });
+    }
+    fn send_packet(&self, addr: SocketAddr, id: Option<&MachineId>,
+        message: MessageRef)
+    {
+        let mut buf = Vec::with_capacity(1400);
+
         let hash = id
-            .and_then(|id| self.configs.lock().get(&id).map(|x| x.hash));
+            .and_then(|id| self.configs.lock().get(id).map(|x| x.hash));
+        trace!("Sending message to {}: {:?}", addr, message);
         let packet = PacketRef {
             machine_id: &self.machine_id,
             your_config: &hash,
-            message: MessageRef::BaseDirs {
-                in_progress: in_progress.iter()
-                    .map(|(k, s)| {
-                        (k, (&s.image_id, &s.mask, s.source, s.stalled))
-                    })
-                    .collect(),
-                deleted, complete, watching,
-                base_dirs: &base_dirs,
-            }
+            message,
         };
         to_writer(&mut buf, &packet).expect("can serialize packet");
-        debug!("Sending ping to {} [{}]", addr, buf.len());
         self.socket.send_to(&buf, &addr)
             .map_err(|e| {
                 warn!("Error sending message to {:?}: {}", addr, e)
             }).ok();
     }
     fn send_config(&self, addr: SocketAddr, id: &MachineId) {
-        let mut buf = Vec::with_capacity(1400);
-
-        let hash = self.configs.lock().get(id).map(|x| x.hash);
-        let packet = PacketRef {
-            machine_id: &self.machine_id,
-            your_config: &hash,
-            message: MessageRef::ConfigSync { paths: &self.config_list },
-        };
-        to_writer(&mut buf, &packet).expect("can serialize packet");
-        debug!("Sending config to {} [{}]", addr, buf.len());
-        self.socket.send_to(&buf, &addr)
-            .map_err(|e| {
-                warn!("Error sending message to {:?}: {}", addr, e)
-            }).ok();
+        self.send_packet(addr, Some(id),
+            MessageRef::ConfigSync { paths: &self.config_list })
     }
 }
 
