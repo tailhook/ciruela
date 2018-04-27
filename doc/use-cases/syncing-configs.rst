@@ -1,3 +1,5 @@
+.. _syncing-configs:
+
 ===============
 Syncing Configs
 ===============

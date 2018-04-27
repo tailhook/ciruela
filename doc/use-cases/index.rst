@@ -21,3 +21,4 @@ In this examples we use all the defaults:
    :caption: Contents:
 
    syncing-configs
+   editing-configs
