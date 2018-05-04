@@ -7,7 +7,7 @@ use std::collections::{HashSet, HashMap, BTreeMap, BTreeSet};
 use crossbeam::sync::ArcCell;
 use futures::{Future, Stream, Async};
 use futures::sync::mpsc::UnboundedReceiver;
-use rand::{thread_rng};
+use rand::{thread_rng, Rng};
 use rand::seq::sample_iter;
 use tk_easyloop::{handle, spawn, interval};
 use tokio_core::net::UdpSocket;
@@ -279,16 +279,32 @@ impl Gossip {
                 // (i.e. > PACKETS_AT_ONCE) we want to notify some
                 // random other nodes anyway.
                 match self.configs.lock().by_dir(&path.key_vpath()) {
-                    Some(peers) => {
-                        sample_iter(&mut thread_rng(),
-                            peers, PACKETS_AT_ONCE)
-                        .unwrap_or_else(|v| v)
-                        .into_iter()
-                        .filter_map(|id| all.get(id)
-                            .map(|p| (p.addr, id.clone())))
-                        .collect()
+                    Some(cpeers) => {
+
+                        // TODO(tailhook) store them as sorted lists
+                        let mut sorted_peers = cpeers.iter()
+                            .cloned().collect::<Vec<_>>();
+                        if sorted_peers.len() > 1 {
+                            sorted_peers.sort_unstable();
+                            let myidx = sorted_peers.iter()
+                                .position(|x| *x > self.machine_id);
+                            let myidx = myidx.unwrap_or(0);
+                            let mut add_peer = |idx| {
+                                let id = &sorted_peers[idx % cpeers.len()];
+                                if let Some(p) = all.get(id) {
+                                    peers.insert(p.addr, id.clone());
+                                }
+                            };
+                            add_peer(myidx); // it's next item because current
+                                             // peer is never in the list
+                            for _ in 0..(PACKETS_AT_ONCE-1) {
+                                let rnd = thread_rng()
+                                    .gen_range(1, sorted_peers.len());
+                                add_peer(myidx.wrapping_add(rnd));
+                            }
+                        }
                     }
-                    None => Vec::new(),
+                    None => {},
                 };
                 if peers.len() < PACKETS_AT_ONCE {
                     peers.extend(sample_iter(&mut thread_rng(),

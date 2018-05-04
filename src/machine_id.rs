@@ -9,7 +9,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::de::{Visitor, Unexpected, Error};
 
 
-#[derive(Hash, PartialEq, Eq, Clone)]
+#[derive(Hash, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct MachineId([u8; 16]);
 
 
