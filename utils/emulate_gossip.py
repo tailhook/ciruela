@@ -15,6 +15,10 @@ class Host:
             self.received.add(packet)
             return next_hosts(self)
 
+NHOSTS = 1000
+HOSTS = list(map(Host, range(NHOSTS)))
+PKT_ID = 0
+
 
 def random_gossip(host):
     return random.sample(HOSTS, 4)
@@ -23,13 +27,28 @@ def random_gossip(host):
 def next_pair_gossip(host):
     idx = HOSTS.index(host)
     return [
-        HOSTS[(idx+1) % len(HOSTS)],
-        HOSTS[(idx+2) % len(HOSTS)],
+        HOSTS[(idx+1) % NHOSTS],
+        HOSTS[(idx+2) % NHOSTS],
     ]
 
 
-HOSTS = list(map(Host, range(100)))
-PKT_ID = 0
+def skip_few_gossip(host):
+    idx = HOSTS.index(host)
+    return [
+        HOSTS[(idx+1) % NHOSTS],
+        HOSTS[(idx+3) % NHOSTS],
+        HOSTS[(idx+7) % NHOSTS],
+        HOSTS[(idx+15) % NHOSTS],
+    ]
+
+def random_neighbour_gossip(host):
+    idx = HOSTS.index(host)
+    return [
+        HOSTS[(idx+1) % NHOSTS],
+        HOSTS[(idx+random.randrange(NHOSTS)) % NHOSTS],
+        HOSTS[(idx+random.randrange(NHOSTS)) % NHOSTS],
+        HOSTS[(idx+random.randrange(NHOSTS)) % NHOSTS],
+    ]
 
 
 def emulator(func):
@@ -54,19 +73,27 @@ def print_totals(result):
     total_100 = 0
     total_val = 0
     for iter_num, values in sorted(res.items()):
-        perc = values[100] / sum(values.values())
-        total_100 += values[100]
+        perc = values[NHOSTS] / sum(values.values())
+        total_100 += values[NHOSTS]
         total_val += sum(values.values())
         print("Iterations {:2d}: {:6.2%}".format(iter_num, perc))
     print("Overall:       {:6.2%}".format(total_100 / total_val))
 
 
 if __name__ == '__main__':
-    print("Random gossip")
+    print("===== Random gossip =====")
     res = emulator(random_gossip)
     print_totals(res)
 
-    print("Next pair")
+    print("===== Random neighbour gossip =====")
+    res = emulator(random_neighbour_gossip)
+    print_totals(res)
+
+    print("===== Next pair =====")
     res = emulator(next_pair_gossip)
+    print_totals(res)
+
+    print("==== Skip few gossip =====")
+    res = emulator(skip_few_gossip)
     print_totals(res)
 
