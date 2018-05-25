@@ -18,6 +18,7 @@ Ciruela
    config/index
    client/index
    compatibility
+   changelog
 
 .. toctree::
    :maxdepth: 2
