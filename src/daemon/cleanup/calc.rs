@@ -79,7 +79,7 @@ mod test {
     use std::sync::Arc;
     use std::time::SystemTime;
     use humantime::parse_duration;
-    use rand::{thread_rng, Rng};
+    use rand::{thread_rng, RngCore};
     use config::Directory;
     use super::{sort_out, Sorted};
     use index::{ImageId};
