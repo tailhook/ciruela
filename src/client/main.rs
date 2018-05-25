@@ -43,6 +43,7 @@ mod keys;
 mod upload;
 mod sync;
 mod edit;
+mod put_file;
 
 // common modules for lib and daemon, we don't expose them in the lib because
 // that would mean keep backwards compatibility
@@ -99,6 +100,9 @@ fn main() {
         }
         Some("edit") => {
             edit::cli(opt, args);
+        }
+        Some("put-file") => {
+            put_file::cli(opt, args);
         }
         None => {
             writeln!(&mut stderr(), "\
