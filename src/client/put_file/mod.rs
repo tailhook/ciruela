@@ -1,4 +1,4 @@
-//mod network;
+mod network;
 
 use std::process::exit;
 use std::time::Duration;
@@ -34,10 +34,10 @@ pub struct PutFileOptions {
     ", parse(from_os_str))]
     dir: PathBuf,
 
-    #[structopt(short="i", long="input-file", help="\
-        Input file name, as found on local system. \
+    #[structopt(short="s", long="source-file", help="\
+        Input file name as found on the local system. \
     ", parse(from_os_str))]
-    input_file: PathBuf,
+    source_file: PathBuf,
 
     #[structopt(short="f", long="file", help="\
         Destination path for the file, must start with backslash `/`. \
@@ -142,10 +142,8 @@ pub fn cli(gopt: GlobalOptions, mut args: Vec<String>) -> ! {
         .maximum_timeout(opts.deadline)
         .done();
 
-    unimplemented!();
-    /*
     match
-        network::edit(config, clusters, keys, &indexes, &block_reader, opts)
+        network::put(config, clusters, keys, &indexes, &block_reader, opts)
     {
         Ok(()) => {}
         Err(e) => {
@@ -153,6 +151,5 @@ pub fn cli(gopt: GlobalOptions, mut args: Vec<String>) -> ! {
             exit(3);
         }
     }
-    */
     exit(0);
 }

@@ -81,6 +81,16 @@ commands:
     - edit
     - --identity=ciruela-example.key
 
+  example-put-file: !Command
+    description: Run the put-file command with example key
+    container: xenial
+    prerequisites: [make]
+    environ: *exenv
+    run:
+    - ./target/debug/ciruela
+    - put-file
+    - --identity=ciruela-example.key
+
   trio-sync: !Command
     description: Run the sync command with example key to
       an example cluster run with `vagga trio`
