@@ -7,9 +7,10 @@ use std::cell::{RefCell, RefMut};
 
 use abstract_ns::Name;
 use dir_signature::v1::{Parser, Hashes, Header, Entry, ParseError, Emitter};
-use dir_signature::HashType;
+use dir_signature::{get_hash, HashType};
 
 use {VPath};
+use id::ImageId;
 use failure_tracker::{SlowHostFailures};
 
 
@@ -184,6 +185,10 @@ impl RawIndex {
             block_size: header.get_block_size(),
             header, root, location,
         });
+    }
+    /// Parse image hash from the raw data
+    pub fn get_hash(&self) -> Result<ImageId, io::Error> {
+        get_hash(&mut Cursor::new(&self.data)).map(ImageId::from)
     }
 }
 

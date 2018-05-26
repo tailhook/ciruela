@@ -40,9 +40,14 @@ pub fn edit(config: Arc<Config>, clusters: Vec<Vec<Name>>,
         let vpath = VPath::from(&opts.dir);
         conns[0].fetch_index(&vpath)
         .then(|res| res.context("can't fetch index").map_err(Error::from))
-        .and_then(|idx| idx.into_mut()
-            .context("can't parse index").map_err(Error::from))
-        .and_then(move |idx| {
+        .and_then(|idx| {
+            let hash = idx.get_hash()
+                .context("can't parse index").map_err(Error::from)?;
+            let idx = idx.into_mut()
+                .context("can't parse index").map_err(Error::from)?;
+            return Ok((hash, idx));
+        })
+        .and_then(move |(old_image, idx)| {
             conns[0].fetch_file(&idx, &opts.file)
             .then(|res| res.context("can't fetch file").map_err(Error::from))
             .and_then(move |data| {
@@ -65,7 +70,8 @@ pub fn edit(config: Arc<Config>, clusters: Vec<Vec<Name>>,
                     // TODO(tailhook) send to other clusters too
                     // TODO(tailhook) use atomic replace operation
                     Either::A(join_all(conns.into_iter().map(move |conn| {
-                        let up = conn.replace(upload.clone());
+                        let up = conn.replace_if_matches(
+                            upload.clone(), old_image.clone());
                         upload_with_progress(up, Duration::new(30,0))
                             .map_err(Into::into)
                     })).map(Either::A))

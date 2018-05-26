@@ -12,5 +12,7 @@ Ciruela 0.6.7
 * Feature: add old image identifier support in ``ciruela sync --replace``
   (and rust API) which means we can do (limited version of) atomic updates to
   the directory.
+* Feature: ``ciruela edit`` now fails if directory was changed a remote system
+  while you were editing a file (same failure applies for ``put-file`` too)
 * Bugfix: when all discovered hosts have no config ciruela finishes with
   rejection instead of waiting indefinitely
