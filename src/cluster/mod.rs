@@ -36,8 +36,8 @@ use id::ImageId;
 use index::GetIndex;
 use blocks::GetBlock;
 use cluster::set::{Message, NewUpload};
-use cluster::future::{IndexFuture, FileFuture};
 use signature::SignedUpload;
+pub use cluster::future::{IndexFuture, FileFuture};
 
 /// Connection to a server or cluster of servers
 ///
