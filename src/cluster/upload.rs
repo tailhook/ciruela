@@ -121,7 +121,9 @@ impl Stats {
             }
             (false, Some("no_config")) => {
                 warn!("Info {} rejects directory", source);
-                book.rejected_no_config.insert(source);
+                if book.rejected_no_config.insert(source) {
+                    self.total_responses.fetch_add(1, Ordering::Relaxed);
+                }
             }
             (false, _) => {
                 warn!("Rejected because of {:?} try {:?}",
@@ -209,19 +211,22 @@ fn is_superset(done: &HashMap<MachineId, String>,
 }
 
 pub(in cluster) fn check(stats: &Arc<Stats>, config: &Config,
-    initial_addr: &AddrCell, early_timeout_timed_out: bool)
+    initial_addr: &AddrCell, early_timeout_timed_out: bool,
+    no_candidates: bool)
     -> Option<Result<UploadOk, ErrorKind>>
 {
     let book = stats.book.read()
         .expect("bookkeeping is not poisoned");
     trace!("Current state {:?}{}", book,
         if early_timeout_timed_out { "" } else { " early" });
-    if book.accepted_ips.len() == 0 && book.rejected_ips.len() > 0
-       && initial_addr.is_done()
+    if book.accepted_ips.is_empty() &&
+       initial_addr.is_done() && no_candidates &&
+       (!book.rejected_ips.is_empty() || !book.rejected_no_config.is_empty())
     {
         let all_rejected = initial_addr.get().addresses_at(0)
             .all(|a| book.rejected_ips.contains_key(&a) ||
-                     book.aborted_ips.contains_key(&a));
+                     book.aborted_ips.contains_key(&a) ||
+                     book.rejected_no_config.contains(&a));
         if all_rejected {
             return Some(Err(ErrorKind::Rejected));
         }

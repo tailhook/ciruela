@@ -614,7 +614,8 @@ impl<R, I, B> ConnectionSet<R, I, B>
                up.stats.total_responses());
         if up.futures.len() == 0 && up.stats.total_responses() > 0 {
             let check = upload::check(&up.stats, &self.config,
-                &self.initial_addr, early_timeout);
+                &self.initial_addr, early_timeout,
+                up.candidate_hosts.is_empty());
             match check {
                 Some(Ok(result)) => {
                     up.resolve.send(Ok(result)).ok();
@@ -632,7 +633,8 @@ impl<R, I, B> ConnectionSet<R, I, B>
 
         if up.deadline.poll().expect("timeout is infallible").is_ready() {
             let check = upload::check(&up.stats, &self.config,
-                &self.initial_addr, early_timeout);
+                &self.initial_addr, early_timeout,
+                up.candidate_hosts.is_empty());
             match check {
                 Some(Ok(result)) => {
                     up.resolve.send(Ok(result)).ok();
