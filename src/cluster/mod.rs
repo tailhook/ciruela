@@ -26,12 +26,13 @@ pub use cluster::error::{UploadErr, ErrorKind};
 
 use std::sync::Arc;
 
-use {VPath};
 use abstract_ns::{Name, Resolve, HostResolve};
 use futures::sync::mpsc::{UnboundedSender};
 use futures::future::{Future, Shared};
 use futures::sync::oneshot;
 
+use {VPath};
+use id::ImageId;
 use index::GetIndex;
 use blocks::GetBlock;
 use cluster::set::{Message, NewUpload};
@@ -105,7 +106,7 @@ impl Connection {
     ///
     /// If connection set is already closed
     pub fn append(&self, upload: SignedUpload) -> Upload {
-        self._upload(false, false, upload)
+        self._upload(false, false, upload, None)
     }
     /// Initiate a new upload (appending a directory, if not exists)
     ///
@@ -116,7 +117,7 @@ impl Connection {
     ///
     /// If connection set is already closed
     pub fn append_weak(&self, upload: SignedUpload) -> Upload {
-        self._upload(false, true, upload)
+        self._upload(false, true, upload, None)
     }
     /// Initiate a new upload (replacing a directory)
     ///
@@ -124,16 +125,28 @@ impl Connection {
     ///
     /// If connection set is already closed
     pub fn replace(&self, upload: SignedUpload) -> Upload {
-        self._upload(true, false, upload)
+        self._upload(true, false, upload, None)
     }
-    fn _upload(&self, replace: bool, weak: bool, upload: SignedUpload)
+
+    /// Initiate a new upload (replacing if directory hash matches)
+    ///
+    /// # Panics
+    ///
+    /// If connection set is already closed
+    pub fn replace_if_matches(&self, upload: SignedUpload, old_image: ImageId)
+        -> Upload
+    {
+        self._upload(true, false, upload, Some(old_image))
+    }
+    fn _upload(&self, replace: bool, weak: bool, upload: SignedUpload,
+        old_image: Option<ImageId>)
         -> Upload
     {
         let (tx, rx) = oneshot::channel();
         let stats = Arc::new(upload::Stats::new(
             &self.cluster_name, &upload.path, weak));
         self.chan.unbounded_send(Message::NewUpload(NewUpload {
-            replace, upload, weak,
+            replace, upload, weak, old_image: old_image,
             stats: stats.clone(),
             resolve: tx,
         })).expect("connection set is not closed");

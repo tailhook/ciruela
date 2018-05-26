@@ -17,6 +17,7 @@ use tokio_core::reactor::Timeout;
 use valuable_futures::Async as VAsync;
 
 use {VPath};
+use id::ImageId;
 use index::GetIndex;
 use blocks::GetBlock;
 use block_id::BlockHash;
@@ -62,6 +63,7 @@ pub struct NewUpload {
     pub(crate) replace: bool,
     pub(crate) weak: bool,
     pub(crate) upload: SignedUpload,
+    pub(crate) old_image: Option<ImageId>,
     pub(crate) stats: Arc<upload::Stats>,
     pub(crate) resolve: oneshot::Sender<Result<UploadOk, Arc<UploadErr>>>,
 }
@@ -69,6 +71,7 @@ pub struct NewUpload {
 struct Upload {
     replace: bool,
     weak: bool,
+    old_image: Option<ImageId>,
     upload: SignedUpload,
     stats: Arc<upload::Stats>,
     resolve: oneshot::Sender<Result<UploadOk, Arc<UploadErr>>>,
@@ -233,6 +236,7 @@ impl<R, I, B> ConnectionSet<R, I, B>
         self.uploads.push_back(Upload {
             replace: up.replace,
             weak: up.weak,
+            old_image: up.old_image,
             upload: up.upload,
             stats: up.stats,
             resolve: up.resolve,
@@ -460,7 +464,7 @@ impl<R, I, B> ConnectionSet<R, I, B>
                         if up.replace {
                             up.futures.insert(*addr,
                                 RFuture::Replace(conn.request(ReplaceDir {
-                                    old_image: None,
+                                    old_image: up.old_image.clone(),
                                     image: up.upload.image_id.clone(),
                                     timestamp: up.upload.timestamp.clone(),
                                     signatures: up.upload.signatures.clone(),

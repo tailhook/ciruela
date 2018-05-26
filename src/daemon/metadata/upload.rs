@@ -188,6 +188,12 @@ pub fn start_replace(params: ReplaceDir, meta: &Meta)
                         state.serialize(&mut Cbor::new(BufWriter::new(file)))
                     })?;
                     return Ok(Upload::Accepted(Accept::AlreadyDone));
+                } else if params.old_image.is_some() &&
+                          params.old_image.as_ref() != Some(&state.image)
+                {
+                    return Ok(Upload::Rejected(
+                        "replace_doesnt_match_index",
+                        Some(state.image.clone())));
                 } else {
                     let state = State {
                         image: params.image.clone(),
@@ -223,6 +229,12 @@ pub fn start_replace(params: ReplaceDir, meta: &Meta)
                     image: old_state.image.clone(),
                     signatures: old_state.signatures.clone(),
                 }, Accept::InProgress)
+            } else if params.old_image.is_some() &&
+                      params.old_image.as_ref() != Some(&old_state.image)
+            {
+                return Ok(Upload::Rejected(
+                    "replace_doesnt_match_index",
+                    Some(old_state.image.clone())));
             } else {
                 // TODO(tailhook) stop fetching image, delete and
                 // start replacing

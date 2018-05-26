@@ -52,6 +52,9 @@ pub fn upload(config: Arc<Config>, clusters: Vec<Vec<Name>>,
                 let up = match upload {
                     Upload::Append(a) => conn.append(a.clone()),
                     Upload::Replace(r) => conn.replace(r.clone()),
+                    Upload::ReplaceIfMatches(r, old) => {
+                        conn.replace_if_matches(r.clone(), old.clone())
+                    },
                     Upload::WeakAppend(a) => conn.append_weak(a.clone()),
                 };
                 upload_with_progress(up, progress_interval)

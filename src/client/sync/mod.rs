@@ -57,10 +57,13 @@ struct SyncOptions {
                    (skip if already exists even if different contents)")]
     append_weak: Vec<String>,
 
-    #[structopt(name="R_SOURCE:DEST", long="replace",
+    #[structopt(name="R_SOURCE:DEST[:OLD_ID]", long="replace",
                 raw(number_of_values="1"),
                 help="Replace a directory \
-                    (this should be allowed in server config)")]
+                    (this should be allowed in server config). \
+                    If OLD_ID is specified we use \"atomic\" replace, \
+                    which means replace the directory only if old image \
+                    id matches the one specified.")]
     replace: Vec<String>,
 
     #[structopt(short="i", long="identity", name="FILENAME",

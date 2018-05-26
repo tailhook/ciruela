@@ -44,6 +44,7 @@ commands:
         ciruela_server::peers::gossip=warn,\
         ciruela_server::named_mutex=info,\
         ciruela_server::tracking=trace,\
+        ciruela_server::metadata::upload=debug,\
         tk_http::websocket::dispatcher=info"
     run:
     - ./target/debug/ciruela-server
