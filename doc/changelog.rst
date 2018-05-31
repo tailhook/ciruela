@@ -2,6 +2,15 @@ Ciruela Changes by Version
 ==========================
 
 
+.. _changelog-0.6.8:
+
+Ciruela 0.6.8
+-------------
+
+* Feature: command-line prints public keys used for signature to stderr before
+  upload. This makes it easier to debug keys mismatch.
+
+
 .. _changelog-0.6.7:
 
 Ciruela 0.6.7

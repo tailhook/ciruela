@@ -85,6 +85,9 @@ pub fn read_keys(identities: &Vec<String>, key_vars: &Vec<String>)
             .context(format!("Can't read env key {:?}", name))?;
         }
     };
-    info!("Read {} private keys", private_keys.len());
+    eprintln!("Read {} private keys, list:", private_keys.len());
+    for key in &private_keys {
+        eprintln!("  {}", key.public_key().to_string());
+    }
     return Ok(private_keys)
 }
