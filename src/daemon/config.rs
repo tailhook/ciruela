@@ -32,7 +32,7 @@ pub struct Directory {
     pub keep_list_file: Option<PathBuf>,
     pub keep_min_directories: usize,
     pub keep_max_directories: usize,
-    #[serde(with="::quire::duration")]
+    #[serde(with="::serde_humantime")]
     pub keep_recent: Duration,
 }
 

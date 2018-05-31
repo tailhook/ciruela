@@ -30,6 +30,7 @@ extern crate serde;
 extern crate serde_bytes;
 extern crate serde_cbor;
 extern crate serde_json;
+extern crate serde_humantime;
 extern crate ssh_keys;
 extern crate time;
 extern crate tk_bufstream;
