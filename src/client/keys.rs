@@ -85,7 +85,8 @@ pub fn read_keys(identities: &Vec<String>, key_vars: &Vec<String>)
             .context(format!("Can't read env key {:?}", name))?;
         }
     };
-    eprintln!("Read {} private keys, list:", private_keys.len());
+    eprintln!("Ciruela {}: read {} private keys, listing public:",
+        env!("CARGO_PKG_VERSION"), private_keys.len());
     for key in &private_keys {
         eprintln!("  {}", key.public_key().to_string());
     }
