@@ -120,7 +120,7 @@ impl Stats {
                 accepted = true;
             }
             (false, Some("no_config")) => {
-                warn!("Info {} rejects directory", source);
+                info!("Connection {} rejects directory", source);
                 if book.rejected_no_config.insert(source) {
                     self.total_responses.fetch_add(1, Ordering::Relaxed);
                 }
@@ -320,7 +320,9 @@ impl<'a> fmt::Display for ProgressOneLiner<'a> {
 impl Bookkeeping {
     fn discovered_num(&self) -> u32 {
         let explicit = self.discovered_servers.len() as u32;
-        if self.done_ips.len() < 2 {
+        if self.accepted_ips.len() == 1 &&
+            self.rejected_ips.is_empty() && self.rejected_no_config.is_empty()
+        {
             // Server don't see themselves in the list of hosts.
             // This means we should ensure that number of hosts that reported
             // download is more that discovered hosts.
