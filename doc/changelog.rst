@@ -2,6 +2,15 @@ Ciruela Changes by Version
 ==========================
 
 
+.. _changelog-0.6.9:
+
+Ciruela 0.6.9
+-------------
+
+* Bugfix: fix check for upload finish when there is only one destination node,
+  and cluster is bigger than one
+
+
 .. _changelog-0.6.8:
 
 Ciruela 0.6.8
