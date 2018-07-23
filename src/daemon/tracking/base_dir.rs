@@ -1,8 +1,9 @@
-use std::collections::{HashMap, BTreeSet};
+use std::collections::{HashMap, BTreeSet, BTreeMap};
 use std::collections::hash_map::Entry;
 use std::sync::{Arc};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Instant, Duration};
+use std::path::PathBuf;
 
 use futures::Future;
 
@@ -15,6 +16,7 @@ use metrics::Integer;
 use named_mutex::{Mutex, MutexGuard};
 use peers::config::get_hash;
 use proto::{Hash, BaseDirState};
+use database::signatures::State;
 use tracking::Subsystem;
 use {VPath};
 
@@ -145,6 +147,19 @@ impl BaseDir {
     }
 }
 
+fn short_list(input: impl IntoIterator<Item=(PathBuf, State)>)
+    -> BTreeMap<String, State>
+{
+    input.into_iter()
+    .map(|(x, state)| {
+        (x.file_name().expect("dir name is left intact")
+          .to_str().expect("valid dir name")
+          .to_string(),
+         state)
+    })
+    .collect()
+}
+
 pub fn scan(path: &VPath, config: &Arc<Directory>, meta: &Meta, disk: &Disk)
     -> Box<Future<Item=BaseDirState, Error=Error>>
 {
@@ -157,15 +172,11 @@ pub fn scan(path: &VPath, config: &Arc<Directory>, meta: &Meta, disk: &Disk)
             let images = dirs.into_iter().map(|(name, state)| {
                 (path.suffix().join(name), state)
             }).collect();
-            let sorted = sort_out(&config, images, &keep_list);
-            let dirs = sorted.used.into_iter()
-                .map(|(x, state)| {
-                    (x.file_name().expect("dir name is left intact")
-                      .to_str().expect("valid dir name")
-                      .to_string(),
-                     state)
-                })
-                .collect();
+            let dirs = if config.auto_clean {
+                short_list(sort_out(&config, images, &keep_list).used)
+            } else {
+                short_list(images)
+            };
 
             let kl: BTreeSet<String> = keep_list.into_iter()
                 .filter_map(|p| {
