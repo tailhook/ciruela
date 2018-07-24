@@ -2,13 +2,22 @@ Ciruela Changes by Version
 ==========================
 
 
+.. _changelog-0.6.11:
+
+Ciruela 0.6.11
+--------------
+
+* bugfix: without auto-clean enabled ciruela was considering
+  keep-max-directories anyway when reconciling
+
+
 .. _changelog-0.6.10:
 
 Ciruela 0.6.10
 --------------
 
 * bugfix: without auto-clean enabled ciruela was considering
-  keep-max-directories anyway when reconciling
+  keep-max-directories anyway when scanning list of dirs at start
 
 
 .. _changelog-0.6.9:

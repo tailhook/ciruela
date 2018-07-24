@@ -154,8 +154,12 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
             }
             possible_dirs.insert(path.suffix().join(name), rstate.clone());
         }
-        let sorted = sort_out(config,
-            possible_dirs.into_iter().collect(), &keep_list);
+        let sorted = if config.auto_clean {
+            sort_out(config,
+                possible_dirs.into_iter().collect(), &keep_list).used
+        } else {
+            possible_dirs.into_iter().collect()
+        };
 
         let mut count = sys3.state().downloading_in_basedir(&path);
         let mut sorted_remote = remote.dirs.into_iter().collect::<Vec<_>>();
@@ -167,7 +171,7 @@ pub fn start(sys: &Subsystem, info: ReconPush) {
         for (name, mut rstate) in sorted_remote.into_iter().rev() {
             let sub_path = path.suffix().join(&name);
             let vpath = path.join(&name);
-            if !sorted.used.iter().any(|&(ref p, _)| p == &sub_path) {
+            if !sorted.iter().any(|&(ref p, _)| p == &sub_path) {
                 debug!("Not updating {:?} to {} it's going to be cleaned up \
                         again", vpath, rstate.image);
                 continue;
