@@ -2,6 +2,7 @@ use std::io;
 use std::ops;
 use std::path::{Path, PathBuf};
 
+use libc;
 use openat::{Dir, SimpleType, Entry};
 
 use {VPath};
@@ -184,6 +185,9 @@ fn remove_by_str(dir: &Dir, name: &str) -> Result<(), Error> {
     let dir_iter = match me.list_dir(".") {
         Ok(x) => x,
         Err(ref e) if e.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(ref e) if e.raw_os_error() == Some(libc::ENOTDIR) => {
+            return dir.remove_file(name).map_err(me_err);
+        }
         Err(e) => return Err(me_err(e)),
     };
     for entry in dir_iter {

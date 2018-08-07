@@ -2,6 +2,15 @@ Ciruela Changes by Version
 ==========================
 
 
+.. _changelog-0.6.12:
+
+Ciruela 0.6.12
+--------------
+
+* Bugfix: if there is a file at destination location of the download, remove
+  it (previously failed on ``NotADirectory`` error)
+
+
 .. _changelog-0.6.11:
 
 Ciruela 0.6.11
