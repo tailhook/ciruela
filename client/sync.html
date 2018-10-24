@@ -1,0 +1,170 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Sync Command &#8212; Ciruela 0.6.12 documentation</title>
+    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Version Compatibility" href="../compatibility.html" />
+    <link rel="prev" title="Client Keys" href="keys.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="section" id="sync-command">
+<h1>Sync Command<a class="headerlink" href="#sync-command" title="Permalink to this headline">¶</a></h1>
+<p>Basic command-line of sync looks like <a class="footnote-reference" href="#id2" id="id1">[1]</a>:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">$</span> ciruela sync --append<span class="o">=</span>local-dir:/remote/dir cluster.example.org
+</pre></div>
+</div>
+<p>This means:</p>
+<ol class="arabic simple">
+<li>Connect to cluster <code class="docutils literal notranslate"><span class="pre">cluster.example.org</span></code></li>
+<li>Upload a local directory <code class="docutils literal notranslate"><span class="pre">local-dir</span></code> to a virtual remote directory
+<code class="docutils literal notranslate"><span class="pre">/remote/dir</span></code> on whole cluster (whatever machines accept this dir)</li>
+</ol>
+<p><strong>Multiple directories</strong> can be added simultaneously as well as <strong>multiple
+clusters</strong>.</p>
+<p>There are couple of upload modes:</p>
+<ul class="simple">
+<li><code class="docutils literal notranslate"><span class="pre">--append</span></code> – add directory if not exists, fails if the directory exists
+<em>and</em> its hash doesn’t match currently uploaded one</li>
+<li><code class="docutils literal notranslate"><span class="pre">--append-weak</span></code> – add directory if not exists, but ignore if it exists</li>
+<li><code class="docutils literal notranslate"><span class="pre">--replace</span></code> – replace a directory on the remote system(s), this only
+works if directory configured with <a class="reference internal" href="../config/directory.html#append-only"><span class="std std-ref">append-only</span></a>
+of <code class="docutils literal notranslate"><span class="pre">false</span></code></li>
+</ul>
+<p>Each cluster specified is processed by the same algorithm, which is basically:</p>
+<ol class="arabic simple">
+<li>Find three nodes</li>
+<li>Subscribe for notifications</li>
+<li>Start upload</li>
+<li>Wait for all notifications to complete</li>
+</ol>
+<p>More details in <a class="reference internal" href="../protocols/sync.html#sync-flow"><span class="std std-ref">How Sync Works</span></a>. All of them are processed at the same time.</p>
+<p>If you don’t have a common hostname for your cluster you may use <code class="docutils literal notranslate"><span class="pre">-m</span></code>
+instead:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">$</span> ciruela sync --append<span class="o">=</span>local-dir:/remote/dir <span class="se">\</span>
+  -m s1.example.org s2.example.org s3.example.org
+</pre></div>
+</div>
+<p>This works the same but tedious to write and hard to maintain.</p>
+<p>See <code class="docutils literal notranslate"><span class="pre">ciruela</span> <span class="pre">--help</span></code> for more options.</p>
+<table class="docutils footnote" frame="void" id="id2" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label"><a class="fn-backref" href="#id1">[1]</a></td><td>You also need keys for upload. See <a class="reference internal" href="keys.html#client-keys"><span class="std std-ref">Client Keys</span></a></td></tr>
+</tbody>
+</table>
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">Ciruela</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption"><span class="caption-text">User Guide:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../use-cases/index.html">Use Cases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../config/index.html">Configuration</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Command-line Client Usage</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="keys.html">Client Keys</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Sync Command</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../compatibility.html">Version Compatibility</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog.html">Ciruela Changes by Version</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Developer Guide:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../protocols/index.html">Network Protocols</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../database/index.html">Storage Bookkeeping and Management</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="index.html">Command-line Client Usage</a><ul>
+      <li>Previous: <a href="keys.html" title="previous chapter">Client Keys</a></li>
+      <li>Next: <a href="../compatibility.html" title="next chapter">Version Compatibility</a></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Paul Colomiets.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.8.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="../_sources/client/sync.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

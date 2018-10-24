@@ -1,0 +1,279 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Directory Config &#8212; Ciruela 0.6.12 documentation</title>
+    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Command-line Client Usage" href="../client/index.html" />
+    <link rel="prev" title="Daemon Configuration" href="daemon.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="section" id="directory-config">
+<span id="id1"></span><h1>Directory Config<a class="headerlink" href="#directory-config" title="Permalink to this headline">¶</a></h1>
+<p>A config in <code class="docutils literal notranslate"><span class="pre">/etc/ciruela/configs/NAME.yaml</span></code> describe synchronization of a
+single directory.</p>
+<p>See <a class="reference internal" href="index.html#config"><span class="std std-ref">overview of the configuration</span></a> and <a class="reference external" href="http://rust-quire.readthedocs.io/en/latest/">config syntax</a>
+for basics.</p>
+<div class="section" id="example">
+<h2>Example<a class="headerlink" href="#example" title="Permalink to this headline">¶</a></h2>
+<p>This is somewhat minimal config:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="l l-Scalar l-Scalar-Plain">directory</span><span class="p p-Indicator">:</span> <span class="l l-Scalar l-Scalar-Plain">/var/containers</span>
+<span class="l l-Scalar l-Scalar-Plain">append-only</span><span class="p p-Indicator">:</span> <span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="l l-Scalar l-Scalar-Plain">num-levels</span><span class="p p-Indicator">:</span> <span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="l l-Scalar l-Scalar-Plain">upload-keys</span><span class="p p-Indicator">:</span> <span class="p p-Indicator">[</span><span class="nv">user1</span><span class="p p-Indicator">,</span> <span class="nv">ci2</span><span class="p p-Indicator">]</span>
+</pre></div>
+</div>
+<p>All properties above are required, except <code class="docutils literal notranslate"><span class="pre">upload-keys</span></code>. We may make more
+settings optional later, when more patterns appear.</p>
+<p>Or a longer example with auto-clean enabled:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># /etc/ciruela/configs/project1.yaml</span>
+<span class="l l-Scalar l-Scalar-Plain">directory</span><span class="p p-Indicator">:</span> <span class="l l-Scalar l-Scalar-Plain">/var/containers/project1</span>
+<span class="l l-Scalar l-Scalar-Plain">num-levels</span><span class="p p-Indicator">:</span> <span class="l l-Scalar l-Scalar-Plain">2</span>
+<span class="l l-Scalar l-Scalar-Plain">append-only</span><span class="p p-Indicator">:</span> <span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="l l-Scalar l-Scalar-Plain">auto-clean</span><span class="p p-Indicator">:</span> <span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="l l-Scalar l-Scalar-Plain">keep-min-directories</span><span class="p p-Indicator">:</span> <span class="l l-Scalar l-Scalar-Plain">2</span>
+<span class="l l-Scalar l-Scalar-Plain">keep-max-directories</span><span class="p p-Indicator">:</span> <span class="l l-Scalar l-Scalar-Plain">100</span>
+<span class="l l-Scalar l-Scalar-Plain">keep-recent</span><span class="p p-Indicator">:</span> <span class="l l-Scalar l-Scalar-Plain">1 day</span>
+<span class="l l-Scalar l-Scalar-Plain">keep-list-file</span><span class="p p-Indicator">:</span> <span class="l l-Scalar l-Scalar-Plain">/some/external/system/project1-used-containers.txt</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="options-reference">
+<h2>Options Reference<a class="headerlink" href="#options-reference" title="Permalink to this headline">¶</a></h2>
+<span class="target" id="index-0"></span><dl class="describe">
+<dt>
+<code class="descname">directory</code></dt>
+<dd><p>(required) A base path to a directory where these paths will be placed.
+This directory can be (temporarily) overridden in <code class="docutils literal notranslate"><span class="pre">overrides.yaml</span></code>.</p>
+</dd></dl>
+
+<span class="target" id="append-only"></span><span class="target" id="index-1"></span><dl class="describe">
+<dt>
+<code class="descname">append-only</code></dt>
+<dd><p>(required) If set to <code class="docutils literal notranslate"><span class="pre">true</span></code> uploads will be rejected if a subdirectory
+with same name but different contents will be uploaded. It’s considered
+good design to use <code class="docutils literal notranslate"><span class="pre">append-only:</span> <span class="pre">true</span></code> if possible.</p>
+<p>It only makes sense if <code class="docutils literal notranslate"><span class="pre">num-levels</span></code> is non-zero.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p>Under some circumstances the contents of the uploaded directory
+can be changed as a part of reconciliation of the cluster (i.e. if
+different hosts accepted different contents for the directory).</p>
+<p class="last">So if you have strict requirements you have to use some consistent
+storage to bookkeep contents (ciruela is AP system, meaning it prefers
+availability over consistency).</p>
+</div>
+</dd></dl>
+
+<span class="target" id="index-2"></span><dl class="describe">
+<dt>
+<code class="descname">num-levels</code></dt>
+<dd></dd></dl>
+
+<blockquote id="num-levels">
+<div><p>(required) Number of levels of subdirectories to accept. Zero means no
+subdirectory, meaning the directory has to be atomically uploaded as
+a whole. Zero is useless with <code class="docutils literal notranslate"><span class="pre">append-only:</span> <span class="pre">true</span></code>. Otherwise arbitrary
+positive integer may be specified although some small value like 1, 2 or
+maybe 3 make the most sense.</p>
+<p>Let’s study some use cases:</p>
+<ol class="arabic simple">
+<li><code class="docutils literal notranslate"><span class="pre">/var/containers</span></code> contain directory for containers. Each container
+is <code class="docutils literal notranslate"><span class="pre">/etc/containers/app.v123</span></code>. Set <code class="docutils literal notranslate"><span class="pre">num-levels</span></code> to <code class="docutils literal notranslate"><span class="pre">1</span></code> and
+<code class="docutils literal notranslate"><span class="pre">append-only</span></code> to <code class="docutils literal notranslate"><span class="pre">true</span></code>.</li>
+<li><code class="docutils literal notranslate"><span class="pre">/etc/nginx</span></code> contain nginx configuration. Set <code class="docutils literal notranslate"><span class="pre">num-levels</span></code> to <code class="docutils literal notranslate"><span class="pre">0</span></code>,
+and <code class="docutils literal notranslate"><span class="pre">append-only</span></code> to <code class="docutils literal notranslate"><span class="pre">false</span></code>. In this case you will always upload
+the whole nginx config and it will switch atomically.</li>
+<li><code class="docutils literal notranslate"><span class="pre">/var/indices</span></code> contains multiple indexes of some imaginary replicated
+DB and each index has multiple versions:
+<code class="docutils literal notranslate"><span class="pre">/var/indices/documents/20170101-1653</span></code>. Set <code class="docutils literal notranslate"><span class="pre">num-levels</span></code> to <code class="docutils literal notranslate"><span class="pre">2</span></code>
+and ciruela will automatically create first level directories and will
+atomically update and move second-level directories.</li>
+</ol>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">When <code class="docutils literal notranslate"><span class="pre">num-levels</span></code> is <code class="docutils literal notranslate"><span class="pre">0</span></code> ciruela must be able to write a
+to the parent directory of the <code class="docutils literal notranslate"><span class="pre">directory</span></code>. For example, if you
+want to update <code class="docutils literal notranslate"><span class="pre">/etc/ningx</span></code>, the tool is going to write
+<code class="docutils literal notranslate"><span class="pre">/etc/.tmp.nginx.cr1d2e3a</span></code> then atomically move it to <code class="docutils literal notranslate"><span class="pre">/etc/nginx</span></code>.</p>
+</div>
+</div></blockquote>
+<span class="target" id="index-3"></span><dl class="describe">
+<dt>
+<code class="descname">auto-clean</code></dt>
+<dd><p>(default <code class="docutils literal notranslate"><span class="pre">false</span></code>) Enable cleanup of this directory. Every directory up
+to <code class="docutils literal notranslate"><span class="pre">num_levels-1</span></code> is a separate directory to do cleanup according to
+<code class="docutils literal notranslate"><span class="pre">keep-*</span></code> rules.</p>
+<p>Here is an example of a directory with auto-clean configured:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># /etc/ciruela/configs/project1.yaml</span>
+<span class="l l-Scalar l-Scalar-Plain">directory</span><span class="p p-Indicator">:</span> <span class="l l-Scalar l-Scalar-Plain">/var/containers/project1</span>
+<span class="l l-Scalar l-Scalar-Plain">num-levels</span><span class="p p-Indicator">:</span> <span class="l l-Scalar l-Scalar-Plain">2</span>
+<span class="l l-Scalar l-Scalar-Plain">append-only</span><span class="p p-Indicator">:</span> <span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="l l-Scalar l-Scalar-Plain">auto-clean</span><span class="p p-Indicator">:</span> <span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="l l-Scalar l-Scalar-Plain">keep-min-directories</span><span class="p p-Indicator">:</span> <span class="l l-Scalar l-Scalar-Plain">2</span>
+<span class="l l-Scalar l-Scalar-Plain">keep-max-directories</span><span class="p p-Indicator">:</span> <span class="l l-Scalar l-Scalar-Plain">100</span>
+<span class="l l-Scalar l-Scalar-Plain">keep-recent</span><span class="p p-Indicator">:</span> <span class="l l-Scalar l-Scalar-Plain">1 day</span>
+<span class="l l-Scalar l-Scalar-Plain">keep-list-file</span><span class="p p-Indicator">:</span> <span class="l l-Scalar l-Scalar-Plain">/some/external/system/project1-used-containers.txt</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<span class="target" id="index-4"></span><dl class="describe">
+<dt>
+<code class="descname">keep-list-file</code></dt>
+<dd><p>(optional) Read the file for a list of subdirs to keep in this directory.
+It’s needed to keep external system(s) in sync with expections.</p>
+<p>The file is a directory name per line. If <cite>num-levels</cite> &gt; 1, then the
+path of a directory (<code class="docutils literal notranslate"><span class="pre">dir1/dir</span></code>) per line should be specified.
+Intermediate directories are ignored in this case (empty intermediate
+directories are cleaned when empty).</p>
+<p>Currently, we use the file to skip cleanup of the subdirectories. But we
+will also download the images in the list if new record appears.</p>
+<p>Only used when <cite>auto-clean</cite> is enabled.</p>
+</dd></dl>
+
+<span class="target" id="index-5"></span><dl class="describe">
+<dt>
+<code class="descname">keep-min-directories</code></dt>
+<dd><p>(default <code class="docutils literal notranslate"><span class="pre">2</span></code>) Minimum number of recent subdirectories to keep for this
+directory.</p>
+<p>Only used when <cite>auto-clean</cite> is enabled.</p>
+</dd></dl>
+
+<span class="target" id="index-6"></span><dl class="describe">
+<dt>
+<code class="descname">keep-max-directories</code></dt>
+<dd><p>(default <code class="docutils literal notranslate"><span class="pre">100</span></code>) Maximum number of recent subdirectories to keep for this
+directory.</p>
+<p>Only used when <cite>auto-clean</cite> is enabled.</p>
+</dd></dl>
+
+<span class="target" id="index-7"></span><dl class="describe">
+<dt>
+<code class="descname">keep-recent</code></dt>
+<dd><p>(default <code class="docutils literal notranslate"><span class="pre">2</span> <span class="pre">days</span></code>) Keep directories uploaded within this number of
+days. Recent directories can be cleaned if there are more than
+<code class="docutils literal notranslate"><span class="pre">keep-max-directories</span></code> of them. And older directories are left only if
+there are less than <code class="docutils literal notranslate"><span class="pre">keep-min-directories</span></code> ones which are more recent
+than <code class="docutils literal notranslate"><span class="pre">keep-recent</span></code> setting.</p>
+<p>Note: we track recency of the directory not by upload timestamp on this
+specific machine, but by timestamp used in signature which is created
+when upload was first initiated into a cluster.</p>
+</dd></dl>
+
+</div>
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">Ciruela</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption"><span class="caption-text">User Guide:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../use-cases/index.html">Use Cases</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Configuration</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="daemon.html">Daemon Configuration</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Directory Config</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../client/index.html">Command-line Client Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../compatibility.html">Version Compatibility</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog.html">Ciruela Changes by Version</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Developer Guide:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../protocols/index.html">Network Protocols</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../database/index.html">Storage Bookkeeping and Management</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="index.html">Configuration</a><ul>
+      <li>Previous: <a href="daemon.html" title="previous chapter">Daemon Configuration</a></li>
+      <li>Next: <a href="../client/index.html" title="next chapter">Command-line Client Usage</a></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Paul Colomiets.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.8.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="../_sources/config/directory.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

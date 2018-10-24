@@ -1,0 +1,400 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Websockets Protocol &#8212; Ciruela 0.6.12 documentation</title>
+    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="How Sync Works" href="sync.html" />
+    <link rel="prev" title="Network Protocols" href="index.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="section" id="websockets-protocol">
+<h1>Websockets Protocol<a class="headerlink" href="#websockets-protocol" title="Permalink to this headline">¶</a></h1>
+<p>We use standard websockets handshake with
+<code class="docutils literal notranslate"><span class="pre">Sec-WebSocket-Protocol:</span> <span class="pre">ciruela.v1</span></code> and no extensions.</p>
+<div class="section" id="serialization">
+<h2>Serialization<a class="headerlink" href="#serialization" title="Permalink to this headline">¶</a></h2>
+<p>Payload is serialized using <a class="reference external" href="http://cbor.io/">CBOR</a>. There are three kinds of messages:</p>
+<ol class="arabic simple">
+<li>Request</li>
+<li>Response</li>
+<li>Notification</li>
+</ol>
+<p>All three types of messages can be sent at any time into any direction. Each
+request includes a numeric identifier that is used in corresponding response.
+Each side of the connection can create request identifiers independently.
+Each request has exactly one response. If more than one response is provided
+it’s built by some higher level construct.</p>
+<p>Every message is contiguous, messages can’t interleaved. Protocol has no
+flow control besides what TCP provides. If more concurrency desired than
+multiple connections might be used.</p>
+<p>We will use <a class="reference external" href="https://tools.ietf.org/html/draft-greevenbosch-appsawg-cbor-cddl-09">CDDL</a> for describing message format. Here is the basic
+structure of a message:</p>
+<div class="highlight-cddl notranslate"><div class="highlight"><pre><span></span>message = $message .within message-structure
+
+message-structure = [message-kind, message-type, *any] .and typed-message
+message-kind = &amp;( notification: 0, request: 1, response: 2 )
+message-type = $notification-type / $request-type
+
+typed-message = notification / request / response
+notification = [0, $notification-type, *any]
+request = [1, $request-type, request-id, *any]
+response = [2, $request-type, request-id, *any]
+request-id = uint
+</pre></div>
+</div>
+</div>
+<div class="section" id="signing-uploads">
+<span id="id1"></span><h2>Signing Uploads<a class="headerlink" href="#signing-uploads" title="Permalink to this headline">¶</a></h2>
+<p>Signature of the upload consists of the following fields packed as the
+CBOR length-prefixed array in this specific order:</p>
+<div class="highlight-cddl notranslate"><div class="highlight"><pre><span></span>signature-data = [
+    path: text,      ; destination path
+    image: bytes,    ; binary hashsum of the image (bottom line of the
+                     ; index file but in binary form)
+    timestamp: uint, ; milliseconds since unix epoch when image was signed
+]
+</pre></div>
+</div>
+<p>Ciruela currently only supports ed25519 algorithm for signatures, but more
+alorithms (RSA in particular) can be used in future.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">signature</span></code> itself is an array of at least two arguments with type as
+the first element and rest depends on the signature algorithm:</p>
+<div class="highlight-cddl notranslate"><div class="highlight"><pre><span></span>signature = [&quot;ssh-ed25519&quot;, bytes .size 64]
+</pre></div>
+</div>
+<p>Note: the ed25519 signature includes public key as a part of the signature as
+per standard. Other signatures might require different structure.</p>
+</div>
+<div class="section" id="commands">
+<h2>Commands<a class="headerlink" href="#commands" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="appenddir">
+<span id="index-0"></span><span id="id2"></span><h3>AppendDir<a class="headerlink" href="#appenddir" title="Permalink to this headline">¶</a></h3>
+<p>Schedule a an adding the new directory. This sends only a signed hash of the
+directory index and marks this directory as incoming.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">If different images have been scheduled for upload by different
+peers in the cluster cluster may end up with different images on different
+nodes</p>
+</div>
+<p>If upload for this path and image already exists at node another signature
+is added.</p>
+<p>If there is no such index on the peer it asks this peer or any other available
+connection for the index data itself and subsequently asks for missing chunks
+(some chunks may be reused from different image).</p>
+<p>Content of the message is a dictionary (CBOR object):</p>
+<div class="highlight-cddl notranslate"><div class="highlight"><pre><span></span>$message /= [1, &quot;AppendDir&quot;, request-id, append-dir-params]
+$message /= [2, &quot;AppendDir&quot;, request-id, append-dir-response]
+append-dir-params = {
+    path: text,                 ; path to put image to
+    image: bytes,               ; binary hashsum of the image (bottom line
+                                ; of the index file but in binary form
+    timestamp: uint,            ; milliseconds since the epoch
+    signatures: [+ signature],  ; one or more signatures
+}
+append-dir-response = {
+    accepted: bool,             ; whether directory accepted or not
+    ? reject_reason: text,      ; a machine-parseable reason for rejection
+    ? hosts: {* bytes =&gt; text}, ; hosts that will probably accept the
+                                ; directory
+}
+</pre></div>
+</div>
+<p>Note: <em>accepted</em> response here doesn’t mean that this is new directory (i.e.
+same directory might already be in place or might still be downloaded). Also
+it doesn’t mean that download is already complete. Most probably it isn’t,
+and you should wait for a completion notification.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">hosts</span></code> field may or may be not sent both in case of <code class="docutils literal notranslate"><span class="pre">accepted</span></code> is
+true or not. In the latter case, it might be useful to reconnect to one of
+these hosts. In the former case, we can track <code class="docutils literal notranslate"><span class="pre">ReceiveImage</span></code> messages from
+all these hosts. Note: we transmit machine ids (key in mapping) and host
+names. Client should track notifications by machine_id, but may use name for
+human-readable output. Note2: while in most cases <code class="docutils literal notranslate"><span class="pre">hosts</span></code> will be exhaustive
+list for all clusters it may be not so, if not is just restarted and has not
+picked up all the data in gossip subsystem.</p>
+</div>
+<div class="section" id="replacedir">
+<span id="index-1"></span><span id="id3"></span><h3>ReplaceDir<a class="headerlink" href="#replacedir" title="Permalink to this headline">¶</a></h3>
+<p>Schedule a replacing the directory with the new image. This sends only a
+signed hash of the directory index and marks this directory as incoming.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">If different images have been scheduled for upload by different
+peers in the cluster the one with latest accross the cluster timestamp
+in the signature will win</p>
+</div>
+<p>If there is no such index on the peer it asks this peer or any other available
+connection for the index data itself and subsequently asks for missing chunks
+(some chunks may be reused from different image).</p>
+<div class="highlight-cddl notranslate"><div class="highlight"><pre><span></span>$message /= [1, &quot;ReplaceDir&quot;, request-id, replace-dir-params]
+$message /= [2, &quot;ReplaceDir&quot;, request-id, replace-dir-response]
+replace-dir-params = {
+    path: text,                 ; path to put image to
+    image: bytes,               ; binary hashsum of the image (bottom line
+                                ; of the index file but in binary form)
+    ? old_image: bytes,         ; hash olf the previous image
+    timestamp: uint,            ; milliseconds since the epoch
+    signatures: [+ signature],  ; one or more signatures
+}
+replace-dir-response = {
+    accepted: bool,             ; whether directory accepted or not
+    ? reject_reason: text,      ; a machine-parseable reason for rejection
+    ? hosts: {* bytes =&gt; text}, ; hosts that will probably accept the
+                                ; directory
+}
+</pre></div>
+</div>
+<p>Note: if no <code class="docutils literal notranslate"><span class="pre">old_image</span></code> is specified the destination directory is not
+checked. Use <code class="docutils literal notranslate"><span class="pre">AppendDir</span></code> to atomically update first image.</p>
+<p>See <a class="reference internal" href="#appenddir">AppendDir</a> for the explanation of <code class="docutils literal notranslate"><span class="pre">hosts</span></code> usage.</p>
+</div>
+<div class="section" id="publishimage">
+<span id="index-2"></span><span id="id4"></span><h3>PublishImage<a class="headerlink" href="#publishimage" title="Permalink to this headline">¶</a></h3>
+<p>Notifies peer that this host has data for the specified index. This is usually
+executed before <code class="docutils literal notranslate"><span class="pre">AppendDir</span></code>, so that when receiving latter command server
+is already aware where to fetch data from.</p>
+<div class="highlight-cddl notranslate"><div class="highlight"><pre><span></span>$message /= [0, &quot;PublishImage&quot;, publish-index-params]
+publish-image-params = {
+    id: bytes,               ; binary hashsum of the image (bottom line
+                             ; of the index file but in binary form)
+}
+</pre></div>
+</div>
+<p>This notification basically means that peer can issue <code class="docutils literal notranslate"><span class="pre">GetIndex</span></code> in
+backwards direction.</p>
+</div>
+<div class="section" id="receivedimage">
+<h3>ReceivedImage<a class="headerlink" href="#receivedimage" title="Permalink to this headline">¶</a></h3>
+<p>Notifies peer that some host (maybe this one, or other peer) received
+and commited this image. The notification is usually sent after
+<code class="docutils literal notranslate"><span class="pre">PublishImage</span></code> for the specified id.</p>
+<p>The notification can be used by cicuela command-line client to determine that
+at least one host (or at least N hosts) received the image and it’s safe to
+disconnect from the network and also to display progress.</p>
+<div class="highlight-cddl notranslate"><div class="highlight"><pre><span></span>$message /= [0, &quot;ReceivedImage&quot;, received-image-params]
+received-image-params = {
+    id: bytes,               ; binary hashsum of the image (bottom line
+                             ; of the index file but in binary form)
+    path: text,              ; path where image was stored
+    machine_id: bytes,       ; machine-id of the receiver
+    hostname: text,          ; hostname of the receiver
+    forwarded: bool,         ; whether message originated from this host
+                             ; or forwarded
+}
+</pre></div>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">forwarded</span></code> field might be used to skip check on <code class="docutils literal notranslate"><span class="pre">hostname</span></code> field.</p>
+</div>
+<div class="section" id="abortedimage">
+<h3>AbortedImage<a class="headerlink" href="#abortedimage" title="Permalink to this headline">¶</a></h3>
+<p>Notifies peer that some host (maybe this one, or other peer) have aborted
+receiving this image. The notification is usually sent after
+<code class="docutils literal notranslate"><span class="pre">PublishImage</span></code> for the specified id.</p>
+<p>The notification can be used by cicuela command-line client to notify that
+image can’t be written for some reason, or to determine when
+it’s find to retry upload in case of <code class="docutils literal notranslate"><span class="pre">already_uploading_different_version</span></code>
+(<code class="docutils literal notranslate"><span class="pre">-x</span></code> flag of CLI).</p>
+<div class="highlight-cddl notranslate"><div class="highlight"><pre><span></span>$message /= [0, &quot;AbortedImage&quot;, aborted-image-params]
+aborted-image-params = {
+    id: bytes,               ; binary hashsum of the image (bottom line
+                             ; of the index file but in binary form)
+    path: text,              ; path where image was stored
+    machine_id: bytes,       ; machine-id of the receiver
+    hostname: text,          ; hostname of the receiver
+    forwarded: bool,         ; whether message originated from this host
+                             ; or forwarded
+    reason: text,            ; reason of why image was aborted
+}
+</pre></div>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">forwarded</span></code> field might be used to skip check on <code class="docutils literal notranslate"><span class="pre">hostname</span></code> field.</p>
+</div>
+<div class="section" id="getindex">
+<h3>GetIndex<a class="headerlink" href="#getindex" title="Permalink to this headline">¶</a></h3>
+<p>Fetch an index data by it’s hash. This method is usually called by server
+after <cite>AppendDir</cite> and <cite>ReplaceDir</cite> has been received. And it is sent to
+the original client (in backwards direction). But the call only takes place
+if no index already exists on this host or on one of the peers.</p>
+<div class="highlight-cddl notranslate"><div class="highlight"><pre><span></span>$message /= [1, &quot;GetIndex&quot;, request-id, get-index-params]
+$message /= [2, &quot;GetIndex&quot;, request-id, get-index-response]
+get-index-params = {
+    id: bytes,               ; binary hashsum of the image (bottom line
+                             ; of the index file but in binary form)
+    ? hint: text             ; virtual_path where index can be found
+}
+get-index-response = {
+    ? data: bytes,           ; full original index file
+}
+</pre></div>
+</div>
+<p>Note: index file can potentially be in different formats, but in any case:</p>
+<ul class="simple">
+<li>Consistency of index file is verified by original <cite>id</cite> which is also a
+checksum</li>
+<li>Kind of index can be detected by inspecting data itself (i.e. first bytes of
+index file should contain a signature of some kind)</li>
+</ul>
+<p>Note 2: server implementation can ignore or can use <code class="docutils literal notranslate"><span class="pre">hint</span></code> value, client
+implementation can supply or can skip <code class="docutils literal notranslate"><span class="pre">hint</span></code>. Current state is:
+<code class="docutils literal notranslate"><span class="pre">ciruela</span> <span class="pre">upload</span></code> does not use hint, while <code class="docutils literal notranslate"><span class="pre">ciruela-server</span></code> always sends
+but never uses a hint value (still, the virtual path where index resides
+is used internally, so it may become useful in future if we will ever forward
+the <code class="docutils literal notranslate"><span class="pre">GetIndex</span></code> requests)</p>
+</div>
+<div class="section" id="getindexat">
+<h3>GetIndexAt<a class="headerlink" href="#getindexat" title="Permalink to this headline">¶</a></h3>
+<p>Fetch an index data by it’s path. It’s usually used to download image by a
+client (perhaps to execute modify and update cycle).</p>
+<p>Note: image id is a part of index data so is not provided separately.</p>
+<div class="highlight-cddl notranslate"><div class="highlight"><pre><span></span>$message /= [1, &quot;GetIndexAt&quot;, request-id, get-index-at-params]
+$message /= [2, &quot;GetIndexAt&quot;, request-id, get-index-at-response]
+get-index-at-params = {
+    path: text                  ; virtual_path to check image at
+}
+get-index-at-response = {
+    ? data: bytes,              ; full original index file
+    ? hosts: {* bytes =&gt; text}, ; hosts that contain a directory
+}
+</pre></div>
+</div>
+<p>The index file returned is a similar way to <code class="docutils literal notranslate"><span class="pre">GetIndex</span></code>. If there is no
+such config response may include a list of hosts to search for a directory
+at. Similarly to how it’s done in <code class="docutils literal notranslate"><span class="pre">AppendDir</span></code> and <code class="docutils literal notranslate"><span class="pre">ReplaceDir</span></code>.</p>
+</div>
+<div class="section" id="getblock">
+<h3>GetBlock<a class="headerlink" href="#getblock" title="Permalink to this headline">¶</a></h3>
+<p>Fetch a block with specified hash.</p>
+<div class="highlight-cddl notranslate"><div class="highlight"><pre><span></span>$message /= [1, &quot;GetBlock&quot;, request-id, get-block-params]
+$message /= [2, &quot;GetBlock&quot;, request-id, get-block-response]
+get-block-params = {
+    hash: bytes,                ; binary hashsum of the block
+    ? hint: [text, text, uint], ; virtual_path, path, and position where
+                                ; the blocks can be found found
+}
+get-block-response = {
+    ? data: bytes,           ; full original index file
+}
+</pre></div>
+</div>
+<p>Note: server implementation can ignore or can use <code class="docutils literal notranslate"><span class="pre">hint</span></code> value, client
+implementation can supply or can skip <code class="docutils literal notranslate"><span class="pre">hint</span></code>. Current state is:
+<code class="docutils literal notranslate"><span class="pre">ciruela</span> <span class="pre">upload</span></code> does not use hint, while <code class="docutils literal notranslate"><span class="pre">ciruela-server</span></code> always sends
+and uses a hint value.</p>
+</div>
+</div>
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">Ciruela</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption"><span class="caption-text">User Guide:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../use-cases/index.html">Use Cases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../config/index.html">Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../client/index.html">Command-line Client Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../compatibility.html">Version Compatibility</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog.html">Ciruela Changes by Version</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Developer Guide:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Network Protocols</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Websockets Protocol</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sync.html">How Sync Works</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../database/index.html">Storage Bookkeeping and Management</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="index.html">Network Protocols</a><ul>
+      <li>Previous: <a href="index.html" title="previous chapter">Network Protocols</a></li>
+      <li>Next: <a href="sync.html" title="next chapter">How Sync Works</a></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Paul Colomiets.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.8.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="../_sources/protocols/websocket.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

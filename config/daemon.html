@@ -1,0 +1,168 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Daemon Configuration &#8212; Ciruela 0.6.12 documentation</title>
+    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Directory Config" href="directory.html" />
+    <link rel="prev" title="Configuration" href="index.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="section" id="daemon-configuration">
+<h1>Daemon Configuration<a class="headerlink" href="#daemon-configuration" title="Permalink to this headline">¶</a></h1>
+<p>Default configuration directory is <code class="docutils literal notranslate"><span class="pre">/etc/ciruela</span></code> it’s structure looks
+like this:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>/etc/ciruela
+├── master.key   <span class="c1"># optional</span>
+├── peers.txt    <span class="c1"># optional</span>
+├── configs
+│   ├── dir1.yaml
+│   └── dir2.yaml
+└── keys
+    ├── key-of-admins.key
+    ├── key-of-gitlab.key
+    ├── project1.key
+    └── project2.key
+</pre></div>
+</div>
+<p>More specifically:</p>
+<dl class="docutils">
+<dt><code class="docutils literal notranslate"><span class="pre">master.key</span></code></dt>
+<dd>a plain-text list of master keys for this server. Master key is that might
+be used to upload data to any directory. On production deploymejnts
+master keys are rarely used. Format is similar to <code class="docutils literal notranslate"><span class="pre">authorized_keys</span></code>
+of SSH daemon (just keys no parameters): one line per key, arbitrary
+comment a the end.</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">keys/*.key</span></code></dt>
+<dd>key files that might be used in configs, any key file may contain multiple
+keys (similarly to <code class="docutils literal notranslate"><span class="pre">master.key</span></code> or <code class="docutils literal notranslate"><span class="pre">authorized_keys</span></code>) and any of them
+might be used when this name is specified in directory config</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">configs/*.yaml</span></code></dt>
+<dd>a config per directory. I.e. if there is <code class="docutils literal notranslate"><span class="pre">dir1.yaml</span></code>, this means you can
+upload to <code class="docutils literal notranslate"><span class="pre">/dir1/something...</span></code>. See <a class="reference internal" href="directory.html#directory-config"><span class="std std-ref">Directory Config</span></a> for more
+information.</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">peers.txt</span></code></dt>
+<dd>plain list of IP addresses and hostnames to distribute files too, only
+used/needed if <code class="docutils literal notranslate"><span class="pre">--cantal</span></code> command-line option is not specified.</dd>
+</dl>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">All configs are reloaded only on restart of the server. Restarting
+should be seamless if doesn’t happen to often (if there is upload in
+progress, client should reconnect and continue gracefully).</p>
+</div>
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">Ciruela</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption"><span class="caption-text">User Guide:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../use-cases/index.html">Use Cases</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Configuration</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Daemon Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="directory.html">Directory Config</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../client/index.html">Command-line Client Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../compatibility.html">Version Compatibility</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog.html">Ciruela Changes by Version</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Developer Guide:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../protocols/index.html">Network Protocols</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../database/index.html">Storage Bookkeeping and Management</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="index.html">Configuration</a><ul>
+      <li>Previous: <a href="index.html" title="previous chapter">Configuration</a></li>
+      <li>Next: <a href="directory.html" title="next chapter">Directory Config</a></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Paul Colomiets.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.8.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="../_sources/config/daemon.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
