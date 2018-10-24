@@ -28,12 +28,12 @@ use tokio_core::reactor::Timeout;
 use tracking::Tracking;
 
 
-/// Retry just 30 seconds
+/// Retry just 90 seconds
 ///
 /// In case there is no place to download image it's safe to cancel it as
 /// there's not much work already started. If image appears again it will be
 /// uploaded by client or pushed by reconciliation algorithm again.
-const RETRY_FOR: Duration = Duration::from_secs(30);
+const RETRY_FOR: Duration = Duration::from_secs(90);
 const RETRY_TIMEOUT: Duration = Duration::from_secs(1);
 
 lazy_static! {
