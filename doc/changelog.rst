@@ -7,6 +7,7 @@ Ciruela Changes by Version
 Ciruela 0.6.12
 --------------
 
+* Timeout for "index download" changed from 30 - 90 seconds
 * Bugfix: if there is a file at destination location of the download, remove
   it (previously failed on ``NotADirectory`` error)
 
